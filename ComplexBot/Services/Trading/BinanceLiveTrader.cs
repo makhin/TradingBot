@@ -173,7 +173,7 @@ public class BinanceLiveTrader : IDisposable
             );
             
             _candleBuffer.Add(candle);
-            _strategy.Analyze(candle, _currentPosition);
+            _strategy.Analyze(candle, _currentPosition, _settings.Symbol);
         }
 
         Log($"Warmed up with {klines.Data.Count()} candles");
@@ -208,7 +208,7 @@ public class BinanceLiveTrader : IDisposable
         await CheckStopLossAsync(candle);
 
         // Analyze for signals
-        var signal = _strategy.Analyze(candle, _currentPosition);
+        var signal = _strategy.Analyze(candle, _currentPosition, _settings.Symbol);
 
         if (signal != null)
         {

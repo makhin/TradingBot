@@ -20,6 +20,7 @@ public class ParameterOptimizer
 
     public OptimizationResult Optimize(
         List<Candle> candles,
+        string symbol,
         RiskSettings riskSettings,
         BacktestSettings backtestSettings,
         IProgress<OptimizationProgress>? progress = null)
@@ -43,7 +44,7 @@ public class ParameterOptimizer
             // Test on in-sample data
             var strategy = new AdxTrendStrategy(parameters);
             var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
-            var isResult = engine.Run(inSampleData);
+            var isResult = engine.Run(inSampleData, symbol);
 
             // Skip if not enough trades
             if (isResult.Metrics.TotalTrades < _settings.MinTrades)
@@ -52,7 +53,7 @@ public class ParameterOptimizer
             // Test on out-of-sample data
             var oosStrategy = new AdxTrendStrategy(parameters);
             var oosEngine = new BacktestEngine(oosStrategy, riskSettings, backtestSettings);
-            var oosResult = oosEngine.Run(outOfSampleData);
+            var oosResult = oosEngine.Run(outOfSampleData, symbol);
 
             results.Add(new ParameterSetResult(
                 parameters,

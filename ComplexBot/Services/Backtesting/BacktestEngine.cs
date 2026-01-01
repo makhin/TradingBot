@@ -17,7 +17,7 @@ public class BacktestEngine
         _riskManager = new RiskManager(riskSettings, _settings.InitialCapital);
     }
 
-    public BacktestResult Run(List<Candle> candles)
+    public BacktestResult Run(List<Candle> candles, string symbol)
     {
         _strategy.Reset();
         _riskManager.ClearPositions();
@@ -66,6 +66,7 @@ public class BacktestEngine
                     pnl -= CalculateFees(exitPrice, Math.Abs(position));
 
                     trades.Add(new Trade(
+                        symbol,
                         entryTime!.Value, candle.OpenTime,
                         entryPrice!.Value, exitPrice,
                         Math.Abs(position), direction!.Value,
@@ -101,6 +102,7 @@ public class BacktestEngine
                     pnl -= CalculateFees(exitPrice, Math.Abs(position));
 
                     trades.Add(new Trade(
+                        symbol,
                         entryTime!.Value, candle.OpenTime,
                         entryPrice!.Value, exitPrice,
                         Math.Abs(position), direction!.Value,
@@ -119,7 +121,7 @@ public class BacktestEngine
             }
 
             // Get strategy signal
-            var signal = _strategy.Analyze(candle, position);
+            var signal = _strategy.Analyze(candle, position, symbol);
 
             if (signal != null)
             {
@@ -135,6 +137,7 @@ public class BacktestEngine
                             pnl -= CalculateFees(exitPrice, Math.Abs(position));
 
                             trades.Add(new Trade(
+                                symbol,
                                 entryTime!.Value, candle.OpenTime,
                                 entryPrice!.Value, exitPrice,
                                 Math.Abs(position), TradeDirection.Short,
@@ -159,7 +162,7 @@ public class BacktestEngine
                                 takeProfit = signal.TakeProfit;
                                 direction = TradeDirection.Long;
                                 entryTime = candle.OpenTime;
-                                _riskManager.AddPosition("BTCUSDT", position, sizing.RiskAmount, 
+                                _riskManager.AddPosition(symbol, position, sizing.RiskAmount, 
                                     adjustedEntryPrice, signal.StopLoss.Value);
                             }
                         }
@@ -175,6 +178,7 @@ public class BacktestEngine
                             pnl -= CalculateFees(exitPrice, position);
 
                             trades.Add(new Trade(
+                                symbol,
                                 entryTime!.Value, candle.OpenTime,
                                 entryPrice!.Value, exitPrice,
                                 position, TradeDirection.Long,
@@ -199,7 +203,7 @@ public class BacktestEngine
                                 takeProfit = signal.TakeProfit;
                                 direction = TradeDirection.Short;
                                 entryTime = candle.OpenTime;
-                                _riskManager.AddPosition("BTCUSDT", sizing.Quantity, sizing.RiskAmount,
+                                _riskManager.AddPosition(symbol, sizing.Quantity, sizing.RiskAmount,
                                     adjustedEntryPrice, signal.StopLoss.Value);
                             }
                         }
@@ -215,6 +219,7 @@ public class BacktestEngine
                         exitPnl -= CalculateFees(exitPriceOnSignal, Math.Abs(position));
 
                         trades.Add(new Trade(
+                            symbol,
                             entryTime!.Value, candle.OpenTime,
                             entryPrice!.Value, exitPriceOnSignal,
                             Math.Abs(position), direction!.Value,
@@ -247,6 +252,7 @@ public class BacktestEngine
             finalPnl -= CalculateFees(finalExitPrice, Math.Abs(position));
 
             trades.Add(new Trade(
+                symbol,
                 entryTime!.Value, lastCandle.CloseTime,
                 entryPrice!.Value, finalExitPrice,
                 Math.Abs(position), direction!.Value,
