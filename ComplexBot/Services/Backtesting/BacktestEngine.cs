@@ -26,6 +26,7 @@ public class BacktestEngine
         decimal position = 0;
         decimal? entryPrice = null;
         decimal? stopLoss = null;
+        decimal? takeProfit = null;
         DateTime? entryTime = null;
         TradeDirection? direction = null;
 
@@ -56,7 +57,7 @@ public class BacktestEngine
 
                 if (stopHit)
                 {
-                    decimal exitPrice = stopLoss.Value;
+                    decimal exitPrice = ApplySlippage(stopLoss.Value, direction!.Value, isEntry: false);
                     decimal pnl = direction == TradeDirection.Long
                         ? (exitPrice - entryPrice!.Value) * Math.Abs(position)
                         : (entryPrice!.Value - exitPrice) * Math.Abs(position);
@@ -68,13 +69,49 @@ public class BacktestEngine
                         entryTime!.Value, candle.OpenTime,
                         entryPrice!.Value, exitPrice,
                         Math.Abs(position), direction!.Value,
-                        stopLoss, null, "Stop Loss"
+                        stopLoss, takeProfit, "Stop Loss"
                     ));
 
                     capital += pnl;
                     position = 0;
                     entryPrice = null;
                     stopLoss = null;
+                    takeProfit = null;
+                    direction = null;
+                    entryTime = null;
+                    _riskManager.ClearPositions();
+                }
+            }
+
+            // Check for take profit hit (simulate intra-bar)
+            if (position != 0 && takeProfit.HasValue)
+            {
+                bool targetHit = direction == TradeDirection.Long
+                    ? candle.High >= takeProfit.Value
+                    : candle.Low <= takeProfit.Value;
+
+                if (targetHit)
+                {
+                    decimal exitPrice = ApplySlippage(takeProfit.Value, direction!.Value, isEntry: false);
+                    decimal pnl = direction == TradeDirection.Long
+                        ? (exitPrice - entryPrice!.Value) * Math.Abs(position)
+                        : (entryPrice!.Value - exitPrice) * Math.Abs(position);
+
+                    pnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
+                    pnl -= CalculateFees(exitPrice, Math.Abs(position));
+
+                    trades.Add(new Trade(
+                        entryTime!.Value, candle.OpenTime,
+                        entryPrice!.Value, exitPrice,
+                        Math.Abs(position), direction!.Value,
+                        stopLoss, takeProfit, "Take Profit"
+                    ));
+
+                    capital += pnl;
+                    position = 0;
+                    entryPrice = null;
+                    stopLoss = null;
+                    takeProfit = null;
                     direction = null;
                     entryTime = null;
                     _riskManager.ClearPositions();
@@ -92,15 +129,16 @@ public class BacktestEngine
                         // Close short if exists
                         if (position < 0)
                         {
-                            decimal pnl = (entryPrice!.Value - candle.Close) * Math.Abs(position);
+                            decimal exitPrice = ApplySlippage(candle.Close, TradeDirection.Short, isEntry: false);
+                            decimal pnl = (entryPrice!.Value - exitPrice) * Math.Abs(position);
                             pnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
-                            pnl -= CalculateFees(candle.Close, Math.Abs(position));
+                            pnl -= CalculateFees(exitPrice, Math.Abs(position));
 
                             trades.Add(new Trade(
                                 entryTime!.Value, candle.OpenTime,
-                                entryPrice!.Value, candle.Close,
+                                entryPrice!.Value, exitPrice,
                                 Math.Abs(position), TradeDirection.Short,
-                                stopLoss, signal.TakeProfit, "Signal Reversal"
+                                stopLoss, takeProfit, "Signal Reversal"
                             ));
                             capital += pnl;
                         }
@@ -108,19 +146,21 @@ public class BacktestEngine
                         // Open long if risk allows
                         if (_riskManager.CanOpenPosition() && signal.StopLoss.HasValue)
                         {
+                            decimal adjustedEntryPrice = ApplySlippage(candle.Close, TradeDirection.Long, isEntry: true);
                             var sizing = _riskManager.CalculatePositionSize(
-                                candle.Close, signal.StopLoss.Value,
+                                adjustedEntryPrice, signal.StopLoss.Value,
                                 (_strategy as AdxTrendStrategy)?.CurrentAtr);
 
                             if (sizing.Quantity > 0)
                             {
                                 position = sizing.Quantity;
-                                entryPrice = candle.Close;
+                                entryPrice = adjustedEntryPrice;
                                 stopLoss = signal.StopLoss;
+                                takeProfit = signal.TakeProfit;
                                 direction = TradeDirection.Long;
                                 entryTime = candle.OpenTime;
                                 _riskManager.AddPosition("BTCUSDT", position, sizing.RiskAmount, 
-                                    candle.Close, signal.StopLoss.Value);
+                                    adjustedEntryPrice, signal.StopLoss.Value);
                             }
                         }
                         break;
@@ -129,15 +169,16 @@ public class BacktestEngine
                         // Close long if exists
                         if (position > 0)
                         {
-                            decimal pnl = (candle.Close - entryPrice!.Value) * position;
+                            decimal exitPrice = ApplySlippage(candle.Close, TradeDirection.Long, isEntry: false);
+                            decimal pnl = (exitPrice - entryPrice!.Value) * position;
                             pnl -= CalculateFees(entryPrice!.Value, position);
-                            pnl -= CalculateFees(candle.Close, position);
+                            pnl -= CalculateFees(exitPrice, position);
 
                             trades.Add(new Trade(
                                 entryTime!.Value, candle.OpenTime,
-                                entryPrice!.Value, candle.Close,
+                                entryPrice!.Value, exitPrice,
                                 position, TradeDirection.Long,
-                                stopLoss, signal.TakeProfit, "Signal Reversal"
+                                stopLoss, takeProfit, "Signal Reversal"
                             ));
                             capital += pnl;
                         }
@@ -145,42 +186,46 @@ public class BacktestEngine
                         // Open short if risk allows
                         if (_riskManager.CanOpenPosition() && signal.StopLoss.HasValue)
                         {
+                            decimal adjustedEntryPrice = ApplySlippage(candle.Close, TradeDirection.Short, isEntry: true);
                             var sizing = _riskManager.CalculatePositionSize(
-                                candle.Close, signal.StopLoss.Value,
+                                adjustedEntryPrice, signal.StopLoss.Value,
                                 (_strategy as AdxTrendStrategy)?.CurrentAtr);
 
                             if (sizing.Quantity > 0)
                             {
                                 position = -sizing.Quantity;
-                                entryPrice = candle.Close;
+                                entryPrice = adjustedEntryPrice;
                                 stopLoss = signal.StopLoss;
+                                takeProfit = signal.TakeProfit;
                                 direction = TradeDirection.Short;
                                 entryTime = candle.OpenTime;
                                 _riskManager.AddPosition("BTCUSDT", sizing.Quantity, sizing.RiskAmount,
-                                    candle.Close, signal.StopLoss.Value);
+                                    adjustedEntryPrice, signal.StopLoss.Value);
                             }
                         }
                         break;
 
                     case SignalType.Exit when position != 0:
+                        decimal exitPriceOnSignal = ApplySlippage(candle.Close, direction!.Value, isEntry: false);
                         decimal exitPnl = direction == TradeDirection.Long
-                            ? (candle.Close - entryPrice!.Value) * Math.Abs(position)
-                            : (entryPrice!.Value - candle.Close) * Math.Abs(position);
+                            ? (exitPriceOnSignal - entryPrice!.Value) * Math.Abs(position)
+                            : (entryPrice!.Value - exitPriceOnSignal) * Math.Abs(position);
                         
                         exitPnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
-                        exitPnl -= CalculateFees(candle.Close, Math.Abs(position));
+                        exitPnl -= CalculateFees(exitPriceOnSignal, Math.Abs(position));
 
                         trades.Add(new Trade(
                             entryTime!.Value, candle.OpenTime,
-                            entryPrice!.Value, candle.Close,
+                            entryPrice!.Value, exitPriceOnSignal,
                             Math.Abs(position), direction!.Value,
-                            stopLoss, null, signal.Reason
+                            stopLoss, takeProfit, signal.Reason
                         ));
 
                         capital += exitPnl;
                         position = 0;
                         entryPrice = null;
                         stopLoss = null;
+                        takeProfit = null;
                         direction = null;
                         entryTime = null;
                         _riskManager.ClearPositions();
@@ -193,18 +238,19 @@ public class BacktestEngine
         if (position != 0 && candles.Count > 0)
         {
             var lastCandle = candles[^1];
+            decimal finalExitPrice = ApplySlippage(lastCandle.Close, direction!.Value, isEntry: false);
             decimal finalPnl = direction == TradeDirection.Long
-                ? (lastCandle.Close - entryPrice!.Value) * Math.Abs(position)
-                : (entryPrice!.Value - lastCandle.Close) * Math.Abs(position);
+                ? (finalExitPrice - entryPrice!.Value) * Math.Abs(position)
+                : (entryPrice!.Value - finalExitPrice) * Math.Abs(position);
             
             finalPnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
-            finalPnl -= CalculateFees(lastCandle.Close, Math.Abs(position));
+            finalPnl -= CalculateFees(finalExitPrice, Math.Abs(position));
 
             trades.Add(new Trade(
                 entryTime!.Value, lastCandle.CloseTime,
-                entryPrice!.Value, lastCandle.Close,
+                entryPrice!.Value, finalExitPrice,
                 Math.Abs(position), direction!.Value,
-                stopLoss, null, "End of Backtest"
+                stopLoss, takeProfit, "End of Backtest"
             ));
             capital += finalPnl;
         }
@@ -229,6 +275,14 @@ public class BacktestEngine
     private decimal CalculateFees(decimal price, decimal quantity)
     {
         return price * quantity * _settings.CommissionPercent / 100;
+    }
+
+    private decimal ApplySlippage(decimal price, TradeDirection direction, bool isEntry)
+    {
+        decimal slippageAmount = price * _settings.SlippagePercent / 100;
+        bool isBuy = (direction == TradeDirection.Long && isEntry)
+            || (direction == TradeDirection.Short && !isEntry);
+        return isBuy ? price + slippageAmount : price - slippageAmount;
     }
 
     private PerformanceMetrics CalculateMetrics(
