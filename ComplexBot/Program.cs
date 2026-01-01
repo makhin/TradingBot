@@ -72,7 +72,7 @@ class Program
         var strategy = new AdxTrendStrategy(strategySettings);
         var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
 
-        BacktestResult result;
+        BacktestResult result = null!;
         await AnsiConsole.Status()
             .StartAsync("Running backtest...", async ctx =>
             {
@@ -80,7 +80,6 @@ class Program
                 await Task.CompletedTask;
             });
 
-        result = engine.Run(candles);
         DisplayBacktestResults(result);
     }
 
