@@ -341,6 +341,12 @@ public class BinanceLiveTrader : IDisposable
             _entryPrice = price;
             _stopLoss = stopLoss;
             _takeProfit = takeProfit;
+            _riskManager.AddPosition(
+                _settings.Symbol,
+                Math.Abs(_currentPosition),
+                Math.Abs(price - stopLoss) * quantity,
+                price,
+                stopLoss);
 
             var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
             Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}{takeProfitText}");
@@ -449,7 +455,7 @@ public class BinanceLiveTrader : IDisposable
         _entryPrice = null;
         _stopLoss = null;
         _takeProfit = null;
-        _riskManager.ClearPositions();
+        _riskManager.RemovePosition(_settings.Symbol);
     }
 
     private decimal CalculateTradingCosts(decimal entryPrice, decimal exitPrice, decimal quantity)
