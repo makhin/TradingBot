@@ -120,8 +120,10 @@ public class AdxTrendStrategy : IStrategy
         decimal longTakeProfit = candle.Close + (atr * _settings.AtrStopMultiplier * _settings.TakeProfitMultiplier);
         decimal shortTakeProfit = candle.Close - (atr * _settings.AtrStopMultiplier * _settings.TakeProfitMultiplier);
 
-        // Long entry: Fast EMA > Slow EMA + +DI > -DI + MACD bullish + volume/OBV confirmed
-        if (fastEma > slowEma && plusDi > minusDi && macdBullish && volumeConfirmed && obvBullish)
+        bool entryFreshTrendOk = !_settings.RequireFreshTrend || freshTrend;
+
+        // Long entry: Fast EMA > Slow EMA + +DI > -DI + MACD bullish + volume/OBV confirmed + optional fresh trend
+        if (fastEma > slowEma && plusDi > minusDi && macdBullish && volumeConfirmed && obvBullish && entryFreshTrendOk)
         {
             _entryPrice = candle.Close;
             _highestSinceEntry = candle.High;
@@ -133,12 +135,12 @@ public class AdxTrendStrategy : IStrategy
                 candle.Close,
                 longStop,
                 longTakeProfit,
-                $"Long: ADX={adx:F1}, +DI={plusDi:F1}>{minusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x"
+                $"Long: ADX={adx:F1}, +DI={plusDi:F1}>{minusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x{(_settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
             );
         }
 
-        // Short entry: Fast EMA < Slow EMA + -DI > +DI + MACD bearish + volume/OBV confirmed
-        if (fastEma < slowEma && minusDi > plusDi && macdBearish && volumeConfirmed && obvBearish)
+        // Short entry: Fast EMA < Slow EMA + -DI > +DI + MACD bearish + volume/OBV confirmed + optional fresh trend
+        if (fastEma < slowEma && minusDi > plusDi && macdBearish && volumeConfirmed && obvBearish && entryFreshTrendOk)
         {
             _entryPrice = candle.Close;
             _lowestSinceEntry = candle.Low;
@@ -150,7 +152,7 @@ public class AdxTrendStrategy : IStrategy
                 candle.Close,
                 shortStop,
                 shortTakeProfit,
-                $"Short: ADX={adx:F1}, -DI={minusDi:F1}>{plusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x"
+                $"Short: ADX={adx:F1}, -DI={minusDi:F1}>{plusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x{(_settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
             );
         }
 
@@ -238,6 +240,7 @@ public record StrategySettings
     public int AdxPeriod { get; init; } = 14;
     public decimal AdxThreshold { get; init; } = 25m;  // Entry: ADX > 25
     public decimal AdxExitThreshold { get; init; } = 18m;  // Exit: ADX < 18
+    public bool RequireFreshTrend { get; init; } = false;
     
     // EMA settings (research: 20/50 optimal for medium-term)
     public int FastEmaPeriod { get; init; } = 20;
