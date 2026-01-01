@@ -23,6 +23,7 @@ public class BinanceLiveTrader : IDisposable
     private decimal _currentPosition;
     private decimal? _entryPrice;
     private decimal? _stopLoss;
+    private decimal? _takeProfit;
     private decimal _paperEquity;
     private bool _isRunning;
     private UpdateSubscription? _subscription;
@@ -211,7 +212,8 @@ public class BinanceLiveTrader : IDisposable
         while (_candleBuffer.Count > _settings.WarmupCandles * 2)
             _candleBuffer.RemoveAt(0);
 
-        // Check stop loss on current candle
+        // Check stop loss/take profit on current candle
+        await CheckTakeProfitAsync(candle);
         await CheckStopLossAsync(candle);
 
         // Analyze for signals
@@ -241,6 +243,21 @@ public class BinanceLiveTrader : IDisposable
         }
     }
 
+    private async Task CheckTakeProfitAsync(Candle candle)
+    {
+        if (_currentPosition == 0 || !_takeProfit.HasValue) return;
+
+        bool takeProfitHit = _currentPosition > 0
+            ? candle.High >= _takeProfit.Value
+            : candle.Low <= _takeProfit.Value;
+
+        if (takeProfitHit)
+        {
+            Log($"Take profit triggered at {_takeProfit:F2}");
+            await ClosePositionAsync("Take Profit");
+        }
+    }
+
     private async Task ProcessSignalAsync(TradeSignal signal, Candle candle)
     {
         switch (signal.Type)
@@ -258,7 +275,12 @@ public class BinanceLiveTrader : IDisposable
                     );
 
                     if (sizing.Quantity > 0)
-                        await OpenPositionAsync(TradeDirection.Long, sizing.Quantity, candle.Close, signal.StopLoss.Value);
+                        await OpenPositionAsync(
+                            TradeDirection.Long,
+                            sizing.Quantity,
+                            candle.Close,
+                            signal.StopLoss.Value,
+                            signal.TakeProfit);
                 }
                 break;
 
@@ -275,7 +297,12 @@ public class BinanceLiveTrader : IDisposable
                     );
 
                     if (sizing.Quantity > 0)
-                        await OpenPositionAsync(TradeDirection.Short, sizing.Quantity, candle.Close, signal.StopLoss.Value);
+                        await OpenPositionAsync(
+                            TradeDirection.Short,
+                            sizing.Quantity,
+                            candle.Close,
+                            signal.StopLoss.Value,
+                            signal.TakeProfit);
                 }
                 break;
 
@@ -285,7 +312,12 @@ public class BinanceLiveTrader : IDisposable
         }
     }
 
-    private async Task OpenPositionAsync(TradeDirection direction, decimal quantity, decimal price, decimal stopLoss)
+    private async Task OpenPositionAsync(
+        TradeDirection direction,
+        decimal quantity,
+        decimal price,
+        decimal stopLoss,
+        decimal? takeProfit)
     {
         if (_settings.TradingMode == TradingMode.Spot && direction == TradeDirection.Short)
         {
@@ -308,8 +340,10 @@ public class BinanceLiveTrader : IDisposable
             _currentPosition = direction == TradeDirection.Long ? quantity : -quantity;
             _entryPrice = price;
             _stopLoss = stopLoss;
-            
-            Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}");
+            _takeProfit = takeProfit;
+
+            var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
+            Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}{takeProfitText}");
         }
         else
         {
@@ -334,11 +368,13 @@ public class BinanceLiveTrader : IDisposable
                 _currentPosition = direction == TradeDirection.Long ? quantity : -quantity;
                 _entryPrice = result.Data.AverageFillPrice ?? price;
                 _stopLoss = stopLoss;
+                _takeProfit = takeProfit;
                 
                 _riskManager.AddPosition(_settings.Symbol, Math.Abs(_currentPosition), 
                     Math.Abs(price - stopLoss) * quantity, price, stopLoss);
 
-                Log($"Opened {direction} {quantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}");
+                var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
+                Log($"Opened {direction} {quantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}");
             }
             catch (Exception ex)
             {
@@ -408,6 +444,7 @@ public class BinanceLiveTrader : IDisposable
         _currentPosition = 0;
         _entryPrice = null;
         _stopLoss = null;
+        _takeProfit = null;
         _riskManager.ClearPositions();
     }
 
