@@ -263,8 +263,9 @@ public class BacktestEngine
 
         equityCurve.Add(capital);
 
+        var avgInterval = CalculateAverageInterval(candles);
         var metrics = CalculateMetrics(trades, equityCurve, _settings.InitialCapital,
-            candles.First().OpenTime, candles.Last().CloseTime);
+            candles.First().OpenTime, candles.Last().CloseTime, avgInterval);
 
         return new BacktestResult(
             _strategy.Name,
@@ -296,7 +297,8 @@ public class BacktestEngine
         List<decimal> equityCurve,
         decimal initialCapital,
         DateTime startDate,
-        DateTime endDate)
+        DateTime endDate,
+        TimeSpan averageInterval)
     {
         if (trades.Count == 0)
         {
@@ -348,9 +350,12 @@ public class BacktestEngine
             ? (decimal)Math.Sqrt(negativeReturns.Select(r => (double)(r * r)).Average())
             : 0;
 
-        // Annualize (assuming daily data)
-        decimal annualizedStdDev = stdDev * (decimal)Math.Sqrt(365);
-        decimal annualizedDownsideDev = downsideDev * (decimal)Math.Sqrt(365);
+        // Annualize based on average interval
+        double averageIntervalDays = averageInterval.TotalDays;
+        double periodsPerYear = averageIntervalDays > 0 ? 365.0 / averageIntervalDays : 365.0;
+        decimal annualizationFactor = (decimal)Math.Sqrt(periodsPerYear);
+        decimal annualizedStdDev = stdDev * annualizationFactor;
+        decimal annualizedDownsideDev = downsideDev * annualizationFactor;
         
         decimal sharpeRatio = annualizedStdDev > 0 ? annualizedReturn / 100 / annualizedStdDev : 0;
         decimal sortinoRatio = annualizedDownsideDev > 0 ? annualizedReturn / 100 / annualizedDownsideDev : 0;
@@ -397,6 +402,34 @@ public class BacktestEngine
             largestLoss,
             avgHoldingPeriod
         );
+    }
+
+    private static TimeSpan CalculateAverageInterval(List<Candle> candles)
+    {
+        if (candles.Count < 2)
+        {
+            return TimeSpan.FromDays(1);
+        }
+
+        long totalTicks = 0;
+        int intervalCount = 0;
+
+        for (int i = 1; i < candles.Count; i++)
+        {
+            var interval = candles[i].OpenTime - candles[i - 1].OpenTime;
+            if (interval.Ticks > 0)
+            {
+                totalTicks += interval.Ticks;
+                intervalCount++;
+            }
+        }
+
+        if (intervalCount == 0)
+        {
+            return TimeSpan.FromDays(1);
+        }
+
+        return TimeSpan.FromTicks(totalTicks / intervalCount);
     }
 }
 
