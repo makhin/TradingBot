@@ -44,10 +44,13 @@ public record TradeSignal(
     decimal Price,
     decimal? StopLoss,
     decimal? TakeProfit,
-    string Reason
+    string Reason,
+    decimal? PartialExitPercent = null,
+    decimal? PartialExitQuantity = null,
+    bool MoveStopToBreakeven = false
 );
 
-public enum SignalType { None, Buy, Sell, Exit }
+public enum SignalType { None, Buy, Sell, Exit, PartialExit }
 
 public record BacktestResult(
     string StrategyName,

@@ -309,6 +309,9 @@ public class BinanceLiveTrader : IDisposable
             case SignalType.Exit when _currentPosition != 0:
                 await ClosePositionAsync(signal.Reason);
                 break;
+            case SignalType.PartialExit when _currentPosition != 0:
+                await ClosePartialPositionAsync(signal);
+                break;
         }
     }
 
@@ -456,6 +459,101 @@ public class BinanceLiveTrader : IDisposable
         _stopLoss = null;
         _takeProfit = null;
         _riskManager.RemovePosition(_settings.Symbol);
+    }
+
+    private async Task ClosePartialPositionAsync(TradeSignal signal)
+    {
+        if (_currentPosition == 0) return;
+
+        decimal exitFraction = signal.PartialExitPercent ?? 0m;
+        if (exitFraction > 1m)
+        {
+            exitFraction /= 100m;
+        }
+
+        var currentQuantity = Math.Abs(_currentPosition);
+        decimal exitQuantity = signal.PartialExitQuantity ?? currentQuantity * exitFraction;
+        if (exitQuantity <= 0)
+            return;
+
+        exitQuantity = Math.Min(exitQuantity, currentQuantity);
+        var currentPrice = await GetCurrentPriceAsync();
+        var direction = _currentPosition > 0 ? TradeDirection.Long : TradeDirection.Short;
+
+        decimal grossPnl = direction == TradeDirection.Long
+            ? (currentPrice - _entryPrice!.Value) * exitQuantity
+            : (_entryPrice!.Value - currentPrice) * exitQuantity;
+        var tradingCosts = CalculateTradingCosts(_entryPrice!.Value, currentPrice, exitQuantity);
+        var netPnl = grossPnl - tradingCosts;
+
+        if (_settings.PaperTrade)
+        {
+            _paperEquity += netPnl;
+            Log($"[PAPER] Partial close {direction} {exitQuantity:F5} @ {currentPrice:F2}, Net PnL: {netPnl:F2} USDT - {signal.Reason}");
+        }
+        else
+        {
+            try
+            {
+                var side = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
+                var result = await _restClient.SpotApi.Trading.PlaceOrderAsync(
+                    _settings.Symbol,
+                    side,
+                    SpotOrderType.Market,
+                    exitQuantity
+                );
+
+                if (!result.Success)
+                {
+                    Log($"Partial close failed: {result.Error?.Message}");
+                    return;
+                }
+
+                var fillPrice = result.Data.AverageFillPrice ?? currentPrice;
+                grossPnl = direction == TradeDirection.Long
+                    ? (fillPrice - _entryPrice!.Value) * exitQuantity
+                    : (_entryPrice!.Value - fillPrice) * exitQuantity;
+                tradingCosts = CalculateTradingCosts(_entryPrice!.Value, fillPrice, exitQuantity);
+                netPnl = grossPnl - tradingCosts;
+
+                Log($"Partial close {direction} {exitQuantity:F5} @ {fillPrice:F2}, Net PnL: {netPnl:F2} USDT - {signal.Reason}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Partial close error: {ex.Message}");
+                return;
+            }
+        }
+
+        var remainingQuantity = currentQuantity - exitQuantity;
+        _currentPosition = direction == TradeDirection.Long ? remainingQuantity : -remainingQuantity;
+
+        if (signal.StopLoss.HasValue)
+        {
+            _stopLoss = signal.StopLoss;
+        }
+
+        var equity = _settings.PaperTrade
+            ? _paperEquity
+            : await GetAccountBalanceAsync();
+        _riskManager.UpdateEquity(equity);
+        OnEquityUpdate?.Invoke(equity);
+
+        if (remainingQuantity <= 0)
+        {
+            _currentPosition = 0;
+            _entryPrice = null;
+            _stopLoss = null;
+            _takeProfit = null;
+            _riskManager.RemovePosition(_settings.Symbol);
+            return;
+        }
+
+        _riskManager.UpdatePositionAfterPartialExit(
+            _settings.Symbol,
+            remainingQuantity,
+            _stopLoss ?? _entryPrice!.Value,
+            signal.MoveStopToBreakeven);
     }
 
     private decimal CalculateTradingCosts(decimal entryPrice, decimal exitPrice, decimal quantity)

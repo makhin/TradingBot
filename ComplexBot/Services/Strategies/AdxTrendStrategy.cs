@@ -33,11 +33,13 @@ public class AdxTrendStrategy : IStrategy
     
     private decimal? _entryPrice;
     private decimal? _trailingStop;
+    private decimal? _initialStop;
     private decimal? _highestSinceEntry;
     private decimal? _lowestSinceEntry;
     private bool _wasAboveThreshold;
     private int _adxFallingStreak;
     private decimal? _previousAdx;
+    private bool _breakevenMoved;
 
     public AdxTrendStrategy(StrategySettings? settings = null)
     {
@@ -146,9 +148,11 @@ public class AdxTrendStrategy : IStrategy
             _entryPrice = candle.Close;
             _highestSinceEntry = candle.High;
             _trailingStop = longStop;
+            _initialStop = longStop;
             _settings.BarsSinceEntry = 0;
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value?.Value;
+            _breakevenMoved = false;
 
             return new TradeSignal(
                 symbol,
@@ -166,9 +170,11 @@ public class AdxTrendStrategy : IStrategy
             _entryPrice = candle.Close;
             _lowestSinceEntry = candle.Low;
             _trailingStop = shortStop;
+            _initialStop = shortStop;
             _settings.BarsSinceEntry = 0;
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value?.Value;
+            _breakevenMoved = false;
 
             return new TradeSignal(
                 symbol,
@@ -225,6 +231,34 @@ public class AdxTrendStrategy : IStrategy
             }
         }
 
+        if (!_breakevenMoved && _entryPrice.HasValue && _initialStop.HasValue
+            && _settings.PartialExitRMultiple > 0 && _settings.PartialExitFraction > 0)
+        {
+            decimal riskPerUnit = Math.Abs(_entryPrice.Value - _initialStop.Value);
+            if (riskPerUnit > 0)
+            {
+                decimal achievedR = isLong
+                    ? (candle.High - _entryPrice.Value) / riskPerUnit
+                    : (_entryPrice.Value - candle.Low) / riskPerUnit;
+
+                if (achievedR >= _settings.PartialExitRMultiple)
+                {
+                    _breakevenMoved = true;
+                    _trailingStop = _entryPrice.Value;
+
+                    return new TradeSignal(
+                        symbol,
+                        SignalType.PartialExit,
+                        candle.Close,
+                        _entryPrice.Value,
+                        null,
+                        $"Partial exit at {_settings.PartialExitRMultiple:F1}R, move stop to breakeven",
+                        PartialExitPercent: _settings.PartialExitFraction,
+                        MoveStopToBreakeven: true);
+                }
+            }
+        }
+
         if (_settings.MaxBarsInTrade > 0 && _settings.BarsSinceEntry >= _settings.MaxBarsInTrade)
         {
             ResetPosition();
@@ -254,9 +288,11 @@ public class AdxTrendStrategy : IStrategy
     {
         _entryPrice = null;
         _trailingStop = null;
+        _initialStop = null;
         _highestSinceEntry = null;
         _lowestSinceEntry = null;
         _settings.BarsSinceEntry = 0;
+        _breakevenMoved = false;
     }
 
     public void Reset()
@@ -345,4 +381,8 @@ public record StrategySettings
     // OBV settings
     public int ObvPeriod { get; init; } = 20;
     public bool RequireObvConfirmation { get; init; } = true;
+
+    // Partial exit settings
+    public decimal PartialExitRMultiple { get; init; } = 1m;
+    public decimal PartialExitFraction { get; init; } = 0.5m;
 }
