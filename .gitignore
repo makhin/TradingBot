@@ -1,0 +1,38 @@
+# Build results
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# User-specific files
+*.user
+*.suo
+*.userprefs
+.vs/
+.vscode/
+
+# Configuration files with API keys
+appsettings.json
+appsettings.*.json
+
+# NuGet packages
+packages/
+*.nupkg
+
+# Rider
+.idea/
+*.sln.iml
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Data files
+Data/
+*.csv
+
+# Claude Code
+.claude/
