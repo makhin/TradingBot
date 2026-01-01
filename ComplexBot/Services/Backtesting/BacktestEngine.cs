@@ -235,6 +235,64 @@ public class BacktestEngine
                         entryTime = null;
                         _riskManager.ClearPositions();
                         break;
+                    case SignalType.PartialExit when position != 0:
+                        decimal exitFraction = signal.PartialExitPercent ?? 0m;
+                        if (exitFraction > 1m)
+                        {
+                            exitFraction /= 100m;
+                        }
+
+                        decimal exitQuantity = signal.PartialExitQuantity
+                            ?? Math.Abs(position) * exitFraction;
+
+                        if (exitQuantity > 0)
+                        {
+                            exitQuantity = Math.Min(exitQuantity, Math.Abs(position));
+                            decimal exitPricePartial = ApplySlippage(candle.Close, direction!.Value, isEntry: false);
+                            decimal partialPnl = direction == TradeDirection.Long
+                                ? (exitPricePartial - entryPrice!.Value) * exitQuantity
+                                : (entryPrice!.Value - exitPricePartial) * exitQuantity;
+
+                            partialPnl -= CalculateFees(entryPrice!.Value, exitQuantity);
+                            partialPnl -= CalculateFees(exitPricePartial, exitQuantity);
+
+                            trades.Add(new Trade(
+                                symbol,
+                                entryTime!.Value, candle.OpenTime,
+                                entryPrice!.Value, exitPricePartial,
+                                exitQuantity, direction!.Value,
+                                stopLoss, takeProfit, signal.Reason
+                            ));
+
+                            capital += partialPnl;
+                            decimal remainingQuantity = Math.Abs(position) - exitQuantity;
+                            position = position > 0 ? remainingQuantity : -remainingQuantity;
+
+                            if (signal.StopLoss.HasValue)
+                            {
+                                stopLoss = signal.StopLoss;
+                            }
+
+                            if (remainingQuantity <= 0)
+                            {
+                                position = 0;
+                                entryPrice = null;
+                                stopLoss = null;
+                                takeProfit = null;
+                                direction = null;
+                                entryTime = null;
+                                _riskManager.ClearPositions();
+                            }
+                            else
+                            {
+                                _riskManager.UpdatePositionAfterPartialExit(
+                                    symbol,
+                                    remainingQuantity,
+                                    stopLoss ?? entryPrice!.Value,
+                                    signal.MoveStopToBreakeven);
+                            }
+                        }
+                        break;
                 }
             }
         }

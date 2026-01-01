@@ -100,12 +100,40 @@ public class RiskManager
 
     public void AddPosition(string symbol, decimal quantity, decimal riskAmount, decimal entryPrice, decimal stopLoss)
     {
-        _openPositions.Add(new OpenPosition(symbol, quantity, riskAmount, entryPrice, stopLoss));
+        _openPositions.Add(new OpenPosition(
+            symbol,
+            quantity,
+            quantity,
+            riskAmount,
+            entryPrice,
+            stopLoss,
+            false));
     }
 
     public void RemovePosition(string symbol)
     {
         _openPositions.RemoveAll(p => p.Symbol == symbol);
+    }
+
+    public void UpdatePositionAfterPartialExit(
+        string symbol,
+        decimal remainingQuantity,
+        decimal stopLoss,
+        bool breakevenMoved)
+    {
+        var position = _openPositions.FirstOrDefault(p => p.Symbol == symbol);
+        if (position == null)
+            return;
+
+        decimal riskAmount = Math.Abs(position.EntryPrice - stopLoss) * remainingQuantity;
+        _openPositions.Remove(position);
+        _openPositions.Add(position with
+        {
+            RemainingQuantity = remainingQuantity,
+            RiskAmount = riskAmount,
+            StopLoss = stopLoss,
+            BreakevenMoved = breakevenMoved
+        });
     }
 
     public void ClearPositions() => _openPositions.Clear();
@@ -114,9 +142,11 @@ public class RiskManager
 public record OpenPosition(
     string Symbol,
     decimal Quantity,
+    decimal RemainingQuantity,
     decimal RiskAmount,
     decimal EntryPrice,
-    decimal StopLoss
+    decimal StopLoss,
+    bool BreakevenMoved
 );
 
 public record RiskSettings
