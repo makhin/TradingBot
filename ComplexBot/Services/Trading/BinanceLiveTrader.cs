@@ -391,14 +391,16 @@ public class BinanceLiveTrader : IDisposable
         var direction = _currentPosition > 0 ? TradeDirection.Long : TradeDirection.Short;
         var quantity = Math.Abs(_currentPosition);
         
-        decimal pnl = direction == TradeDirection.Long
+        decimal grossPnl = direction == TradeDirection.Long
             ? (currentPrice - _entryPrice!.Value) * quantity
             : (_entryPrice!.Value - currentPrice) * quantity;
+        var tradingCosts = CalculateTradingCosts(_entryPrice!.Value, currentPrice, quantity);
+        var netPnl = grossPnl - tradingCosts;
 
         if (_settings.PaperTrade)
         {
-            _paperEquity += pnl;
-            Log($"[PAPER] Closed {direction} {quantity:F5} @ {currentPrice:F2}, PnL: {pnl:F2} USDT - {reason}");
+            _paperEquity += netPnl;
+            Log($"[PAPER] Closed {direction} {quantity:F5} @ {currentPrice:F2}, Gross PnL: {grossPnl:F2} USDT, Net PnL: {netPnl:F2} USDT (costs: {tradingCosts:F2}) - {reason}");
         }
         else
         {
@@ -420,11 +422,13 @@ public class BinanceLiveTrader : IDisposable
                 }
 
                 var fillPrice = result.Data.AverageFillPrice ?? currentPrice;
-                pnl = direction == TradeDirection.Long
+                grossPnl = direction == TradeDirection.Long
                     ? (fillPrice - _entryPrice!.Value) * quantity
                     : (_entryPrice!.Value - fillPrice) * quantity;
+                tradingCosts = CalculateTradingCosts(_entryPrice!.Value, fillPrice, quantity);
+                netPnl = grossPnl - tradingCosts;
 
-                Log($"Closed {direction} {quantity:F5} @ {fillPrice:F2}, PnL: {pnl:F2} USDT - {reason}");
+                Log($"Closed {direction} {quantity:F5} @ {fillPrice:F2}, Gross PnL: {grossPnl:F2} USDT, Net PnL: {netPnl:F2} USDT (costs: {tradingCosts:F2}) - {reason}");
             }
             catch (Exception ex)
             {
@@ -446,6 +450,15 @@ public class BinanceLiveTrader : IDisposable
         _stopLoss = null;
         _takeProfit = null;
         _riskManager.ClearPositions();
+    }
+
+    private decimal CalculateTradingCosts(decimal entryPrice, decimal exitPrice, decimal quantity)
+    {
+        var notional = (entryPrice + exitPrice) * quantity;
+        var feeCosts = notional * _settings.FeeRate;
+        var slippageRate = _settings.SlippageBps / 10000m;
+        var slippageCosts = notional * slippageRate;
+        return feeCosts + slippageCosts;
     }
 
     private void Log(string message)
@@ -473,6 +486,8 @@ public record LiveTraderSettings
     public bool PaperTrade { get; init; } = true;  // Paper trade by default for safety
     public int WarmupCandles { get; init; } = 100;
     public TradingMode TradingMode { get; init; } = TradingMode.Spot;
+    public decimal FeeRate { get; init; } = 0.001m;
+    public decimal SlippageBps { get; init; } = 2m;
 }
 
 public enum TradingMode
