@@ -39,8 +39,10 @@ ComplexBot/
 2. Fast EMA (20) > Slow EMA (50) для Long / наоборот для Short
 3. +DI > -DI для Long / -DI > +DI для Short
 4. MACD histogram положительный/отрицательный
-5. Volume >= 1.5x от среднего (подтверждение объёмом)
-6. OBV растёт/падает в направлении сделки
+5. ATR% цены в заданном диапазоне (фильтр волатильности)
+6. ADX растёт относительно среднего за N баров (опционально)
+7. Volume >= 1.5x от среднего (подтверждение объёмом)
+8. OBV растёт/падает в направлении сделки
 
 ### Условия выхода:
 - ATR-based trailing stop (2.5x ATR)
@@ -81,11 +83,15 @@ dotnet run
 AdxPeriod = 14;
 AdxThreshold = 25m;
 AdxExitThreshold = 18m;
+RequireAdxRising = false;
+AdxSlopeLookback = 5;
 FastEmaPeriod = 20;
 SlowEmaPeriod = 50;
 AtrPeriod = 14;
 AtrStopMultiplier = 2.5m;
 TakeProfitMultiplier = 1.5m;  // 1.5:1 reward:risk
+MinAtrPercent = 0m;
+MaxAtrPercent = 100m;
 VolumeThreshold = 1.5m;
 RequireVolumeConfirmation = true;
 RequireObvConfirmation = true;

@@ -1,5 +1,6 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Indicators;
+using System.Linq;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -28,6 +29,7 @@ public class AdxTrendStrategy : IStrategy
     private readonly Macd _macd;
     private readonly Obv _obv;
     private readonly VolumeIndicator _volume;
+    private readonly Queue<decimal> _adxHistory;
     
     private decimal? _entryPrice;
     private decimal? _trailingStop;
@@ -45,6 +47,7 @@ public class AdxTrendStrategy : IStrategy
         _macd = new Macd();
         _obv = new Obv(_settings.ObvPeriod);
         _volume = new VolumeIndicator(_settings.VolumePeriod, _settings.VolumeThreshold);
+        _adxHistory = new Queue<decimal>(_settings.AdxSlopeLookback);
     }
 
     public decimal? CurrentAtr => _atr.Value;
@@ -66,6 +69,10 @@ public class AdxTrendStrategy : IStrategy
         if (!_adx.IsReady || !fastEma.HasValue || !slowEma.HasValue || !_atr.Value.HasValue)
             return null;
 
+        var adxValue = _adx.Value!.Value;
+        bool adxRising = IsAdxRising(adxValue);
+        UpdateAdxHistory(adxValue);
+
         bool hasPosition = currentPosition.HasValue && currentPosition.Value != 0;
 
         // Check exit conditions first if we have a position
@@ -79,18 +86,19 @@ public class AdxTrendStrategy : IStrategy
         // Check entry conditions if no position
         if (!hasPosition)
         {
-            return CheckEntryConditions(candle, fastEma.Value, slowEma.Value, symbol);
+            return CheckEntryConditions(candle, fastEma.Value, slowEma.Value, symbol, adxRising);
         }
 
         return null;
     }
 
-    private TradeSignal? CheckEntryConditions(Candle candle, decimal fastEma, decimal slowEma, string symbol)
+    private TradeSignal? CheckEntryConditions(Candle candle, decimal fastEma, decimal slowEma, string symbol, bool adxRising)
     {
         decimal adx = _adx.Value!.Value;
         decimal plusDi = _adx.PlusDi!.Value;
         decimal minusDi = _adx.MinusDi!.Value;
         decimal atr = _atr.Value!.Value;
+        decimal atrPercent = candle.Close == 0 ? 0 : atr / candle.Close * 100m;
 
         // ADX must be above threshold (trending market)
         bool isTrending = adx >= _settings.AdxThreshold;
@@ -100,6 +108,12 @@ public class AdxTrendStrategy : IStrategy
         _wasAboveThreshold = isTrending;
 
         if (!isTrending)
+            return null;
+
+        if (atrPercent < _settings.MinAtrPercent || atrPercent > _settings.MaxAtrPercent)
+            return null;
+
+        if (!adxRising)
             return null;
 
         // MACD confirmation
@@ -231,6 +245,30 @@ public class AdxTrendStrategy : IStrategy
         _volume.Reset();
         ResetPosition();
         _wasAboveThreshold = false;
+        _adxHistory.Clear();
+    }
+
+    private void UpdateAdxHistory(decimal currentAdx)
+    {
+        if (_settings.AdxSlopeLookback <= 0)
+            return;
+
+        if (_adxHistory.Count == _settings.AdxSlopeLookback)
+            _adxHistory.Dequeue();
+
+        _adxHistory.Enqueue(currentAdx);
+    }
+
+    private bool IsAdxRising(decimal currentAdx)
+    {
+        if (!_settings.RequireAdxRising)
+            return true;
+
+        if (_settings.AdxSlopeLookback <= 0 || _adxHistory.Count < _settings.AdxSlopeLookback)
+            return false;
+
+        decimal averageAdx = _adxHistory.Average();
+        return currentAdx > averageAdx;
     }
 }
 
@@ -241,6 +279,8 @@ public record StrategySettings
     public decimal AdxThreshold { get; init; } = 25m;  // Entry: ADX > 25
     public decimal AdxExitThreshold { get; init; } = 18m;  // Exit: ADX < 18
     public bool RequireFreshTrend { get; init; } = false;
+    public bool RequireAdxRising { get; init; } = false;
+    public int AdxSlopeLookback { get; init; } = 5;
     
     // EMA settings (research: 20/50 optimal for medium-term)
     public int FastEmaPeriod { get; init; } = 20;
@@ -250,6 +290,8 @@ public record StrategySettings
     public int AtrPeriod { get; init; } = 14;
     public decimal AtrStopMultiplier { get; init; } = 2.5m;  // 2.5x ATR for medium-term
     public decimal TakeProfitMultiplier { get; init; } = 1.5m;  // 1.5:1 reward:risk
+    public decimal MinAtrPercent { get; init; } = 0m;
+    public decimal MaxAtrPercent { get; init; } = 100m;
     
     // Volume confirmation (research: 1.5-2x average volume confirms breakouts)
     public int VolumePeriod { get; init; } = 20;
