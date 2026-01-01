@@ -6,7 +6,7 @@ namespace ComplexBot.Services.Strategies;
 public interface IStrategy
 {
     string Name { get; }
-    TradeSignal? Analyze(Candle candle, decimal? currentPosition);
+    TradeSignal? Analyze(Candle candle, decimal? currentPosition, string symbol);
     void Reset();
 }
 
@@ -51,7 +51,7 @@ public class AdxTrendStrategy : IStrategy
     public decimal? CurrentAdx => _adx.Value;
     public bool VolumeConfirmation => _obv.IsReady;
 
-    public TradeSignal? Analyze(Candle candle, decimal? currentPosition)
+    public TradeSignal? Analyze(Candle candle, decimal? currentPosition, string symbol)
     {
         // Update all indicators
         _adx.Update(candle);
@@ -71,7 +71,7 @@ public class AdxTrendStrategy : IStrategy
         // Check exit conditions first if we have a position
         if (hasPosition && _entryPrice.HasValue)
         {
-            var exitSignal = CheckExitConditions(candle, currentPosition!.Value);
+            var exitSignal = CheckExitConditions(candle, currentPosition!.Value, symbol);
             if (exitSignal != null)
                 return exitSignal;
         }
@@ -79,13 +79,13 @@ public class AdxTrendStrategy : IStrategy
         // Check entry conditions if no position
         if (!hasPosition)
         {
-            return CheckEntryConditions(candle, fastEma.Value, slowEma.Value);
+            return CheckEntryConditions(candle, fastEma.Value, slowEma.Value, symbol);
         }
 
         return null;
     }
 
-    private TradeSignal? CheckEntryConditions(Candle candle, decimal fastEma, decimal slowEma)
+    private TradeSignal? CheckEntryConditions(Candle candle, decimal fastEma, decimal slowEma, string symbol)
     {
         decimal adx = _adx.Value!.Value;
         decimal plusDi = _adx.PlusDi!.Value;
@@ -128,7 +128,7 @@ public class AdxTrendStrategy : IStrategy
             _trailingStop = longStop;
 
             return new TradeSignal(
-                "BTCUSDT",
+                symbol,
                 SignalType.Buy,
                 candle.Close,
                 longStop,
@@ -145,7 +145,7 @@ public class AdxTrendStrategy : IStrategy
             _trailingStop = shortStop;
 
             return new TradeSignal(
-                "BTCUSDT",
+                symbol,
                 SignalType.Sell,
                 candle.Close,
                 shortStop,
@@ -157,7 +157,7 @@ public class AdxTrendStrategy : IStrategy
         return null;
     }
 
-    private TradeSignal? CheckExitConditions(Candle candle, decimal position)
+    private TradeSignal? CheckExitConditions(Candle candle, decimal position, string symbol)
     {
         decimal atr = _atr.Value!.Value;
         decimal adx = _adx.Value!.Value;
@@ -177,7 +177,7 @@ public class AdxTrendStrategy : IStrategy
             if (candle.Low <= _trailingStop)
             {
                 ResetPosition();
-                return new TradeSignal("BTCUSDT", SignalType.Exit, candle.Close, null, null, 
+                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null, 
                     $"Trailing stop hit at {_trailingStop:F2}");
             }
         }
@@ -194,7 +194,7 @@ public class AdxTrendStrategy : IStrategy
             if (candle.High >= _trailingStop)
             {
                 ResetPosition();
-                return new TradeSignal("BTCUSDT", SignalType.Exit, candle.Close, null, null,
+                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
                     $"Trailing stop hit at {_trailingStop:F2}");
             }
         }
@@ -203,7 +203,7 @@ public class AdxTrendStrategy : IStrategy
         if (adx < _settings.AdxExitThreshold)
         {
             ResetPosition();
-            return new TradeSignal("BTCUSDT", SignalType.Exit, candle.Close, null, null,
+            return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
                 $"ADX dropped below {_settings.AdxExitThreshold} (trend weakening)");
         }
 

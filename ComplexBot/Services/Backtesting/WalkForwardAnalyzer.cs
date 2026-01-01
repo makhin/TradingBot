@@ -19,6 +19,7 @@ public class WalkForwardAnalyzer
 
     public WalkForwardResult Analyze(
         List<Candle> candles,
+        string symbol,
         Func<IStrategy> strategyFactory,
         RiskSettings riskSettings,
         BacktestSettings backtestSettings)
@@ -37,13 +38,13 @@ public class WalkForwardAnalyzer
             var isCandles = candles.Skip(startIndex).Take(windowSize).ToList();
             var isStrategy = strategyFactory();
             var isEngine = new BacktestEngine(isStrategy, riskSettings, backtestSettings);
-            var isResult = isEngine.Run(isCandles);
+            var isResult = isEngine.Run(isCandles, symbol);
 
             // Out-of-sample period
             var oosCandles = candles.Skip(startIndex + windowSize).Take(oosSize).ToList();
             var oosStrategy = strategyFactory();
             var oosEngine = new BacktestEngine(oosStrategy, riskSettings, backtestSettings);
-            var oosResult = oosEngine.Run(oosCandles);
+            var oosResult = oosEngine.Run(oosCandles, symbol);
 
             periods.Add(new WalkForwardPeriod(
                 isCandles.First().OpenTime,

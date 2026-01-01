@@ -11,6 +11,7 @@ public record Candle(
 );
 
 public record Trade(
+    string Symbol,
     DateTime EntryTime,
     DateTime? ExitTime,
     decimal EntryPrice,

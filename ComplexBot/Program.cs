@@ -76,7 +76,7 @@ class Program
         await AnsiConsole.Status()
             .StartAsync("Running backtest...", async ctx =>
             {
-                result = engine.Run(candles);
+                result = engine.Run(candles, symbol);
                 await Task.CompletedTask;
             });
 
@@ -149,7 +149,7 @@ class Program
                     task.Value = p.PercentComplete;
                 });
                 
-                result = optimizer.Optimize(candles, riskSettings, backtestSettings, progress);
+                result = optimizer.Optimize(candles, symbol, riskSettings, backtestSettings, progress);
                 await Task.CompletedTask;
             });
 
@@ -266,6 +266,7 @@ class Program
             {
                 result = analyzer.Analyze(
                     candles,
+                    symbol,
                     () => new AdxTrendStrategy(strategySettings),
                     riskSettings,
                     backtestSettings
@@ -288,7 +289,7 @@ class Program
         // First run backtest
         var strategy = new AdxTrendStrategy(strategySettings);
         var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
-        var backtestResult = engine.Run(candles);
+        var backtestResult = engine.Run(candles, symbol);
 
         // Then Monte Carlo
         int simulations = AnsiConsole.Ask("Number of simulations:", 1000);
