@@ -23,6 +23,7 @@ public class BinanceLiveTrader : IDisposable
     private decimal _currentPosition;
     private decimal? _entryPrice;
     private decimal? _stopLoss;
+    private decimal _paperEquity;
     private bool _isRunning;
     private UpdateSubscription? _subscription;
 
@@ -88,8 +89,10 @@ public class BinanceLiveTrader : IDisposable
         
         // Get initial balance
         var balance = await GetAccountBalanceAsync();
+        _paperEquity = _settings.PaperTrade ? _settings.InitialCapital : balance;
         Log($"USDT Balance: {balance:F2}");
-        _riskManager.UpdateEquity(balance);
+        _riskManager.UpdateEquity(_settings.PaperTrade ? _paperEquity : balance);
+        OnEquityUpdate?.Invoke(_settings.PaperTrade ? _paperEquity : balance);
 
         // Load historical candles for indicator warmup
         await WarmupIndicatorsAsync();
@@ -345,6 +348,7 @@ public class BinanceLiveTrader : IDisposable
 
         if (_settings.PaperTrade)
         {
+            _paperEquity += pnl;
             Log($"[PAPER] Closed {direction} {quantity:F5} @ {currentPrice:F2}, PnL: {pnl:F2} USDT - {reason}");
         }
         else
@@ -381,11 +385,11 @@ public class BinanceLiveTrader : IDisposable
         }
 
         // Update equity
-        var balance = _settings.PaperTrade 
-            ? _riskManager.GetDrawdownAdjustedRisk() + pnl // Simplified for paper
+        var equity = _settings.PaperTrade
+            ? _paperEquity
             : await GetAccountBalanceAsync();
-        _riskManager.UpdateEquity(balance);
-        OnEquityUpdate?.Invoke(balance);
+        _riskManager.UpdateEquity(equity);
+        OnEquityUpdate?.Invoke(equity);
 
         // Reset position
         _currentPosition = 0;
