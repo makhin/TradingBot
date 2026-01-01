@@ -83,8 +83,15 @@ public class BinanceLiveTrader : IDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
+        if (_settings.TradingMode == TradingMode.Futures)
+        {
+            Log("Futures/margin trading is not supported by BinanceLiveTrader. Please select spot mode.");
+            throw new NotSupportedException("BinanceLiveTrader supports spot trading only.");
+        }
+
         _isRunning = true;
         Log($"Starting {(_settings.PaperTrade ? "PAPER" : "LIVE")} trading on {_settings.Symbol}");
+        Log($"Trading mode: {_settings.TradingMode}");
         Log($"Testnet: {_settings.UseTestnet}");
         
         // Get initial balance
@@ -280,6 +287,12 @@ public class BinanceLiveTrader : IDisposable
 
     private async Task OpenPositionAsync(TradeDirection direction, decimal quantity, decimal price, decimal stopLoss)
     {
+        if (_settings.TradingMode == TradingMode.Spot && direction == TradeDirection.Short)
+        {
+            Log("Short positions are not allowed in spot mode without margin.");
+            return;
+        }
+
         // Round quantity to valid precision
         quantity = Math.Round(quantity, 5);
         
@@ -422,4 +435,11 @@ public record LiveTraderSettings
     public bool UseTestnet { get; init; } = true;
     public bool PaperTrade { get; init; } = true;  // Paper trade by default for safety
     public int WarmupCandles { get; init; } = 100;
+    public TradingMode TradingMode { get; init; } = TradingMode.Spot;
+}
+
+public enum TradingMode
+{
+    Spot,
+    Futures
 }

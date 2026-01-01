@@ -380,6 +380,11 @@ class Program
                 .Title("Interval (recommended [green]4h[/] for medium-term):")
                 .AddChoices("1h", "4h", "1d")
         );
+        var tradingMode = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Trading mode:")
+                .AddChoices("Spot (no margin)", "Futures/Margin")
+        );
 
         var riskSettings = GetRiskSettings();
         var strategySettings = GetStrategySettings();
@@ -391,7 +396,8 @@ class Program
             Interval = KlineIntervalExtensions.Parse(interval),
             InitialCapital = initialCapital,
             UseTestnet = useTestnet,
-            PaperTrade = paperTrade
+            PaperTrade = paperTrade,
+            TradingMode = tradingMode == "Spot (no margin)" ? TradingMode.Spot : TradingMode.Futures
         };
 
         var strategy = new AdxTrendStrategy(strategySettings);
