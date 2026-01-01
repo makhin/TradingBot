@@ -20,7 +20,9 @@ public class RiskManager
         ? (_peakEquity - _currentEquity) / _peakEquity * 100 
         : 0;
 
-    public decimal PortfolioHeat => _openPositions.Sum(p => p.RiskAmount) / _currentEquity * 100;
+    public decimal PortfolioHeat => _currentEquity <= 0
+        ? 100
+        : _openPositions.Sum(p => p.RiskAmount) / _currentEquity * 100;
 
     public void UpdateEquity(decimal equity)
     {
@@ -34,6 +36,9 @@ public class RiskManager
         decimal stopLossPrice,
         decimal? atr = null)
     {
+        if (_currentEquity <= 0)
+            return new PositionSizeResult(0, 0, 0);
+
         // Calculate stop distance
         decimal stopDistance = Math.Abs(entryPrice - stopLossPrice);
         
@@ -79,6 +84,9 @@ public class RiskManager
 
     public bool CanOpenPosition()
     {
+        if (_currentEquity <= 0)
+            return false;
+
         // Check drawdown circuit breaker
         if (CurrentDrawdown >= _settings.MaxDrawdownPercent)
             return false;
