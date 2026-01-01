@@ -544,9 +544,13 @@ class Program
             AdxPeriod = AnsiConsole.Ask("ADX period:", 14),
             AdxThreshold = AnsiConsole.Ask("ADX entry threshold:", 25m),
             AdxExitThreshold = AnsiConsole.Ask("ADX exit threshold:", 18m),
+            RequireAdxRising = AnsiConsole.Confirm("Require ADX rising?", false),
+            AdxSlopeLookback = AnsiConsole.Ask("ADX slope lookback (bars):", 5),
             FastEmaPeriod = AnsiConsole.Ask("Fast EMA period:", 20),
             SlowEmaPeriod = AnsiConsole.Ask("Slow EMA period:", 50),
             AtrPeriod = AnsiConsole.Ask("ATR period:", 14),
+            MinAtrPercent = AnsiConsole.Ask("Min ATR % of price:", 0m),
+            MaxAtrPercent = AnsiConsole.Ask("Max ATR % of price:", 100m),
             RequireVolumeConfirmation = AnsiConsole.Confirm("Require volume confirmation?", true),
             VolumeThreshold = AnsiConsole.Ask("Volume spike threshold (x avg):", 1.5m),
             RequireObvConfirmation = AnsiConsole.Confirm("Require OBV confirmation?", true)
