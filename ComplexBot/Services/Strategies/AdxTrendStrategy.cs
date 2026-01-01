@@ -36,6 +36,8 @@ public class AdxTrendStrategy : IStrategy
     private decimal? _highestSinceEntry;
     private decimal? _lowestSinceEntry;
     private bool _wasAboveThreshold;
+    private int _adxFallingStreak;
+    private decimal? _previousAdx;
 
     public AdxTrendStrategy(StrategySettings? settings = null)
     {
@@ -72,12 +74,14 @@ public class AdxTrendStrategy : IStrategy
         var adxValue = _adx.Value!.Value;
         bool adxRising = IsAdxRising(adxValue);
         UpdateAdxHistory(adxValue);
+        UpdateAdxFallingStreak(adxValue);
 
         bool hasPosition = currentPosition.HasValue && currentPosition.Value != 0;
 
         // Check exit conditions first if we have a position
         if (hasPosition && _entryPrice.HasValue)
         {
+            _settings.BarsSinceEntry++;
             var exitSignal = CheckExitConditions(candle, currentPosition!.Value, symbol);
             if (exitSignal != null)
                 return exitSignal;
@@ -142,6 +146,9 @@ public class AdxTrendStrategy : IStrategy
             _entryPrice = candle.Close;
             _highestSinceEntry = candle.High;
             _trailingStop = longStop;
+            _settings.BarsSinceEntry = 0;
+            _adxFallingStreak = 0;
+            _previousAdx = _adx.Value?.Value;
 
             return new TradeSignal(
                 symbol,
@@ -159,6 +166,9 @@ public class AdxTrendStrategy : IStrategy
             _entryPrice = candle.Close;
             _lowestSinceEntry = candle.Low;
             _trailingStop = shortStop;
+            _settings.BarsSinceEntry = 0;
+            _adxFallingStreak = 0;
+            _previousAdx = _adx.Value?.Value;
 
             return new TradeSignal(
                 symbol,
@@ -215,6 +225,20 @@ public class AdxTrendStrategy : IStrategy
             }
         }
 
+        if (_settings.MaxBarsInTrade > 0 && _settings.BarsSinceEntry >= _settings.MaxBarsInTrade)
+        {
+            ResetPosition();
+            return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                "Time stop");
+        }
+
+        if (_settings.AdxFallingExitBars > 0 && _adxFallingStreak >= _settings.AdxFallingExitBars)
+        {
+            ResetPosition();
+            return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                $"ADX falling {_adxFallingStreak} bars in a row");
+        }
+
         // Exit if trend weakens significantly
         if (adx < _settings.AdxExitThreshold)
         {
@@ -232,6 +256,7 @@ public class AdxTrendStrategy : IStrategy
         _trailingStop = null;
         _highestSinceEntry = null;
         _lowestSinceEntry = null;
+        _settings.BarsSinceEntry = 0;
     }
 
     public void Reset()
@@ -246,6 +271,8 @@ public class AdxTrendStrategy : IStrategy
         ResetPosition();
         _wasAboveThreshold = false;
         _adxHistory.Clear();
+        _adxFallingStreak = 0;
+        _previousAdx = null;
     }
 
     private void UpdateAdxHistory(decimal currentAdx)
@@ -270,6 +297,20 @@ public class AdxTrendStrategy : IStrategy
         decimal averageAdx = _adxHistory.Average();
         return currentAdx > averageAdx;
     }
+
+    private void UpdateAdxFallingStreak(decimal currentAdx)
+    {
+        if (_previousAdx.HasValue && currentAdx < _previousAdx.Value)
+        {
+            _adxFallingStreak++;
+        }
+        else
+        {
+            _adxFallingStreak = 0;
+        }
+
+        _previousAdx = currentAdx;
+    }
 }
 
 public record StrategySettings
@@ -281,6 +322,9 @@ public record StrategySettings
     public bool RequireFreshTrend { get; init; } = false;
     public bool RequireAdxRising { get; init; } = false;
     public int AdxSlopeLookback { get; init; } = 5;
+    public int AdxFallingExitBars { get; init; } = 0;
+    public int MaxBarsInTrade { get; init; } = 0;
+    public int BarsSinceEntry { get; set; } = 0;
     
     // EMA settings (research: 20/50 optimal for medium-term)
     public int FastEmaPeriod { get; init; } = 20;
