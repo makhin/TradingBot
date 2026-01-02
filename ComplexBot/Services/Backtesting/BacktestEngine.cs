@@ -26,19 +26,7 @@ public class BacktestEngine
         _riskManager.ClearPositions();
 
         decimal capital = _settings.InitialCapital;
-        decimal position = 0;
-        decimal? entryPrice = null;
-        decimal? stopLoss = null;
-        decimal? takeProfit = null;
-        DateTime? entryTime = null;
-        TradeDirection? direction = null;
-        int? currentJournalTradeId = null;
-        decimal? positionValue = null;
-        decimal? riskAmount = null;
-        decimal worstPnL = 0;
-        decimal bestPnL = 0;
-        int barsInTrade = 0;
-
+        var position = new PositionState();
         var trades = new List<Trade>();
         var equityCurve = new List<decimal> { capital };
 
@@ -46,395 +34,61 @@ public class BacktestEngine
         {
             var candle = candles[i];
 
-            // Calculate unrealized P&L for equity curve
-            decimal unrealizedPnl = 0;
-            if (position != 0 && entryPrice.HasValue)
+            // Update equity curve with unrealized PnL
+            decimal unrealizedPnl = position.CalculateUnrealizedPnL(candle.Close);
+            if (position.HasPosition)
             {
-                unrealizedPnl = direction == TradeDirection.Long
-                    ? (candle.Close - entryPrice.Value) * Math.Abs(position)
-                    : (entryPrice.Value - candle.Close) * Math.Abs(position);
-
-                // Track MAE/MFE
-                if (unrealizedPnl < worstPnL) worstPnL = unrealizedPnl;
-                if (unrealizedPnl > bestPnL) bestPnL = unrealizedPnl;
-                barsInTrade++;
+                position.UpdateExcursions(unrealizedPnl);
             }
             equityCurve.Add(capital + unrealizedPnl);
             _riskManager.UpdateEquity(capital + unrealizedPnl);
 
-            // Check for stop loss hit (simulate intra-bar)
-            if (position != 0 && stopLoss.HasValue)
+            // Check exit conditions
+            if (position.HasPosition)
             {
-                bool stopHit = direction == TradeDirection.Long
-                    ? candle.Low <= stopLoss.Value
-                    : candle.High >= stopLoss.Value;
-
-                if (stopHit)
+                // Check stop loss
+                if (position.StopLoss.HasValue)
                 {
-                    decimal exitPrice = ApplySlippage(stopLoss.Value, direction!.Value, isEntry: false);
-                    decimal pnl = direction == TradeDirection.Long
-                        ? (exitPrice - entryPrice!.Value) * Math.Abs(position)
-                        : (entryPrice!.Value - exitPrice) * Math.Abs(position);
+                    var result = ExitConditionChecker.CheckStopLoss(
+                        candle, position.StopLoss.Value, position.Direction!.Value,
+                        price => ApplySlippage(price, position.Direction!.Value, false));
 
-                    pnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
-                    pnl -= CalculateFees(exitPrice, Math.Abs(position));
-
-                    trades.Add(new Trade(
-                        symbol,
-                        entryTime!.Value, candle.OpenTime,
-                        entryPrice!.Value, exitPrice,
-                        Math.Abs(position), direction!.Value,
-                        stopLoss, takeProfit, "Stop Loss"
-                    ));
-
-                    CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPrice, pnl,
-                        riskAmount ?? 0, "Stop Loss", barsInTrade,
-                        candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
-
-                    capital += pnl;
-                    position = 0;
-                    entryPrice = null;
-                    stopLoss = null;
-                    takeProfit = null;
-                    direction = null;
-                    entryTime = null;
-                    currentJournalTradeId = null;
-                    worstPnL = 0;
-                    bestPnL = 0;
-                    barsInTrade = 0;
-                    _riskManager.ClearPositions();
+                    if (result.ShouldExit)
+                    {
+                        capital += ExecuteExit(position, result.ExitPrice, candle.OpenTime, result.Reason, symbol, trades);
+                        continue;
+                    }
                 }
-            }
 
-            // Check for take profit hit (simulate intra-bar)
-            if (position != 0 && takeProfit.HasValue)
-            {
-                bool targetHit = direction == TradeDirection.Long
-                    ? candle.High >= takeProfit.Value
-                    : candle.Low <= takeProfit.Value;
-
-                if (targetHit)
+                // Check take profit
+                if (position.TakeProfit.HasValue)
                 {
-                    decimal exitPrice = ApplySlippage(takeProfit.Value, direction!.Value, isEntry: false);
-                    decimal pnl = direction == TradeDirection.Long
-                        ? (exitPrice - entryPrice!.Value) * Math.Abs(position)
-                        : (entryPrice!.Value - exitPrice) * Math.Abs(position);
+                    var result = ExitConditionChecker.CheckTakeProfit(
+                        candle, position.TakeProfit.Value, position.Direction!.Value,
+                        price => ApplySlippage(price, position.Direction!.Value, false));
 
-                    pnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
-                    pnl -= CalculateFees(exitPrice, Math.Abs(position));
-
-                    trades.Add(new Trade(
-                        symbol,
-                        entryTime!.Value, candle.OpenTime,
-                        entryPrice!.Value, exitPrice,
-                        Math.Abs(position), direction!.Value,
-                        stopLoss, takeProfit, "Take Profit"
-                    ));
-
-                    CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPrice, pnl,
-                        riskAmount ?? 0, "Take Profit", barsInTrade,
-                        candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
-
-                    capital += pnl;
-                    position = 0;
-                    entryPrice = null;
-                    stopLoss = null;
-                    takeProfit = null;
-                    direction = null;
-                    entryTime = null;
-                    currentJournalTradeId = null;
-                    worstPnL = 0;
-                    bestPnL = 0;
-                    barsInTrade = 0;
-                    _riskManager.ClearPositions();
+                    if (result.ShouldExit)
+                    {
+                        capital += ExecuteExit(position, result.ExitPrice, candle.OpenTime, result.Reason, symbol, trades);
+                        continue;
+                    }
                 }
             }
 
             // Get strategy signal
-            var signal = _strategy.Analyze(candle, position, symbol);
-
+            var signal = _strategy.Analyze(candle, position.Position, symbol);
             if (signal != null)
             {
-                switch (signal.Type)
-                {
-                    case SignalType.Buy when position <= 0:
-                        // Close short if exists
-                        if (position < 0)
-                        {
-                            decimal exitPrice = ApplySlippage(candle.Close, TradeDirection.Short, isEntry: false);
-                            decimal pnl = (entryPrice!.Value - exitPrice) * Math.Abs(position);
-                            pnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
-                            pnl -= CalculateFees(exitPrice, Math.Abs(position));
-
-                            trades.Add(new Trade(
-                                symbol,
-                                entryTime!.Value, candle.OpenTime,
-                                entryPrice!.Value, exitPrice,
-                                Math.Abs(position), TradeDirection.Short,
-                                stopLoss, takeProfit, "Signal Reversal"
-                            ));
-
-                            CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPrice, pnl,
-                                riskAmount ?? 0, "Signal Reversal", barsInTrade,
-                                candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
-
-                            capital += pnl;
-                        }
-
-                        // Open long if risk allows
-                        if (_riskManager.CanOpenPosition() && signal.StopLoss.HasValue)
-                        {
-                            decimal adjustedEntryPrice = ApplySlippage(candle.Close, TradeDirection.Long, isEntry: true);
-                            var sizing = _riskManager.CalculatePositionSize(
-                                adjustedEntryPrice, signal.StopLoss.Value,
-                                (_strategy as AdxTrendStrategy)?.CurrentAtr);
-
-                            if (sizing.Quantity > 0)
-                            {
-                                position = sizing.Quantity;
-                                entryPrice = adjustedEntryPrice;
-                                stopLoss = signal.StopLoss;
-                                takeProfit = signal.TakeProfit;
-                                direction = TradeDirection.Long;
-                                entryTime = candle.OpenTime;
-                                positionValue = adjustedEntryPrice * position;
-                                riskAmount = sizing.RiskAmount;
-                                worstPnL = 0;
-                                bestPnL = 0;
-                                barsInTrade = 0;
-
-                                _riskManager.AddPosition(
-                                    symbol,
-                                    signal.Type,
-                                    position,
-                                    sizing.RiskAmount,
-                                    adjustedEntryPrice,
-                                    signal.StopLoss.Value,
-                                    adjustedEntryPrice);
-
-                                if (_journal != null)
-                                {
-                                    var adxStrategy = _strategy as AdxTrendStrategy;
-                                    currentJournalTradeId = _journal.OpenTrade(new TradeJournalEntry
-                                    {
-                                        EntryTime = candle.OpenTime,
-                                        Symbol = symbol,
-                                        Direction = SignalType.Buy,
-                                        EntryPrice = adjustedEntryPrice,
-                                        StopLoss = signal.StopLoss!.Value,
-                                        TakeProfit = signal.TakeProfit ?? 0,
-                                        Quantity = position,
-                                        PositionValueUsd = positionValue.Value,
-                                        RiskAmount = sizing.RiskAmount,
-                                        AdxValue = adxStrategy?.CurrentAdx ?? 0,
-                                        Atr = adxStrategy?.CurrentAtr ?? 0,
-                                        EntryReason = signal.Reason
-                                    });
-                                }
-                            }
-                        }
-                        break;
-
-                    case SignalType.Sell when position >= 0:
-                        // Close long if exists
-                        if (position > 0)
-                        {
-                            decimal exitPrice = ApplySlippage(candle.Close, TradeDirection.Long, isEntry: false);
-                            decimal pnl = (exitPrice - entryPrice!.Value) * position;
-                            pnl -= CalculateFees(entryPrice!.Value, position);
-                            pnl -= CalculateFees(exitPrice, position);
-
-                            trades.Add(new Trade(
-                                symbol,
-                                entryTime!.Value, candle.OpenTime,
-                                entryPrice!.Value, exitPrice,
-                                position, TradeDirection.Long,
-                                stopLoss, takeProfit, "Signal Reversal"
-                            ));
-
-                            CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPrice, pnl,
-                                riskAmount ?? 0, "Signal Reversal", barsInTrade,
-                                candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
-
-                            capital += pnl;
-                        }
-
-                        // Open short if risk allows
-                        if (_riskManager.CanOpenPosition() && signal.StopLoss.HasValue)
-                        {
-                            decimal adjustedEntryPrice = ApplySlippage(candle.Close, TradeDirection.Short, isEntry: true);
-                            var sizing = _riskManager.CalculatePositionSize(
-                                adjustedEntryPrice, signal.StopLoss.Value,
-                                (_strategy as AdxTrendStrategy)?.CurrentAtr);
-
-                            if (sizing.Quantity > 0)
-                            {
-                                position = -sizing.Quantity;
-                                entryPrice = adjustedEntryPrice;
-                                stopLoss = signal.StopLoss;
-                                takeProfit = signal.TakeProfit;
-                                direction = TradeDirection.Short;
-                                entryTime = candle.OpenTime;
-                                positionValue = adjustedEntryPrice * sizing.Quantity;
-                                riskAmount = sizing.RiskAmount;
-                                worstPnL = 0;
-                                bestPnL = 0;
-                                barsInTrade = 0;
-
-                                _riskManager.AddPosition(
-                                    symbol,
-                                    signal.Type,
-                                    sizing.Quantity,
-                                    sizing.RiskAmount,
-                                    adjustedEntryPrice,
-                                    signal.StopLoss.Value,
-                                    adjustedEntryPrice);
-
-                                if (_journal != null)
-                                {
-                                    var adxStrategy = _strategy as AdxTrendStrategy;
-                                    currentJournalTradeId = _journal.OpenTrade(new TradeJournalEntry
-                                    {
-                                        EntryTime = candle.OpenTime,
-                                        Symbol = symbol,
-                                        Direction = SignalType.Sell,
-                                        EntryPrice = adjustedEntryPrice,
-                                        StopLoss = signal.StopLoss!.Value,
-                                        TakeProfit = signal.TakeProfit ?? 0,
-                                        Quantity = sizing.Quantity,
-                                        PositionValueUsd = positionValue.Value,
-                                        RiskAmount = sizing.RiskAmount,
-                                        AdxValue = adxStrategy?.CurrentAdx ?? 0,
-                                        Atr = adxStrategy?.CurrentAtr ?? 0,
-                                        EntryReason = signal.Reason
-                                    });
-                                }
-                            }
-                        }
-                        break;
-
-                    case SignalType.Exit when position != 0:
-                        decimal exitPriceOnSignal = ApplySlippage(candle.Close, direction!.Value, isEntry: false);
-                        decimal exitPnl = direction == TradeDirection.Long
-                            ? (exitPriceOnSignal - entryPrice!.Value) * Math.Abs(position)
-                            : (entryPrice!.Value - exitPriceOnSignal) * Math.Abs(position);
-
-                        exitPnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
-                        exitPnl -= CalculateFees(exitPriceOnSignal, Math.Abs(position));
-
-                        trades.Add(new Trade(
-                            symbol,
-                            entryTime!.Value, candle.OpenTime,
-                            entryPrice!.Value, exitPriceOnSignal,
-                            Math.Abs(position), direction!.Value,
-                            stopLoss, takeProfit, signal.Reason
-                        ));
-
-                        CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPriceOnSignal, exitPnl,
-                            riskAmount ?? 0, signal.Reason, barsInTrade,
-                            candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
-
-                        capital += exitPnl;
-                        position = 0;
-                        entryPrice = null;
-                        stopLoss = null;
-                        takeProfit = null;
-                        direction = null;
-                        entryTime = null;
-                        currentJournalTradeId = null;
-                        worstPnL = 0;
-                        bestPnL = 0;
-                        barsInTrade = 0;
-                        _riskManager.ClearPositions();
-                        break;
-                    case SignalType.PartialExit when position != 0:
-                        decimal exitFraction = signal.PartialExitPercent ?? 0m;
-                        if (exitFraction > 1m)
-                        {
-                            exitFraction /= 100m;
-                        }
-
-                        decimal exitQuantity = signal.PartialExitQuantity
-                            ?? Math.Abs(position) * exitFraction;
-
-                        if (exitQuantity > 0)
-                        {
-                            exitQuantity = Math.Min(exitQuantity, Math.Abs(position));
-                            decimal exitPricePartial = ApplySlippage(candle.Close, direction!.Value, isEntry: false);
-                            decimal partialPnl = direction == TradeDirection.Long
-                                ? (exitPricePartial - entryPrice!.Value) * exitQuantity
-                                : (entryPrice!.Value - exitPricePartial) * exitQuantity;
-
-                            partialPnl -= CalculateFees(entryPrice!.Value, exitQuantity);
-                            partialPnl -= CalculateFees(exitPricePartial, exitQuantity);
-
-                            trades.Add(new Trade(
-                                symbol,
-                                entryTime!.Value, candle.OpenTime,
-                                entryPrice!.Value, exitPricePartial,
-                                exitQuantity, direction!.Value,
-                                stopLoss, takeProfit, signal.Reason
-                            ));
-
-                            capital += partialPnl;
-                            decimal remainingQuantity = Math.Abs(position) - exitQuantity;
-                            position = position > 0 ? remainingQuantity : -remainingQuantity;
-
-                            if (signal.StopLoss.HasValue)
-                            {
-                                stopLoss = signal.StopLoss;
-                            }
-
-                            if (remainingQuantity <= 0)
-                            {
-                                position = 0;
-                                entryPrice = null;
-                                stopLoss = null;
-                                takeProfit = null;
-                                direction = null;
-                                entryTime = null;
-                                _riskManager.ClearPositions();
-                            }
-                            else
-                            {
-                                _riskManager.UpdatePositionAfterPartialExit(
-                                    symbol,
-                                    remainingQuantity,
-                                    stopLoss ?? entryPrice!.Value,
-                                    signal.MoveStopToBreakeven,
-                                    exitPricePartial);
-                            }
-                        }
-                        break;
-                }
+                capital += ProcessSignal(signal, candle, position, symbol, trades);
             }
         }
 
         // Close any remaining position at last price
-        if (position != 0 && candles.Count > 0)
+        if (position.HasPosition && candles.Count > 0)
         {
             var lastCandle = candles[^1];
-            decimal finalExitPrice = ApplySlippage(lastCandle.Close, direction!.Value, isEntry: false);
-            decimal finalPnl = direction == TradeDirection.Long
-                ? (finalExitPrice - entryPrice!.Value) * Math.Abs(position)
-                : (entryPrice!.Value - finalExitPrice) * Math.Abs(position);
-
-            finalPnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
-            finalPnl -= CalculateFees(finalExitPrice, Math.Abs(position));
-
-            trades.Add(new Trade(
-                symbol,
-                entryTime!.Value, lastCandle.CloseTime,
-                entryPrice!.Value, finalExitPrice,
-                Math.Abs(position), direction!.Value,
-                stopLoss, takeProfit, "End of Backtest"
-            ));
-
-            CloseJournalTrade(currentJournalTradeId, lastCandle.CloseTime, finalExitPrice, finalPnl,
-                riskAmount ?? 0, "End of Backtest", barsInTrade,
-                lastCandle.CloseTime - entryTime!.Value, worstPnL, bestPnL);
-
-            capital += finalPnl;
+            decimal exitPrice = ApplySlippage(lastCandle.Close, position.Direction!.Value, false);
+            capital += ExecuteExit(position, exitPrice, lastCandle.CloseTime, "End of Backtest", symbol, trades);
         }
 
         equityCurve.Add(capital);
@@ -455,6 +109,178 @@ public class BacktestEngine
         );
     }
 
+    private decimal ProcessSignal(TradeSignal signal, Candle candle, PositionState position, string symbol, List<Trade> trades)
+    {
+        decimal pnl = 0;
+
+        switch (signal.Type)
+        {
+            case SignalType.Buy when position.Position <= 0:
+                pnl += CloseIfOpposite(position, candle, TradeDirection.Short, symbol, trades);
+                OpenPosition(signal, candle, position, TradeDirection.Long, symbol);
+                break;
+
+            case SignalType.Sell when position.Position >= 0:
+                pnl += CloseIfOpposite(position, candle, TradeDirection.Long, symbol, trades);
+                OpenPosition(signal, candle, position, TradeDirection.Short, symbol);
+                break;
+
+            case SignalType.Exit when position.HasPosition:
+                decimal exitPrice = ApplySlippage(candle.Close, position.Direction!.Value, false);
+                pnl += ExecuteExit(position, exitPrice, candle.OpenTime, signal.Reason, symbol, trades);
+                break;
+
+            case SignalType.PartialExit when position.HasPosition:
+                pnl += ExecutePartialExit(signal, candle, position, symbol, trades);
+                break;
+        }
+
+        return pnl;
+    }
+
+    private decimal CloseIfOpposite(PositionState position, Candle candle, TradeDirection closeDirection, string symbol, List<Trade> trades)
+    {
+        if (!position.HasPosition || position.Direction != closeDirection)
+            return 0;
+
+        decimal exitPrice = ApplySlippage(candle.Close, closeDirection, false);
+        return ExecuteExit(position, exitPrice, candle.OpenTime, "Signal Reversal", symbol, trades);
+    }
+
+    private void OpenPosition(TradeSignal signal, Candle candle, PositionState position, TradeDirection direction, string symbol)
+    {
+        if (!_riskManager.CanOpenPosition() || !signal.StopLoss.HasValue)
+            return;
+
+        decimal entryPrice = ApplySlippage(candle.Close, direction, true);
+        var sizing = _riskManager.CalculatePositionSize(
+            entryPrice, signal.StopLoss.Value,
+            (_strategy as AdxTrendStrategy)?.CurrentAtr);
+
+        if (sizing.Quantity <= 0)
+            return;
+
+        position.Open(sizing.Quantity, entryPrice, direction, candle.OpenTime,
+            signal.StopLoss, signal.TakeProfit, sizing.RiskAmount);
+
+        _riskManager.AddPosition(symbol,
+            direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
+            sizing.Quantity, sizing.RiskAmount, entryPrice,
+            signal.StopLoss.Value, entryPrice);
+
+        if (_journal != null)
+        {
+            var adxStrategy = _strategy as AdxTrendStrategy;
+            position.JournalTradeId = _journal.OpenTrade(new TradeJournalEntry
+            {
+                EntryTime = candle.OpenTime,
+                Symbol = symbol,
+                Direction = direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
+                EntryPrice = entryPrice,
+                StopLoss = signal.StopLoss!.Value,
+                TakeProfit = signal.TakeProfit ?? 0,
+                Quantity = sizing.Quantity,
+                PositionValueUsd = position.PositionValue ?? 0,
+                RiskAmount = sizing.RiskAmount,
+                AdxValue = adxStrategy?.CurrentAdx ?? 0,
+                Atr = adxStrategy?.CurrentAtr ?? 0,
+                EntryReason = signal.Reason
+            });
+        }
+    }
+
+    private decimal ExecuteExit(PositionState position, decimal exitPrice, DateTime exitTime, string reason, string symbol, List<Trade> trades)
+    {
+        decimal pnl = position.CalculateExitPnL(exitPrice, position.AbsolutePosition);
+        pnl -= CalculateFees(position.EntryPrice!.Value, position.AbsolutePosition);
+        pnl -= CalculateFees(exitPrice, position.AbsolutePosition);
+
+        trades.Add(new Trade(
+            symbol,
+            position.EntryTime!.Value, exitTime,
+            position.EntryPrice!.Value, exitPrice,
+            position.AbsolutePosition, position.Direction!.Value,
+            position.StopLoss, position.TakeProfit, reason
+        ));
+
+        CloseJournalTrade(position, exitTime, exitPrice, pnl, reason);
+
+        position.Close();
+        _riskManager.ClearPositions();
+
+        return pnl;
+    }
+
+    private decimal ExecutePartialExit(TradeSignal signal, Candle candle, PositionState position, string symbol, List<Trade> trades)
+    {
+        decimal exitFraction = signal.PartialExitPercent ?? 0m;
+        if (exitFraction > 1m)
+            exitFraction /= 100m;
+
+        decimal exitQuantity = signal.PartialExitQuantity ?? position.AbsolutePosition * exitFraction;
+        if (exitQuantity <= 0)
+            return 0;
+
+        exitQuantity = Math.Min(exitQuantity, position.AbsolutePosition);
+        decimal exitPrice = ApplySlippage(candle.Close, position.Direction!.Value, false);
+        decimal pnl = position.CalculateExitPnL(exitPrice, exitQuantity);
+        pnl -= CalculateFees(position.EntryPrice!.Value, exitQuantity);
+        pnl -= CalculateFees(exitPrice, exitQuantity);
+
+        trades.Add(new Trade(
+            symbol,
+            position.EntryTime!.Value, candle.OpenTime,
+            position.EntryPrice!.Value, exitPrice,
+            exitQuantity, position.Direction!.Value,
+            position.StopLoss, position.TakeProfit, signal.Reason
+        ));
+
+        position.PartialClose(exitQuantity, signal.StopLoss);
+
+        if (!position.HasPosition)
+        {
+            _riskManager.ClearPositions();
+        }
+        else
+        {
+            _riskManager.UpdatePositionAfterPartialExit(
+                symbol,
+                position.AbsolutePosition,
+                position.StopLoss ?? position.EntryPrice!.Value,
+                signal.MoveStopToBreakeven,
+                exitPrice);
+        }
+
+        return pnl;
+    }
+
+    private void CloseJournalTrade(PositionState position, DateTime exitTime, decimal exitPrice, decimal pnl, string reason)
+    {
+        if (_journal == null || !position.JournalTradeId.HasValue)
+            return;
+
+        var result = pnl > 0.01m ? TradeResult.Win
+            : pnl < -0.01m ? TradeResult.Loss
+            : TradeResult.Breakeven;
+
+        var rMultiple = position.RiskAmount > 0 ? pnl / position.RiskAmount.Value : 0;
+
+        _journal.CloseTrade(position.JournalTradeId.Value, new TradeJournalEntry
+        {
+            ExitTime = exitTime,
+            ExitPrice = exitPrice,
+            GrossPnL = pnl,
+            NetPnL = pnl,
+            RMultiple = rMultiple,
+            Result = result,
+            ExitReason = reason,
+            BarsInTrade = position.BarsInTrade,
+            Duration = position.GetDuration(exitTime),
+            MaxAdverseExcursion = position.WorstPnL,
+            MaxFavorableExcursion = position.BestPnL
+        });
+    }
+
     private decimal CalculateFees(decimal price, decimal quantity)
     {
         return price * quantity * _settings.CommissionPercent / 100;
@@ -469,7 +295,7 @@ public class BacktestEngine
     }
 
     private PerformanceMetrics CalculateMetrics(
-        List<Trade> trades, 
+        List<Trade> trades,
         List<decimal> equityCurve,
         decimal initialCapital,
         DateTime startDate,
@@ -487,54 +313,19 @@ public class BacktestEngine
 
         decimal finalCapital = equityCurve.Last();
         decimal totalReturn = (finalCapital - initialCapital) / initialCapital * 100;
-        
+
         // Annualized return
         double years = (endDate - startDate).TotalDays / 365.25;
-        decimal annualizedReturn = years > 0 
-            ? (decimal)(Math.Pow((double)(finalCapital / initialCapital), 1.0 / years) - 1) * 100 
+        decimal annualizedReturn = years > 0
+            ? (decimal)(Math.Pow((double)(finalCapital / initialCapital), 1.0 / years) - 1) * 100
             : 0;
 
         // Max drawdown
-        decimal peak = initialCapital;
-        decimal maxDrawdown = 0;
-        decimal maxDrawdownPercent = 0;
-        foreach (var equity in equityCurve)
-        {
-            if (equity > peak) peak = equity;
-            decimal drawdown = peak - equity;
-            decimal drawdownPercent = peak > 0 ? drawdown / peak * 100 : 0;
-            if (drawdown > maxDrawdown) maxDrawdown = drawdown;
-            if (drawdownPercent > maxDrawdownPercent) maxDrawdownPercent = drawdownPercent;
-        }
+        var (maxDrawdown, maxDrawdownPercent) = CalculateMaxDrawdown(equityCurve, initialCapital);
 
         // Returns for Sharpe/Sortino
-        var returns = new List<decimal>();
-        for (int i = 1; i < equityCurve.Count; i++)
-        {
-            if (equityCurve[i - 1] > 0)
-                returns.Add((equityCurve[i] - equityCurve[i - 1]) / equityCurve[i - 1]);
-        }
-
-        decimal avgReturn = returns.Count > 0 ? returns.Average() : 0;
-        decimal stdDev = returns.Count > 1 
-            ? (decimal)Math.Sqrt(returns.Select(r => (double)((r - avgReturn) * (r - avgReturn))).Average())
-            : 0;
-        
-        // Downside deviation for Sortino
-        var negativeReturns = returns.Where(r => r < 0).ToList();
-        decimal downsideDev = negativeReturns.Count > 1
-            ? (decimal)Math.Sqrt(negativeReturns.Select(r => (double)(r * r)).Average())
-            : 0;
-
-        // Annualize based on average interval
-        double averageIntervalDays = averageInterval.TotalDays;
-        double periodsPerYear = averageIntervalDays > 0 ? 365.0 / averageIntervalDays : 365.0;
-        decimal annualizationFactor = (decimal)Math.Sqrt(periodsPerYear);
-        decimal annualizedStdDev = stdDev * annualizationFactor;
-        decimal annualizedDownsideDev = downsideDev * annualizationFactor;
-        
-        decimal sharpeRatio = annualizedStdDev > 0 ? annualizedReturn / 100 / annualizedStdDev : 0;
-        decimal sortinoRatio = annualizedDownsideDev > 0 ? annualizedReturn / 100 / annualizedDownsideDev : 0;
+        var returns = CalculateReturns(equityCurve);
+        var (sharpeRatio, sortinoRatio) = CalculateRiskAdjustedReturns(returns, annualizedReturn, averageInterval);
 
         // Profit factor
         decimal grossProfit = winningTrades.Sum(t => t.PnL ?? 0);
@@ -542,8 +333,8 @@ public class BacktestEngine
         decimal profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 999 : 0;
 
         // Win rate
-        decimal winRate = completedTrades.Count > 0 
-            ? (decimal)winningTrades.Count / completedTrades.Count * 100 
+        decimal winRate = completedTrades.Count > 0
+            ? (decimal)winningTrades.Count / completedTrades.Count * 100
             : 0;
 
         // Average win/loss
@@ -556,8 +347,8 @@ public class BacktestEngine
         var holdingPeriods = completedTrades
             .Where(t => t.ExitTime.HasValue)
             .Select(t => t.ExitTime!.Value - t.EntryTime);
-        var avgHoldingPeriod = holdingPeriods.Any() 
-            ? TimeSpan.FromTicks((long)holdingPeriods.Average(t => t.Ticks)) 
+        var avgHoldingPeriod = holdingPeriods.Any()
+            ? TimeSpan.FromTicks((long)holdingPeriods.Average(t => t.Ticks))
             : TimeSpan.Zero;
 
         return new PerformanceMetrics(
@@ -580,12 +371,71 @@ public class BacktestEngine
         );
     }
 
+    private static (decimal maxDrawdown, decimal maxDrawdownPercent) CalculateMaxDrawdown(List<decimal> equityCurve, decimal initialCapital)
+    {
+        decimal peak = initialCapital;
+        decimal maxDrawdown = 0;
+        decimal maxDrawdownPercent = 0;
+
+        foreach (var equity in equityCurve)
+        {
+            if (equity > peak) peak = equity;
+            decimal drawdown = peak - equity;
+            decimal drawdownPercent = peak > 0 ? drawdown / peak * 100 : 0;
+            if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+            if (drawdownPercent > maxDrawdownPercent) maxDrawdownPercent = drawdownPercent;
+        }
+
+        return (maxDrawdown, maxDrawdownPercent);
+    }
+
+    private static List<decimal> CalculateReturns(List<decimal> equityCurve)
+    {
+        var returns = new List<decimal>();
+        for (int i = 1; i < equityCurve.Count; i++)
+        {
+            if (equityCurve[i - 1] > 0)
+                returns.Add((equityCurve[i] - equityCurve[i - 1]) / equityCurve[i - 1]);
+        }
+        return returns;
+    }
+
+    private static (decimal sharpe, decimal sortino) CalculateRiskAdjustedReturns(
+        List<decimal> returns,
+        decimal annualizedReturn,
+        TimeSpan averageInterval)
+    {
+        if (returns.Count == 0)
+            return (0, 0);
+
+        decimal avgReturn = returns.Average();
+        decimal stdDev = returns.Count > 1
+            ? (decimal)Math.Sqrt(returns.Select(r => (double)((r - avgReturn) * (r - avgReturn))).Average())
+            : 0;
+
+        // Downside deviation for Sortino
+        var negativeReturns = returns.Where(r => r < 0).ToList();
+        decimal downsideDev = negativeReturns.Count > 1
+            ? (decimal)Math.Sqrt(negativeReturns.Select(r => (double)(r * r)).Average())
+            : 0;
+
+        // Annualize based on average interval
+        double averageIntervalDays = averageInterval.TotalDays;
+        double periodsPerYear = averageIntervalDays > 0 ? 365.0 / averageIntervalDays : 365.0;
+        decimal annualizationFactor = (decimal)Math.Sqrt(periodsPerYear);
+        decimal annualizedStdDev = stdDev * annualizationFactor;
+        decimal annualizedDownsideDev = downsideDev * annualizationFactor;
+
+        decimal sharpeRatio = annualizedStdDev > 0 ? annualizedReturn / 100 / annualizedStdDev : 0;
+        decimal sortinoRatio = annualizedDownsideDev > 0 ? annualizedReturn / 100 / annualizedDownsideDev : 0;
+
+        return (sharpeRatio, sortinoRatio);
+    }
+
     private static TimeSpan CalculateAverageInterval(List<Candle> candles)
     {
         if (candles.Count < 2)
-        {
             return TimeSpan.FromDays(1);
-        }
 
         long totalTicks = 0;
         int intervalCount = 0;
@@ -600,40 +450,9 @@ public class BacktestEngine
             }
         }
 
-        if (intervalCount == 0)
-        {
-            return TimeSpan.FromDays(1);
-        }
-
-        return TimeSpan.FromTicks(totalTicks / intervalCount);
-    }
-
-    private void CloseJournalTrade(int? journalTradeId, DateTime exitTime, decimal exitPrice,
-        decimal pnl, decimal riskAmt, string exitReason, int bars, TimeSpan duration,
-        decimal mae, decimal mfe)
-    {
-        if (_journal == null || !journalTradeId.HasValue) return;
-
-        var result = pnl > 0.01m ? TradeResult.Win
-            : pnl < -0.01m ? TradeResult.Loss
-            : TradeResult.Breakeven;
-
-        var rMultiple = riskAmt > 0 ? pnl / riskAmt : 0;
-
-        _journal.CloseTrade(journalTradeId.Value, new TradeJournalEntry
-        {
-            ExitTime = exitTime,
-            ExitPrice = exitPrice,
-            GrossPnL = pnl,
-            NetPnL = pnl,
-            RMultiple = rMultiple,
-            Result = result,
-            ExitReason = exitReason,
-            BarsInTrade = bars,
-            Duration = duration,
-            MaxAdverseExcursion = mae,
-            MaxFavorableExcursion = mfe
-        });
+        return intervalCount == 0
+            ? TimeSpan.FromDays(1)
+            : TimeSpan.FromTicks(totalTicks / intervalCount);
     }
 }
 

@@ -2,98 +2,88 @@ using ComplexBot.Models;
 
 namespace ComplexBot.Services.Indicators;
 
-public class Ema
+/// <summary>
+/// Exponential Moving Average
+/// </summary>
+public class Ema : ExponentialIndicator<decimal>
 {
-    private readonly int _period;
-    private readonly decimal _multiplier;
-    private decimal? _currentValue;
-    private int _count;
+    public Ema(int period) : base(period) { }
 
-    public Ema(int period)
+    public override decimal? Update(decimal price)
     {
-        _period = period;
-        _multiplier = 2m / (period + 1);
-    }
-
-    public decimal? Value => _currentValue;
-    public bool IsReady => _count >= _period;
-
-    public decimal? Update(decimal price)
-    {
-        _count++;
-        if (_currentValue == null)
-            _currentValue = price;
-        else
-            _currentValue = (price - _currentValue.Value) * _multiplier + _currentValue.Value;
-        
-        return IsReady ? _currentValue : null;
-    }
-
-    public void Reset()
-    {
-        _currentValue = null;
-        _count = 0;
+        Smooth(price);
+        return IsReady ? CurrentValue : null;
     }
 }
 
-public class Atr
+/// <summary>
+/// Simple Moving Average
+/// </summary>
+public class Sma : WindowedIndicator<decimal>
 {
-    private readonly int _period;
-    private readonly Queue<decimal> _trueRanges = new();
-    private decimal? _previousClose;
-    private decimal? _currentValue;
+    public Sma(int period) : base(period) { }
 
-    public Atr(int period = 14)
+    public override decimal? Update(decimal price)
     {
-        _period = period;
+        AddToWindow(price);
+
+        if (IsReady)
+        {
+            CurrentValue = Window.Average();
+            return CurrentValue;
+        }
+        return null;
     }
+}
 
-    public decimal? Value => _currentValue;
-    public bool IsReady => _trueRanges.Count >= _period;
+/// <summary>
+/// Average True Range - measures volatility
+/// </summary>
+public class Atr : WindowedIndicator<Candle>
+{
+    private decimal? _previousClose;
 
-    public decimal? Update(Candle candle)
+    public Atr(int period = 14) : base(period) { }
+
+    public override decimal? Update(Candle candle)
     {
-        decimal trueRange;
-        
-        if (_previousClose == null)
-        {
-            trueRange = candle.High - candle.Low;
-        }
-        else
-        {
-            trueRange = Math.Max(
-                candle.High - candle.Low,
-                Math.Max(
-                    Math.Abs(candle.High - _previousClose.Value),
-                    Math.Abs(candle.Low - _previousClose.Value)
-                )
-            );
-        }
-
-        _trueRanges.Enqueue(trueRange);
-        if (_trueRanges.Count > _period)
-            _trueRanges.Dequeue();
-
+        decimal trueRange = CalculateTrueRange(candle);
+        AddToWindow(trueRange);
         _previousClose = candle.Close;
 
-        if (_trueRanges.Count >= _period)
+        if (IsReady)
         {
-            _currentValue = _trueRanges.Average();
-            return _currentValue;
+            CurrentValue = Window.Average();
+            return CurrentValue;
         }
-
         return null;
     }
 
-    public void Reset()
+    private decimal CalculateTrueRange(Candle candle)
     {
-        _trueRanges.Clear();
+        if (_previousClose == null)
+            return candle.High - candle.Low;
+
+        return Math.Max(
+            candle.High - candle.Low,
+            Math.Max(
+                Math.Abs(candle.High - _previousClose.Value),
+                Math.Abs(candle.Low - _previousClose.Value)
+            )
+        );
+    }
+
+    public override void Reset()
+    {
+        base.Reset();
         _previousClose = null;
-        _currentValue = null;
     }
 }
 
-public class Adx
+/// <summary>
+/// Average Directional Index - measures trend strength
+/// </summary>
+public class Adx : IIndicator<Candle>, IMultiValueIndicator
 {
     private readonly int _period;
     private readonly Ema _smoothedPlusDm;
@@ -118,6 +108,13 @@ public class Adx
     public decimal? MinusDi { get; private set; }
     public bool IsReady => Value.HasValue;
 
+    public IReadOnlyDictionary<string, decimal?> Values => new Dictionary<string, decimal?>
+    {
+        ["ADX"] = Value,
+        ["+DI"] = PlusDi,
+        ["-DI"] = MinusDi
+    };
+
     public decimal? Update(Candle candle)
     {
         if (_previousHigh == null)
@@ -128,7 +125,7 @@ public class Adx
             return null;
         }
 
-        // Calculate +DM and -DM
+        // Calculate directional movement
         decimal upMove = candle.High - _previousHigh!.Value;
         decimal downMove = _previousLow!.Value - candle.Low;
 
@@ -136,13 +133,7 @@ public class Adx
         decimal minusDm = (downMove > upMove && downMove > 0) ? downMove : 0;
 
         // Calculate True Range
-        decimal tr = Math.Max(
-            candle.High - candle.Low,
-            Math.Max(
-                Math.Abs(candle.High - _previousClose!.Value),
-                Math.Abs(candle.Low - _previousClose.Value)
-            )
-        );
+        decimal tr = CalculateTrueRange(candle);
 
         // Smooth the values
         var smoothedTr = _smoothedTr.Update(tr);
@@ -169,6 +160,17 @@ public class Adx
         return Value;
     }
 
+    private decimal CalculateTrueRange(Candle candle)
+    {
+        return Math.Max(
+            candle.High - candle.Low,
+            Math.Max(
+                Math.Abs(candle.High - _previousClose!.Value),
+                Math.Abs(candle.Low - _previousClose.Value)
+            )
+        );
+    }
+
     public void Reset()
     {
         _smoothedPlusDm.Reset();
@@ -184,7 +186,10 @@ public class Adx
     }
 }
 
-public class Macd
+/// <summary>
+/// Moving Average Convergence Divergence
+/// </summary>
+public class Macd : IIndicator<decimal>, IMultiValueIndicator
 {
     private readonly Ema _fastEma;
     private readonly Ema _slowEma;
@@ -197,12 +202,20 @@ public class Macd
         _signalEma = new Ema(signalPeriod);
     }
 
+    public decimal? Value => MacdLine;
     public decimal? MacdLine { get; private set; }
     public decimal? SignalLine { get; private set; }
     public decimal? Histogram { get; private set; }
     public bool IsReady => _slowEma.IsReady && _signalEma.IsReady;
 
-    public void Update(decimal price)
+    public IReadOnlyDictionary<string, decimal?> Values => new Dictionary<string, decimal?>
+    {
+        ["MACD"] = MacdLine,
+        ["Signal"] = SignalLine,
+        ["Histogram"] = Histogram
+    };
+
+    public decimal? Update(decimal price)
     {
         var fast = _fastEma.Update(price);
         var slow = _slowEma.Update(price);
@@ -211,10 +224,12 @@ public class Macd
         {
             MacdLine = fast.Value - slow.Value;
             SignalLine = _signalEma.Update(MacdLine.Value);
-            
+
             if (SignalLine.HasValue)
                 Histogram = MacdLine.Value - SignalLine.Value;
         }
+
+        return MacdLine;
     }
 
     public void Reset()
@@ -228,63 +243,28 @@ public class Macd
     }
 }
 
-public class Sma
-{
-    private readonly int _period;
-    private readonly Queue<decimal> _values = new();
-
-    public Sma(int period)
-    {
-        _period = period;
-    }
-
-    public decimal? Value { get; private set; }
-    public bool IsReady => _values.Count >= _period;
-
-    public decimal? Update(decimal price)
-    {
-        _values.Enqueue(price);
-        if (_values.Count > _period)
-            _values.Dequeue();
-
-        if (_values.Count >= _period)
-        {
-            Value = _values.Average();
-            return Value;
-        }
-        return null;
-    }
-
-    public void Reset()
-    {
-        _values.Clear();
-        Value = null;
-    }
-}
-
 /// <summary>
 /// On-Balance Volume - confirms trend strength via volume
 /// </summary>
-public class Obv
+public class Obv : IIndicator<Candle>
 {
     private decimal _obv;
     private decimal? _previousClose;
     private readonly Sma _obvSma;
-    
+
     public Obv(int signalPeriod = 20)
     {
         _obvSma = new Sma(signalPeriod);
     }
 
-    public decimal Value => _obv;
+    public decimal? Value => _obv;
     public decimal? Signal => _obvSma.Value;
     public bool IsReady => _obvSma.IsReady;
-    
-    // OBV rising = bullish, OBV falling = bearish
+
     public bool IsBullish => _obvSma.Value.HasValue && _obv > _obvSma.Value;
     public bool IsBearish => _obvSma.Value.HasValue && _obv < _obvSma.Value;
 
-    public decimal Update(Candle candle)
+    public decimal? Update(Candle candle)
     {
         if (_previousClose.HasValue)
         {
@@ -292,12 +272,11 @@ public class Obv
                 _obv += candle.Volume;
             else if (candle.Close < _previousClose.Value)
                 _obv -= candle.Volume;
-            // Equal: OBV unchanged
         }
-        
+
         _previousClose = candle.Close;
         _obvSma.Update(_obv);
-        
+
         return _obv;
     }
 
@@ -312,41 +291,153 @@ public class Obv
 /// <summary>
 /// Volume indicator - detects unusual volume spikes
 /// </summary>
-public class VolumeIndicator
+public class VolumeIndicator : WindowedIndicator<decimal>
 {
-    private readonly int _period;
-    private readonly Queue<decimal> _volumes = new();
     private readonly decimal _spikeThreshold;
+    private decimal? _currentVolume;
 
-    public VolumeIndicator(int period = 20, decimal spikeThreshold = 1.5m)
+    public VolumeIndicator(int period = 20, decimal spikeThreshold = 1.5m) : base(period)
     {
-        _period = period;
         _spikeThreshold = spikeThreshold;
     }
 
-    public decimal? AverageVolume { get; private set; }
-    public decimal? CurrentVolume { get; private set; }
-    public bool IsReady => _volumes.Count >= _period;
-    public bool IsVolumeSpike => AverageVolume.HasValue && CurrentVolume.HasValue 
-        && CurrentVolume.Value >= AverageVolume.Value * _spikeThreshold;
-    public decimal VolumeRatio => AverageVolume > 0 ? (CurrentVolume ?? 0) / AverageVolume.Value : 0;
+    public decimal? AverageVolume => CurrentValue;
+    public decimal? CurrentVolume => _currentVolume;
+    public bool IsVolumeSpike => CurrentValue.HasValue && _currentVolume.HasValue
+        && _currentVolume.Value >= CurrentValue.Value * _spikeThreshold;
+    public decimal VolumeRatio => CurrentValue > 0 ? (_currentVolume ?? 0) / CurrentValue.Value : 0;
 
-    public void Update(decimal volume)
+    public override decimal? Update(decimal volume)
     {
-        CurrentVolume = volume;
-        _volumes.Enqueue(volume);
-        
-        if (_volumes.Count > _period)
-            _volumes.Dequeue();
+        _currentVolume = volume;
+        AddToWindow(volume);
 
-        if (_volumes.Count >= _period)
-            AverageVolume = _volumes.Average();
+        if (IsReady)
+        {
+            CurrentValue = Window.Average();
+            return CurrentValue;
+        }
+        return null;
+    }
+
+    public override void Reset()
+    {
+        base.Reset();
+        _currentVolume = null;
+    }
+}
+
+/// <summary>
+/// Relative Strength Index
+/// </summary>
+public class Rsi : IIndicator<decimal>
+{
+    private readonly int _period;
+    private readonly Queue<decimal> _prices = new();
+    private decimal? _avgGain;
+    private decimal? _avgLoss;
+
+    public Rsi(int period = 14)
+    {
+        _period = period;
+    }
+
+    public decimal? Value { get; private set; }
+    public bool IsReady => _prices.Count > _period;
+
+    public decimal? Update(decimal price)
+    {
+        _prices.Enqueue(price);
+
+        if (_prices.Count > _period + 1)
+            _prices.Dequeue();
+
+        if (_prices.Count < _period + 1)
+            return null;
+
+        var changes = _prices.Zip(_prices.Skip(1), (prev, curr) => curr - prev).ToList();
+        var gains = changes.Where(c => c > 0).ToList();
+        var losses = changes.Where(c => c < 0).Select(Math.Abs).ToList();
+
+        if (_avgGain == null)
+        {
+            _avgGain = gains.DefaultIfEmpty(0).Average();
+            _avgLoss = losses.DefaultIfEmpty(0).Average();
+        }
+        else
+        {
+            decimal currentGain = changes.Last() > 0 ? changes.Last() : 0;
+            decimal currentLoss = changes.Last() < 0 ? Math.Abs(changes.Last()) : 0;
+            _avgGain = (_avgGain * (_period - 1) + currentGain) / _period;
+            _avgLoss = (_avgLoss * (_period - 1) + currentLoss) / _period;
+        }
+
+        if (_avgLoss == 0)
+        {
+            Value = 100m;
+        }
+        else
+        {
+            var rs = _avgGain / _avgLoss;
+            Value = 100m - (100m / (1m + rs));
+        }
+
+        return Value;
     }
 
     public void Reset()
     {
-        _volumes.Clear();
-        AverageVolume = null;
-        CurrentVolume = null;
+        _prices.Clear();
+        _avgGain = null;
+        _avgLoss = null;
+        Value = null;
+    }
+}
+
+/// <summary>
+/// Bollinger Bands
+/// </summary>
+public class BollingerBands : WindowedIndicator<decimal>, IMultiValueIndicator
+{
+    private readonly decimal _stdDevMultiplier;
+
+    public BollingerBands(int period = 20, decimal stdDevMultiplier = 2m) : base(period)
+    {
+        _stdDevMultiplier = stdDevMultiplier;
+    }
+
+    public decimal? Middle => CurrentValue;
+    public decimal? Upper { get; private set; }
+    public decimal? Lower { get; private set; }
+
+    public IReadOnlyDictionary<string, decimal?> Values => new Dictionary<string, decimal?>
+    {
+        ["Middle"] = Middle,
+        ["Upper"] = Upper,
+        ["Lower"] = Lower
+    };
+
+    public override decimal? Update(decimal price)
+    {
+        AddToWindow(price);
+
+        if (!IsReady)
+            return null;
+
+        CurrentValue = Window.Average();
+        var variance = Window.Average(p => (p - CurrentValue.Value) * (p - CurrentValue.Value));
+        var stdDev = (decimal)Math.Sqrt((double)variance);
+
+        Upper = CurrentValue + (_stdDevMultiplier * stdDev);
+        Lower = CurrentValue - (_stdDevMultiplier * stdDev);
+
+        return CurrentValue;
+    }
+
+    public override void Reset()
+    {
+        base.Reset();
+        Upper = null;
+        Lower = null;
     }
 }

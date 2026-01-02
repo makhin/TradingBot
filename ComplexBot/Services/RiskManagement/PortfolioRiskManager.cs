@@ -7,23 +7,19 @@ public class PortfolioRiskManager
     private readonly Dictionary<string, RiskManager> _symbolManagers = new();
     private readonly PortfolioRiskSettings _settings;
     private readonly Dictionary<string, string[]> _correlationGroups;
-
-    private decimal _totalPeakEquity;
-    private decimal _totalCurrentEquity;
+    private readonly AggregatedEquityTracker _equityTracker = new();
 
     public PortfolioRiskManager(PortfolioRiskSettings settings)
     {
         _settings = settings;
-        _totalPeakEquity = 0;
-        _totalCurrentEquity = 0;
 
         // Initialize correlation groups
         _correlationGroups = new Dictionary<string, string[]>
         {
-            ["BTC_CORRELATED"] = new[] { "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT" },
-            ["ALTCOINS_L1"] = new[] { "ADAUSDT", "DOTUSDT", "AVAXUSDT", "MATICUSDT" },
-            ["ALTCOINS_DEFI"] = new[] { "UNIUSDT", "AAVEUSDT", "LINKUSDT", "SUSHIUSDT" },
-            ["MEMECOINS"] = new[] { "DOGEUSDT", "SHIBUSDT", "PEPEUSDT" }
+            ["BTC_CORRELATED"] = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
+            ["ALTCOINS_L1"] = ["ADAUSDT", "DOTUSDT", "AVAXUSDT", "MATICUSDT"],
+            ["ALTCOINS_DEFI"] = ["UNIUSDT", "AAVEUSDT", "LINKUSDT", "SUSHIUSDT"],
+            ["MEMECOINS"] = ["DOGEUSDT", "SHIBUSDT", "PEPEUSDT"]
         };
     }
 
@@ -96,11 +92,7 @@ public class PortfolioRiskManager
         return true;
     }
 
-    public decimal GetTotalDrawdownPercent()
-    {
-        if (_totalPeakEquity <= 0) return 0;
-        return (_totalPeakEquity - _totalCurrentEquity) / _totalPeakEquity * 100;
-    }
+    public decimal GetTotalDrawdownPercent() => _equityTracker.TotalDrawdownPercent;
 
     public void UpdateEquity(string symbol, decimal equity)
     {
@@ -108,28 +100,19 @@ public class PortfolioRiskManager
         {
             manager.UpdateEquity(equity);
         }
-
-        RecalculateTotalEquity();
+        _equityTracker.UpdateSymbol(symbol, equity);
     }
 
     public void UpdateAllEquities()
     {
-        RecalculateTotalEquity();
-    }
-
-    private void RecalculateTotalEquity()
-    {
-        _totalCurrentEquity = _symbolManagers.Values.Sum(m => m.GetTotalEquity());
-        if (_totalCurrentEquity > _totalPeakEquity)
+        foreach (var (symbol, manager) in _symbolManagers)
         {
-            _totalPeakEquity = _totalCurrentEquity;
+            _equityTracker.UpdateSymbol(symbol, manager.GetTotalEquity());
         }
     }
 
     public PortfolioStats GetPortfolioStats()
     {
-        var totalEquity = _totalCurrentEquity;
-        var totalDrawdown = GetTotalDrawdownPercent();
         var openPositions = _symbolManagers.Count(kvp => kvp.Value.PortfolioHeat > 0);
 
         var groupRisks = _correlationGroups.ToDictionary(
@@ -144,9 +127,9 @@ public class PortfolioRiskManager
         );
 
         return new PortfolioStats(
-            totalEquity,
-            _totalPeakEquity,
-            totalDrawdown,
+            _equityTracker.TotalEquity,
+            _equityTracker.TotalPeakEquity,
+            _equityTracker.TotalDrawdownPercent,
             openPositions,
             groupRisks,
             symbolEquities

@@ -5,85 +5,58 @@ namespace ComplexBot.Services.RiskManagement;
 public class RiskManager
 {
     private readonly RiskSettings _settings;
-    private decimal _peakEquity;
-    private decimal _currentEquity;
+    private readonly EquityTracker _equityTracker;
     private readonly List<OpenPosition> _openPositions = new();
-    private decimal _dayStartEquity;
-    private DateTime _currentTradingDay;
 
     public RiskManager(RiskSettings settings, decimal initialCapital)
     {
         _settings = settings;
-        _peakEquity = initialCapital;
-        _currentEquity = initialCapital;
-        _dayStartEquity = initialCapital;
-        _currentTradingDay = DateTime.UtcNow.Date;
+        _equityTracker = new EquityTracker(initialCapital);
     }
 
-    public decimal CurrentDrawdown => _peakEquity > 0 
-        ? (_peakEquity - _currentEquity) / _peakEquity * 100 
-        : 0;
+    public decimal CurrentDrawdown => _equityTracker.DrawdownPercent;
 
-    public decimal PortfolioHeat => _currentEquity <= 0
+    public decimal PortfolioHeat => _equityTracker.CurrentEquity <= 0
         ? 100
-        : _openPositions.Sum(p => p.RiskAmount) / _currentEquity * 100;
+        : _openPositions.Sum(p => p.RiskAmount) / _equityTracker.CurrentEquity * 100;
 
-    public void ResetDailyTracking()
-    {
-        var today = DateTime.UtcNow.Date;
-        if (_currentTradingDay != today)
-        {
-            _dayStartEquity = _currentEquity;
-            _currentTradingDay = today;
-        }
-    }
+    public void ResetDailyTracking() => _equityTracker.ResetDailyTracking();
 
-    public decimal GetDailyDrawdownPercent()
-    {
-        ResetDailyTracking();
-        if (_dayStartEquity <= 0) return 0;
-        return (_dayStartEquity - _currentEquity) / _dayStartEquity * 100;
-    }
+    public decimal GetDailyDrawdownPercent() => _equityTracker.DailyDrawdownPercent;
 
-    public bool IsDailyLimitExceeded()
-    {
-        return GetDailyDrawdownPercent() >= _settings.MaxDailyDrawdownPercent;
-    }
+    public bool IsDailyLimitExceeded() =>
+        _equityTracker.IsDailyDrawdownExceeded(_settings.MaxDailyDrawdownPercent);
 
-    public void UpdateEquity(decimal equity)
-    {
-        _currentEquity = equity;
-        if (equity > _peakEquity)
-            _peakEquity = equity;
-    }
+    public void UpdateEquity(decimal equity) => _equityTracker.Update(equity);
 
     public PositionSizeResult CalculatePositionSize(
         decimal entryPrice,
         decimal stopLossPrice,
         decimal? atr = null)
     {
-        if (_currentEquity <= 0)
+        var currentEquity = _equityTracker.CurrentEquity;
+        if (currentEquity <= 0)
             return new PositionSizeResult(0, 0, 0);
 
         // Calculate stop distance
         decimal stopDistance = Math.Abs(entryPrice - stopLossPrice);
-        
+
         // If ATR provided, use it for minimum stop distance
         if (atr.HasValue)
             stopDistance = Math.Max(stopDistance, atr.Value * _settings.AtrStopMultiplier);
 
         // Apply drawdown adjustment
         decimal adjustedRiskPercent = GetDrawdownAdjustedRisk();
-        
+
         // Calculate risk amount
-        decimal riskAmount = _currentEquity * adjustedRiskPercent / 100;
-        
+        decimal riskAmount = currentEquity * adjustedRiskPercent / 100;
+
         // Check portfolio heat limit
         decimal currentHeat = PortfolioHeat;
         if (currentHeat + adjustedRiskPercent > _settings.MaxPortfolioHeatPercent)
         {
             decimal availableRisk = Math.Max(0, _settings.MaxPortfolioHeatPercent - currentHeat);
-            riskAmount = _currentEquity * availableRisk / 100;
+            riskAmount = currentEquity * availableRisk / 100;
         }
 
         // Calculate quantity
@@ -120,45 +93,40 @@ public class RiskManager
 
     public decimal GetUnrealizedPnL()
     {
-        decimal total = 0;
-        foreach (var pos in _openPositions)
-        {
-            var pnl = pos.Direction == SignalType.Buy
+        return _openPositions.Sum(pos =>
+            pos.Direction == SignalType.Buy
                 ? (pos.CurrentPrice - pos.EntryPrice) * pos.RemainingQuantity
-                : (pos.EntryPrice - pos.CurrentPrice) * pos.RemainingQuantity;
-            total += pnl;
-        }
-        return total;
+                : (pos.EntryPrice - pos.CurrentPrice) * pos.RemainingQuantity);
     }
 
-    public decimal GetTotalEquity()
-    {
-        return _currentEquity + GetUnrealizedPnL();
-    }
+    public decimal GetTotalEquity() => _equityTracker.CurrentEquity + GetUnrealizedPnL();
 
     public decimal GetTotalDrawdownPercent()
     {
         var totalEquity = GetTotalEquity();
-        if (_peakEquity <= 0) return 0;
-        return (_peakEquity - totalEquity) / _peakEquity * 100;
+        var peakEquity = _equityTracker.PeakEquity;
+        if (peakEquity <= 0) return 0;
+        return (peakEquity - totalEquity) / peakEquity * 100;
     }
 
     public bool CanOpenPosition()
     {
-        if (_currentEquity <= 0)
+        var currentEquity = _equityTracker.CurrentEquity;
+
+        if (currentEquity <= 0)
             return false;
 
         // Check minimum equity requirement
-        if (_currentEquity < _settings.MinimumEquityUsd)
+        if (currentEquity < _settings.MinimumEquityUsd)
         {
-            Console.WriteLine($"⛔ Equity below minimum: ${_currentEquity:F2} < ${_settings.MinimumEquityUsd:F2}");
+            Console.WriteLine($"Equity below minimum: ${currentEquity:F2} < ${_settings.MinimumEquityUsd:F2}");
             return false;
         }
 
         // Check daily loss limit (with unrealized P&L)
         if (IsDailyLimitExceeded())
         {
-            Console.WriteLine($"⛔ Daily loss limit exceeded: {GetDailyDrawdownPercent():F2}%");
+            Console.WriteLine($"Daily loss limit exceeded: {GetDailyDrawdownPercent():F2}%");
             return false;
         }
 
@@ -166,7 +134,7 @@ public class RiskManager
         var totalDrawdown = GetTotalDrawdownPercent();
         if (totalDrawdown >= _settings.MaxDrawdownPercent)
         {
-            Console.WriteLine($"⛔ Max drawdown exceeded (including unrealized): {totalDrawdown:F2}%");
+            Console.WriteLine($"Max drawdown exceeded (including unrealized): {totalDrawdown:F2}%");
             return false;
         }
 
