@@ -1,6 +1,7 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Services.RiskManagement;
+using ComplexBot.Services.Analytics;
 
 namespace ComplexBot.Services.Backtesting;
 
@@ -9,12 +10,14 @@ public class BacktestEngine
     private readonly IStrategy _strategy;
     private readonly RiskManager _riskManager;
     private readonly BacktestSettings _settings;
-    
-    public BacktestEngine(IStrategy strategy, RiskSettings riskSettings, BacktestSettings? settings = null)
+    private readonly TradeJournal? _journal;
+
+    public BacktestEngine(IStrategy strategy, RiskSettings riskSettings, BacktestSettings? settings = null, TradeJournal? journal = null)
     {
         _strategy = strategy;
         _settings = settings ?? new BacktestSettings();
         _riskManager = new RiskManager(riskSettings, _settings.InitialCapital);
+        _journal = journal;
     }
 
     public BacktestResult Run(List<Candle> candles, string symbol)
@@ -29,6 +32,12 @@ public class BacktestEngine
         decimal? takeProfit = null;
         DateTime? entryTime = null;
         TradeDirection? direction = null;
+        int? currentJournalTradeId = null;
+        decimal? positionValue = null;
+        decimal? riskAmount = null;
+        decimal worstPnL = 0;
+        decimal bestPnL = 0;
+        int barsInTrade = 0;
 
         var trades = new List<Trade>();
         var equityCurve = new List<decimal> { capital };
@@ -36,7 +45,7 @@ public class BacktestEngine
         for (int i = 0; i < candles.Count; i++)
         {
             var candle = candles[i];
-            
+
             // Calculate unrealized P&L for equity curve
             decimal unrealizedPnl = 0;
             if (position != 0 && entryPrice.HasValue)
@@ -44,6 +53,11 @@ public class BacktestEngine
                 unrealizedPnl = direction == TradeDirection.Long
                     ? (candle.Close - entryPrice.Value) * Math.Abs(position)
                     : (entryPrice.Value - candle.Close) * Math.Abs(position);
+
+                // Track MAE/MFE
+                if (unrealizedPnl < worstPnL) worstPnL = unrealizedPnl;
+                if (unrealizedPnl > bestPnL) bestPnL = unrealizedPnl;
+                barsInTrade++;
             }
             equityCurve.Add(capital + unrealizedPnl);
             _riskManager.UpdateEquity(capital + unrealizedPnl);
@@ -73,6 +87,10 @@ public class BacktestEngine
                         stopLoss, takeProfit, "Stop Loss"
                     ));
 
+                    CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPrice, pnl,
+                        riskAmount ?? 0, "Stop Loss", barsInTrade,
+                        candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
+
                     capital += pnl;
                     position = 0;
                     entryPrice = null;
@@ -80,6 +98,10 @@ public class BacktestEngine
                     takeProfit = null;
                     direction = null;
                     entryTime = null;
+                    currentJournalTradeId = null;
+                    worstPnL = 0;
+                    bestPnL = 0;
+                    barsInTrade = 0;
                     _riskManager.ClearPositions();
                 }
             }
@@ -109,6 +131,10 @@ public class BacktestEngine
                         stopLoss, takeProfit, "Take Profit"
                     ));
 
+                    CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPrice, pnl,
+                        riskAmount ?? 0, "Take Profit", barsInTrade,
+                        candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
+
                     capital += pnl;
                     position = 0;
                     entryPrice = null;
@@ -116,6 +142,10 @@ public class BacktestEngine
                     takeProfit = null;
                     direction = null;
                     entryTime = null;
+                    currentJournalTradeId = null;
+                    worstPnL = 0;
+                    bestPnL = 0;
+                    barsInTrade = 0;
                     _riskManager.ClearPositions();
                 }
             }
@@ -143,6 +173,11 @@ public class BacktestEngine
                                 Math.Abs(position), TradeDirection.Short,
                                 stopLoss, takeProfit, "Signal Reversal"
                             ));
+
+                            CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPrice, pnl,
+                                riskAmount ?? 0, "Signal Reversal", barsInTrade,
+                                candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
+
                             capital += pnl;
                         }
 
@@ -162,8 +197,34 @@ public class BacktestEngine
                                 takeProfit = signal.TakeProfit;
                                 direction = TradeDirection.Long;
                                 entryTime = candle.OpenTime;
-                                _riskManager.AddPosition(symbol, position, sizing.RiskAmount, 
+                                positionValue = adjustedEntryPrice * position;
+                                riskAmount = sizing.RiskAmount;
+                                worstPnL = 0;
+                                bestPnL = 0;
+                                barsInTrade = 0;
+
+                                _riskManager.AddPosition(symbol, position, sizing.RiskAmount,
                                     adjustedEntryPrice, signal.StopLoss.Value);
+
+                                if (_journal != null)
+                                {
+                                    var adxStrategy = _strategy as AdxTrendStrategy;
+                                    currentJournalTradeId = _journal.OpenTrade(new TradeJournalEntry
+                                    {
+                                        EntryTime = candle.OpenTime,
+                                        Symbol = symbol,
+                                        Direction = SignalType.Buy,
+                                        EntryPrice = adjustedEntryPrice,
+                                        StopLoss = signal.StopLoss!.Value,
+                                        TakeProfit = signal.TakeProfit ?? 0,
+                                        Quantity = position,
+                                        PositionValueUsd = positionValue.Value,
+                                        RiskAmount = sizing.RiskAmount,
+                                        AdxValue = adxStrategy?.CurrentAdx ?? 0,
+                                        Atr = adxStrategy?.CurrentAtr ?? 0,
+                                        EntryReason = signal.Reason
+                                    });
+                                }
                             }
                         }
                         break;
@@ -184,6 +245,11 @@ public class BacktestEngine
                                 position, TradeDirection.Long,
                                 stopLoss, takeProfit, "Signal Reversal"
                             ));
+
+                            CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPrice, pnl,
+                                riskAmount ?? 0, "Signal Reversal", barsInTrade,
+                                candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
+
                             capital += pnl;
                         }
 
@@ -203,8 +269,34 @@ public class BacktestEngine
                                 takeProfit = signal.TakeProfit;
                                 direction = TradeDirection.Short;
                                 entryTime = candle.OpenTime;
+                                positionValue = adjustedEntryPrice * sizing.Quantity;
+                                riskAmount = sizing.RiskAmount;
+                                worstPnL = 0;
+                                bestPnL = 0;
+                                barsInTrade = 0;
+
                                 _riskManager.AddPosition(symbol, sizing.Quantity, sizing.RiskAmount,
                                     adjustedEntryPrice, signal.StopLoss.Value);
+
+                                if (_journal != null)
+                                {
+                                    var adxStrategy = _strategy as AdxTrendStrategy;
+                                    currentJournalTradeId = _journal.OpenTrade(new TradeJournalEntry
+                                    {
+                                        EntryTime = candle.OpenTime,
+                                        Symbol = symbol,
+                                        Direction = SignalType.Sell,
+                                        EntryPrice = adjustedEntryPrice,
+                                        StopLoss = signal.StopLoss!.Value,
+                                        TakeProfit = signal.TakeProfit ?? 0,
+                                        Quantity = sizing.Quantity,
+                                        PositionValueUsd = positionValue.Value,
+                                        RiskAmount = sizing.RiskAmount,
+                                        AdxValue = adxStrategy?.CurrentAdx ?? 0,
+                                        Atr = adxStrategy?.CurrentAtr ?? 0,
+                                        EntryReason = signal.Reason
+                                    });
+                                }
                             }
                         }
                         break;
@@ -214,7 +306,7 @@ public class BacktestEngine
                         decimal exitPnl = direction == TradeDirection.Long
                             ? (exitPriceOnSignal - entryPrice!.Value) * Math.Abs(position)
                             : (entryPrice!.Value - exitPriceOnSignal) * Math.Abs(position);
-                        
+
                         exitPnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
                         exitPnl -= CalculateFees(exitPriceOnSignal, Math.Abs(position));
 
@@ -226,6 +318,10 @@ public class BacktestEngine
                             stopLoss, takeProfit, signal.Reason
                         ));
 
+                        CloseJournalTrade(currentJournalTradeId, candle.OpenTime, exitPriceOnSignal, exitPnl,
+                            riskAmount ?? 0, signal.Reason, barsInTrade,
+                            candle.OpenTime - entryTime!.Value, worstPnL, bestPnL);
+
                         capital += exitPnl;
                         position = 0;
                         entryPrice = null;
@@ -233,6 +329,10 @@ public class BacktestEngine
                         takeProfit = null;
                         direction = null;
                         entryTime = null;
+                        currentJournalTradeId = null;
+                        worstPnL = 0;
+                        bestPnL = 0;
+                        barsInTrade = 0;
                         _riskManager.ClearPositions();
                         break;
                     case SignalType.PartialExit when position != 0:
@@ -305,7 +405,7 @@ public class BacktestEngine
             decimal finalPnl = direction == TradeDirection.Long
                 ? (finalExitPrice - entryPrice!.Value) * Math.Abs(position)
                 : (entryPrice!.Value - finalExitPrice) * Math.Abs(position);
-            
+
             finalPnl -= CalculateFees(entryPrice!.Value, Math.Abs(position));
             finalPnl -= CalculateFees(finalExitPrice, Math.Abs(position));
 
@@ -316,6 +416,11 @@ public class BacktestEngine
                 Math.Abs(position), direction!.Value,
                 stopLoss, takeProfit, "End of Backtest"
             ));
+
+            CloseJournalTrade(currentJournalTradeId, lastCandle.CloseTime, finalExitPrice, finalPnl,
+                riskAmount ?? 0, "End of Backtest", barsInTrade,
+                lastCandle.CloseTime - entryTime!.Value, worstPnL, bestPnL);
+
             capital += finalPnl;
         }
 
@@ -488,6 +593,34 @@ public class BacktestEngine
         }
 
         return TimeSpan.FromTicks(totalTicks / intervalCount);
+    }
+
+    private void CloseJournalTrade(int? journalTradeId, DateTime exitTime, decimal exitPrice,
+        decimal pnl, decimal riskAmt, string exitReason, int bars, TimeSpan duration,
+        decimal mae, decimal mfe)
+    {
+        if (_journal == null || !journalTradeId.HasValue) return;
+
+        var result = pnl > 0.01m ? TradeResult.Win
+            : pnl < -0.01m ? TradeResult.Loss
+            : TradeResult.Breakeven;
+
+        var rMultiple = riskAmt > 0 ? pnl / riskAmt : 0;
+
+        _journal.CloseTrade(journalTradeId.Value, new TradeJournalEntry
+        {
+            ExitTime = exitTime,
+            ExitPrice = exitPrice,
+            GrossPnL = pnl,
+            NetPnL = pnl,
+            RMultiple = rMultiple,
+            Result = result,
+            ExitReason = exitReason,
+            BarsInTrade = bars,
+            Duration = duration,
+            MaxAdverseExcursion = mae,
+            MaxFavorableExcursion = mfe
+        });
     }
 }
 

@@ -1,6 +1,7 @@
 using Binance.Net.Enums;
 using Spectre.Console;
 using ComplexBot.Models;
+using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
@@ -70,7 +71,8 @@ class Program
         };
 
         var strategy = new AdxTrendStrategy(strategySettings);
-        var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
+        var journal = new TradeJournal();
+        var engine = new BacktestEngine(strategy, riskSettings, backtestSettings, journal);
 
         BacktestResult result = null!;
         await AnsiConsole.Status()
@@ -81,6 +83,23 @@ class Program
             });
 
         DisplayBacktestResults(result);
+
+        // Export trade journal
+        if (AnsiConsole.Confirm("Export trade journal to CSV?", defaultValue: true))
+        {
+            journal.ExportToCsv();
+            var stats = journal.GetStats();
+            AnsiConsole.MarkupLine($"\n[green]Trade Journal Statistics:[/]");
+            AnsiConsole.MarkupLine($"  Total Trades: {stats.TotalTrades}");
+            AnsiConsole.MarkupLine($"  Win Rate: {stats.WinRate:F1}%");
+            AnsiConsole.MarkupLine($"  Average R-Multiple: {stats.AverageRMultiple:F2}");
+            AnsiConsole.MarkupLine($"  Total Net P&L: ${stats.TotalNetPnL:F2}");
+            AnsiConsole.MarkupLine($"  Average Win: ${stats.AverageWin:F2}");
+            AnsiConsole.MarkupLine($"  Average Loss: ${stats.AverageLoss:F2}");
+            AnsiConsole.MarkupLine($"  Largest Win: ${stats.LargestWin:F2}");
+            AnsiConsole.MarkupLine($"  Largest Loss: ${stats.LargestLoss:F2}");
+            AnsiConsole.MarkupLine($"  Average Bars in Trade: {stats.AverageBarsInTrade:F1}");
+        }
     }
 
     static async Task RunOptimization()
