@@ -525,6 +525,7 @@ class Program
             RiskPerTradePercent = AnsiConsole.Ask("Risk per trade [green](%)[/]:", 1.5m),
             MaxPortfolioHeatPercent = AnsiConsole.Ask("Max portfolio heat [green](%)[/]:", 15m),
             MaxDrawdownPercent = AnsiConsole.Ask("Max drawdown circuit breaker [green](%)[/]:", 20m),
+            MaxDailyDrawdownPercent = AnsiConsole.Ask("Max daily drawdown [green](%)[/]:", 3m),
             AtrStopMultiplier = AnsiConsole.Ask("ATR stop multiplier:", 2.5m),
             TakeProfitMultiplier = AnsiConsole.Ask("Take profit ratio (reward:risk):", 1.5m)
         };

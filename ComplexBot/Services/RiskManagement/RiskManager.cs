@@ -8,12 +8,16 @@ public class RiskManager
     private decimal _peakEquity;
     private decimal _currentEquity;
     private readonly List<OpenPosition> _openPositions = new();
+    private decimal _dayStartEquity;
+    private DateTime _currentTradingDay;
 
     public RiskManager(RiskSettings settings, decimal initialCapital)
     {
         _settings = settings;
         _peakEquity = initialCapital;
         _currentEquity = initialCapital;
+        _dayStartEquity = initialCapital;
+        _currentTradingDay = DateTime.UtcNow.Date;
     }
 
     public decimal CurrentDrawdown => _peakEquity > 0 
@@ -23,6 +27,28 @@ public class RiskManager
     public decimal PortfolioHeat => _currentEquity <= 0
         ? 100
         : _openPositions.Sum(p => p.RiskAmount) / _currentEquity * 100;
+
+    public void ResetDailyTracking()
+    {
+        var today = DateTime.UtcNow.Date;
+        if (_currentTradingDay != today)
+        {
+            _dayStartEquity = _currentEquity;
+            _currentTradingDay = today;
+        }
+    }
+
+    public decimal GetDailyDrawdownPercent()
+    {
+        ResetDailyTracking();
+        if (_dayStartEquity <= 0) return 0;
+        return (_dayStartEquity - _currentEquity) / _dayStartEquity * 100;
+    }
+
+    public bool IsDailyLimitExceeded()
+    {
+        return GetDailyDrawdownPercent() >= _settings.MaxDailyDrawdownPercent;
+    }
 
     public void UpdateEquity(decimal equity)
     {
@@ -86,6 +112,13 @@ public class RiskManager
     {
         if (_currentEquity <= 0)
             return false;
+
+        // Check daily loss limit
+        if (IsDailyLimitExceeded())
+        {
+            Console.WriteLine($"⛔ Daily loss limit exceeded: {GetDailyDrawdownPercent():F2}%");
+            return false;
+        }
 
         // Check drawdown circuit breaker
         if (CurrentDrawdown >= _settings.MaxDrawdownPercent)
@@ -154,6 +187,7 @@ public record RiskSettings
     public decimal RiskPerTradePercent { get; init; } = 1.5m;  // 1.5% per trade
     public decimal MaxPortfolioHeatPercent { get; init; } = 15m;  // 15% max heat
     public decimal MaxDrawdownPercent { get; init; } = 20m;  // 20% circuit breaker
+    public decimal MaxDailyDrawdownPercent { get; init; } = 3m;  // 3% daily loss limit
     public decimal AtrStopMultiplier { get; init; } = 2.5m;  // 2.5x ATR for stops
     public decimal TakeProfitMultiplier { get; init; } = 1.5m;  // 1.5:1 reward:risk
 }

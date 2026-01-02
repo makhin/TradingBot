@@ -151,7 +151,7 @@ public class AdxTrendStrategy : IStrategy
             _initialStop = longStop;
             _settings.BarsSinceEntry = 0;
             _adxFallingStreak = 0;
-            _previousAdx = _adx.Value?.Value;
+            _previousAdx = _adx.Value;
             _breakevenMoved = false;
 
             return new TradeSignal(
@@ -173,7 +173,7 @@ public class AdxTrendStrategy : IStrategy
             _initialStop = shortStop;
             _settings.BarsSinceEntry = 0;
             _adxFallingStreak = 0;
-            _previousAdx = _adx.Value?.Value;
+            _previousAdx = _adx.Value;
             _breakevenMoved = false;
 
             return new TradeSignal(
