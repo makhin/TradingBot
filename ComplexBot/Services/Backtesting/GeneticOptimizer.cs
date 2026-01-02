@@ -27,10 +27,27 @@ public class GeneticOptimizer
         BacktestSettings backtestSettings,
         IProgress<GeneticProgress>? progress = null)
     {
-        // Split data: 70% training, 30% validation
+        // Validate input data
+        if (candles == null || candles.Count < _settings.MinimumCandles)
+        {
+            throw new ArgumentException(
+                $"Insufficient data for optimization. Required: {_settings.MinimumCandles} candles, provided: {candles?.Count ?? 0}",
+                nameof(candles));
+        }
+
+        // Split data: training/validation
         int splitIndex = (int)(candles.Count * _settings.TrainingRatio);
         var trainingData = candles.Take(splitIndex).ToList();
         var validationData = candles.Skip(splitIndex).ToList();
+
+        // Ensure both sets have enough data
+        if (trainingData.Count < _settings.MinTrainingCandles || validationData.Count < _settings.MinValidationCandles)
+        {
+            throw new ArgumentException(
+                $"Data split resulted in insufficient samples. Training: {trainingData.Count} (min: {_settings.MinTrainingCandles}), " +
+                $"Validation: {validationData.Count} (min: {_settings.MinValidationCandles}).",
+                nameof(candles));
+        }
 
         // Initialize population
         var population = InitializePopulation();
@@ -294,18 +311,20 @@ public class GeneticOptimizer
 
         var settings = chromosome.Settings;
 
-        // Mutate random parameter
-        var paramIndex = _random.Next(8);
+        // Mutate random parameter (10 mutable parameters)
+        var paramIndex = _random.Next(10);
         settings = paramIndex switch
         {
             0 => settings with { AdxPeriod = MutateInt(settings.AdxPeriod, _settings.AdxPeriodMin, _settings.AdxPeriodMax) },
             1 => settings with { AdxThreshold = MutateDecimal(settings.AdxThreshold, _settings.AdxThresholdMin, _settings.AdxThresholdMax) },
-            2 => settings with { FastEmaPeriod = MutateInt(settings.FastEmaPeriod, _settings.FastEmaMin, _settings.FastEmaMax) },
-            3 => settings with { SlowEmaPeriod = MutateInt(settings.SlowEmaPeriod, _settings.SlowEmaMin, _settings.SlowEmaMax) },
-            4 => settings with { AtrStopMultiplier = MutateDecimal(settings.AtrStopMultiplier, _settings.AtrMultiplierMin, _settings.AtrMultiplierMax) },
-            5 => settings with { TakeProfitMultiplier = MutateDecimal(settings.TakeProfitMultiplier, _settings.TakeProfitMultiplierMin, _settings.TakeProfitMultiplierMax) },
-            6 => settings with { VolumeThreshold = MutateDecimal(settings.VolumeThreshold, _settings.VolumeThresholdMin, _settings.VolumeThresholdMax) },
-            _ => settings with { RequireVolumeConfirmation = !settings.RequireVolumeConfirmation }
+            2 => settings with { AdxExitThreshold = MutateDecimal(settings.AdxExitThreshold, _settings.AdxExitThresholdMin, _settings.AdxExitThresholdMax) },
+            3 => settings with { FastEmaPeriod = MutateInt(settings.FastEmaPeriod, _settings.FastEmaMin, _settings.FastEmaMax) },
+            4 => settings with { SlowEmaPeriod = MutateInt(settings.SlowEmaPeriod, _settings.SlowEmaMin, _settings.SlowEmaMax) },
+            5 => settings with { AtrStopMultiplier = MutateDecimal(settings.AtrStopMultiplier, _settings.AtrMultiplierMin, _settings.AtrMultiplierMax) },
+            6 => settings with { TakeProfitMultiplier = MutateDecimal(settings.TakeProfitMultiplier, _settings.TakeProfitMultiplierMin, _settings.TakeProfitMultiplierMax) },
+            7 => settings with { VolumeThreshold = MutateDecimal(settings.VolumeThreshold, _settings.VolumeThresholdMin, _settings.VolumeThresholdMax) },
+            8 => settings with { RequireVolumeConfirmation = !settings.RequireVolumeConfirmation },
+            _ => settings with { RequireObvConfirmation = !settings.RequireObvConfirmation }
         };
 
         return new Chromosome { Settings = settings, IsEvaluated = false };
@@ -422,6 +441,11 @@ public record GeneticOptimizerSettings
 
     // Data split
     public decimal TrainingRatio { get; init; } = 0.7m;
+
+    // Minimum data requirements
+    public int MinimumCandles { get; init; } = 200;
+    public int MinTrainingCandles { get; init; } = 100;
+    public int MinValidationCandles { get; init; } = 50;
 
     // Random seed (null = random)
     public int? RandomSeed { get; init; }

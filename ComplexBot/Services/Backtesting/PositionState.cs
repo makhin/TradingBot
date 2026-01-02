@@ -73,6 +73,17 @@ public class PositionState
     }
 
     /// <summary>
+    /// Updates stop loss (for trailing stop sync from strategy)
+    /// </summary>
+    public void UpdateStopLoss(decimal? newStopLoss)
+    {
+        if (newStopLoss.HasValue && HasPosition)
+        {
+            StopLoss = newStopLoss;
+        }
+    }
+
+    /// <summary>
     /// Updates position after partial exit
     /// </summary>
     public void PartialClose(decimal exitQuantity, decimal? newStopLoss = null)

@@ -77,6 +77,13 @@ public class BacktestEngine
 
             // Get strategy signal
             var signal = _strategy.Analyze(candle, position.Position, symbol);
+
+            // Sync trailing stop from strategy to position
+            if (position.HasPosition && _strategy.CurrentStopLoss.HasValue)
+            {
+                position.UpdateStopLoss(_strategy.CurrentStopLoss);
+            }
+
             if (signal != null)
             {
                 capital += ProcessSignal(signal, candle, position, symbol, trades);
