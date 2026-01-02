@@ -158,9 +158,10 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
             // Stop loss hit
             if (candle.Low <= _trailingStop.Value)
             {
+                var stopPrice = _trailingStop.Value;
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
-                    $"Trailing stop hit @ {_trailingStop.Value:F2}");
+                    $"Trailing stop hit @ {stopPrice:F2}");
             }
         }
         else if (!isLong && _trailingStop.HasValue)
@@ -172,9 +173,10 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
             // Stop loss hit
             if (candle.High >= _trailingStop.Value)
             {
+                var stopPrice = _trailingStop.Value;
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
-                    $"Trailing stop hit @ {_trailingStop.Value:F2}");
+                    $"Trailing stop hit @ {stopPrice:F2}");
             }
         }
 

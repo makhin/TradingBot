@@ -86,14 +86,20 @@ public class HistoricalDataLoader
     {
         using var writer = new StreamWriter(filePath);
         await writer.WriteLineAsync("OpenTime,Open,High,Low,Close,Volume,CloseTime");
-        
+
         foreach (var candle in candles)
         {
-            await writer.WriteLineAsync(
-                $"{candle.OpenTime:yyyy-MM-dd HH:mm:ss}," +
-                $"{candle.Open},{candle.High},{candle.Low},{candle.Close}," +
-                $"{candle.Volume},{candle.CloseTime:yyyy-MM-dd HH:mm:ss}"
-            );
+            await writer.WriteLineAsync(string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0:yyyy-MM-dd HH:mm:ss},{1},{2},{3},{4},{5},{6:yyyy-MM-dd HH:mm:ss}",
+                candle.OpenTime,
+                candle.Open,
+                candle.High,
+                candle.Low,
+                candle.Close,
+                candle.Volume,
+                candle.CloseTime
+            ));
         }
     }
 
@@ -137,11 +143,11 @@ public class HistoricalDataLoader
 
             candles.Add(new Candle(
                 openTime,
-                decimal.Parse(parts[1]),
-                decimal.Parse(parts[2]),
-                decimal.Parse(parts[3]),
-                decimal.Parse(parts[4]),
-                decimal.Parse(parts[5]),
+                decimal.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture),
+                decimal.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture),
+                decimal.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture),
+                decimal.Parse(parts[4], System.Globalization.CultureInfo.InvariantCulture),
+                decimal.Parse(parts[5], System.Globalization.CultureInfo.InvariantCulture),
                 closeTime
             ));
         }

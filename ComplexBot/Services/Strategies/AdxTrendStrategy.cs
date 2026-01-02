@@ -38,16 +38,16 @@ public interface IHasConfidence
 }
 
 /// <summary>
-/// ADX Trend Following Strategy with Volume Confirmation (Trend-Following)
+/// ADX Trend Following Strategy (Simplified Trend-Following)
 ///
-/// Philosophy: TRADES WITH THE TREND (waits for strong directional moves)
-/// - Only enters when trend is confirmed (ADX > 25)
-/// - Exits when trend weakens (ADX < 20) or trailing stop hit
+/// Philosophy: TRADES WITH THE TREND (waits for directional moves)
+/// - Enters when trend is confirmed (ADX > threshold)
+/// - Exits when trend weakens or trailing stop hit
 ///
-/// Entry: ADX > 25 + EMA crossover + MACD confirmation + OBV trend alignment
-/// Exit: ATR-based trailing stop or ADX < 20
+/// Entry: ADX > threshold + EMA crossover + DI confirmation
+/// Exit: ATR-based trailing stop or ADX < exit threshold
 ///
-/// Based on research: simple trend-following with proper filters achieves Sharpe 1.5-1.9
+/// Based on research: simple trend-following with minimal filters achieves Sharpe 1.5-1.9
 /// </summary>
 public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 {
@@ -159,17 +159,10 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         if (atrPercent < Settings.MinAtrPercent || atrPercent > Settings.MaxAtrPercent)
             return null;
 
-        if (!_adxRising)
-            return null;
-
-        // MACD confirmation
-        bool macdBullish = _macd.Histogram > 0;
-        bool macdBearish = _macd.Histogram < 0;
-
         // Volume confirmation (research: valid breakouts show 1.5-2x average volume)
         bool volumeConfirmed = _volumeFilter.IsConfirmed();
-        
-        // OBV trend alignment
+
+        // OBV trend alignment (optional)
         bool obvBullish = !Settings.RequireObvConfirmation || !_obv.IsReady || _obv.IsBullish;
         bool obvBearish = !Settings.RequireObvConfirmation || !_obv.IsReady || _obv.IsBearish;
 
@@ -181,8 +174,8 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 
         bool entryFreshTrendOk = !Settings.RequireFreshTrend || freshTrend;
 
-        // Long entry: Fast EMA > Slow EMA + +DI > -DI + MACD bullish + volume/OBV confirmed + optional fresh trend
-        if (fastEma > slowEma && plusDi > minusDi && macdBullish && volumeConfirmed && obvBullish && entryFreshTrendOk)
+        // Long entry: Fast EMA > Slow EMA + +DI > -DI + volume/OBV confirmed + optional fresh trend
+        if (fastEma > slowEma && plusDi > minusDi && volumeConfirmed && obvBullish && entryFreshTrendOk)
         {
             _entryPrice = candle.Close;
             _highestSinceEntry = candle.High;
@@ -199,12 +192,12 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
                 candle.Close,
                 longStop,
                 longTakeProfit,
-                $"Long: ADX={adx:F1}, +DI={plusDi:F1}>{minusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volumeFilter.VolumeRatio:F1}x{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
+                $"Long: ADX={adx:F1}, +DI={plusDi:F1}>{minusDi:F1}, EMA={fastEma:F2}>{slowEma:F2}{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
             );
         }
 
-        // Short entry: Fast EMA < Slow EMA + -DI > +DI + MACD bearish + volume/OBV confirmed + optional fresh trend
-        if (fastEma < slowEma && minusDi > plusDi && macdBearish && volumeConfirmed && obvBearish && entryFreshTrendOk)
+        // Short entry: Fast EMA < Slow EMA + -DI > +DI + volume/OBV confirmed + optional fresh trend
+        if (fastEma < slowEma && minusDi > plusDi && volumeConfirmed && obvBearish && entryFreshTrendOk)
         {
             _entryPrice = candle.Close;
             _lowestSinceEntry = candle.Low;
@@ -221,7 +214,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
                 candle.Close,
                 shortStop,
                 shortTakeProfit,
-                $"Short: ADX={adx:F1}, -DI={minusDi:F1}>{plusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volumeFilter.VolumeRatio:F1}x{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
+                $"Short: ADX={adx:F1}, -DI={minusDi:F1}>{plusDi:F1}, EMA={fastEma:F2}<{slowEma:F2}{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
             );
         }
 
@@ -367,9 +360,11 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 
     private bool IsAdxRising(decimal currentAdx)
     {
+        // If rising not required, always return true
         if (!Settings.RequireAdxRising)
             return true;
 
+        // If rising IS required, check if we have enough data
         if (Settings.AdxSlopeLookback <= 0 || _adxHistory.Count < Settings.AdxSlopeLookback)
             return false;
 

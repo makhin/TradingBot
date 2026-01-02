@@ -84,7 +84,7 @@ class Program
             CommissionPercent = 0.1m
         };
 
-        var strategy = new AdxTrendStrategy(strategySettings);
+        var strategy = SelectStrategy(strategySettings);
         var journal = new TradeJournal();
         var engine = new BacktestEngine(strategy, riskSettings, backtestSettings, journal);
 
@@ -121,11 +121,39 @@ class Program
         var (candles, symbol) = await LoadData();
         if (candles.Count == 0) return;
 
+        // Strategy selection for optimization
+        var strategyChoice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Select strategy to optimize:")
+                .AddChoices(
+                    "ADX Trend Following (Full Grid Search)",
+                    "RSI Mean Reversion (Quick Test)",
+                    "MA Crossover (Quick Test)")
+        );
+
         var riskSettings = GetRiskSettings();
         var backtestSettings = new BacktestSettings { InitialCapital = 10000m };
 
-        // Optimization settings
-        AnsiConsole.MarkupLine("\n[yellow]Parameter Ranges (Grid Search)[/]");
+        if (strategyChoice != "ADX Trend Following (Full Grid Search)")
+        {
+            // Quick test for other strategies - run single backtest
+            IStrategy strategy = strategyChoice switch
+            {
+                "RSI Mean Reversion (Quick Test)" => new RsiStrategy(),
+                "MA Crossover (Quick Test)" => new MaStrategy(),
+                _ => new AdxTrendStrategy()
+            };
+
+            AnsiConsole.MarkupLine($"\n[yellow]Running backtest for {strategy.Name}...[/]");
+            var journal = new TradeJournal();
+            var engine = new BacktestEngine(strategy, riskSettings, backtestSettings, journal);
+            var btResult = engine.Run(candles, symbol);
+            DisplayBacktestResults(btResult);
+            return;
+        }
+
+        // ADX Optimization
+        AnsiConsole.MarkupLine("\n[yellow]ADX Parameter Ranges (Grid Search)[/]");
         
         var optimizeFor = AnsiConsole.Prompt(
             new SelectionPrompt<OptimizationTarget>()
@@ -574,18 +602,23 @@ class Program
         var config = _configService.GetConfiguration();
         var current = config.RiskManagement;
 
+        var useDefaults = AnsiConsole.Confirm("Use saved risk settings?", defaultValue: true);
+
+        if (useDefaults)
+            return current.ToRiskSettings();
+
         AnsiConsole.MarkupLine("\n[yellow]Risk Management Settings[/]");
         AnsiConsole.MarkupLine("[grey]Press Enter to keep current value shown in brackets[/]\n");
 
         var updated = new RiskManagementSettings
         {
-            RiskPerTradePercent = AnsiConsole.Ask($"Risk per trade [green](%)[/] [{current.RiskPerTradePercent}]:", current.RiskPerTradePercent),
-            MaxPortfolioHeatPercent = AnsiConsole.Ask($"Max portfolio heat [green](%)[/] [{current.MaxPortfolioHeatPercent}]:", current.MaxPortfolioHeatPercent),
-            MaxDrawdownPercent = AnsiConsole.Ask($"Max drawdown circuit breaker [green](%)[/] [{current.MaxDrawdownPercent}]:", current.MaxDrawdownPercent),
-            MaxDailyDrawdownPercent = AnsiConsole.Ask($"Max daily drawdown [green](%)[/] [{current.MaxDailyDrawdownPercent}]:", current.MaxDailyDrawdownPercent),
-            AtrStopMultiplier = AnsiConsole.Ask($"ATR stop multiplier [{current.AtrStopMultiplier}]:", current.AtrStopMultiplier),
-            TakeProfitMultiplier = AnsiConsole.Ask($"Take profit ratio (reward:risk) [{current.TakeProfitMultiplier}]:", current.TakeProfitMultiplier),
-            MinimumEquityUsd = AnsiConsole.Ask($"Minimum equity USD [{current.MinimumEquityUsd}]:", current.MinimumEquityUsd)
+            RiskPerTradePercent = AnsiConsole.Ask($"Risk per trade [green](%)[/] [[{current.RiskPerTradePercent}]]:", current.RiskPerTradePercent),
+            MaxPortfolioHeatPercent = AnsiConsole.Ask($"Max portfolio heat [green](%)[/] [[{current.MaxPortfolioHeatPercent}]]:", current.MaxPortfolioHeatPercent),
+            MaxDrawdownPercent = AnsiConsole.Ask($"Max drawdown circuit breaker [green](%)[/] [[{current.MaxDrawdownPercent}]]:", current.MaxDrawdownPercent),
+            MaxDailyDrawdownPercent = AnsiConsole.Ask($"Max daily drawdown [green](%)[/] [[{current.MaxDailyDrawdownPercent}]]:", current.MaxDailyDrawdownPercent),
+            AtrStopMultiplier = AnsiConsole.Ask($"ATR stop multiplier [[{current.AtrStopMultiplier}]]:", current.AtrStopMultiplier),
+            TakeProfitMultiplier = AnsiConsole.Ask($"Take profit ratio (reward:risk) [[{current.TakeProfitMultiplier}]]:", current.TakeProfitMultiplier),
+            MinimumEquityUsd = AnsiConsole.Ask($"Minimum equity USD [[{current.MinimumEquityUsd}]]:", current.MinimumEquityUsd)
         };
 
         if (AnsiConsole.Confirm("Save these settings?", defaultValue: true))
@@ -611,18 +644,18 @@ class Program
 
         var updated = new StrategyConfigSettings
         {
-            AdxPeriod = AnsiConsole.Ask($"ADX period [{current.AdxPeriod}]:", current.AdxPeriod),
-            AdxThreshold = AnsiConsole.Ask($"ADX entry threshold [{current.AdxThreshold}]:", current.AdxThreshold),
-            AdxExitThreshold = AnsiConsole.Ask($"ADX exit threshold [{current.AdxExitThreshold}]:", current.AdxExitThreshold),
+            AdxPeriod = AnsiConsole.Ask($"ADX period [[{current.AdxPeriod}]]:", current.AdxPeriod),
+            AdxThreshold = AnsiConsole.Ask($"ADX entry threshold [[{current.AdxThreshold}]]:", current.AdxThreshold),
+            AdxExitThreshold = AnsiConsole.Ask($"ADX exit threshold [[{current.AdxExitThreshold}]]:", current.AdxExitThreshold),
             RequireAdxRising = AnsiConsole.Confirm("Require ADX rising?", current.RequireAdxRising),
-            AdxSlopeLookback = AnsiConsole.Ask($"ADX slope lookback (bars) [{current.AdxSlopeLookback}]:", current.AdxSlopeLookback),
-            FastEmaPeriod = AnsiConsole.Ask($"Fast EMA period [{current.FastEmaPeriod}]:", current.FastEmaPeriod),
-            SlowEmaPeriod = AnsiConsole.Ask($"Slow EMA period [{current.SlowEmaPeriod}]:", current.SlowEmaPeriod),
-            AtrPeriod = AnsiConsole.Ask($"ATR period [{current.AtrPeriod}]:", current.AtrPeriod),
-            MinAtrPercent = AnsiConsole.Ask($"Min ATR % of price [{current.MinAtrPercent}]:", current.MinAtrPercent),
-            MaxAtrPercent = AnsiConsole.Ask($"Max ATR % of price [{current.MaxAtrPercent}]:", current.MaxAtrPercent),
+            AdxSlopeLookback = AnsiConsole.Ask($"ADX slope lookback (bars) [[{current.AdxSlopeLookback}]]:", current.AdxSlopeLookback),
+            FastEmaPeriod = AnsiConsole.Ask($"Fast EMA period [[{current.FastEmaPeriod}]]:", current.FastEmaPeriod),
+            SlowEmaPeriod = AnsiConsole.Ask($"Slow EMA period [[{current.SlowEmaPeriod}]]:", current.SlowEmaPeriod),
+            AtrPeriod = AnsiConsole.Ask($"ATR period [[{current.AtrPeriod}]]:", current.AtrPeriod),
+            MinAtrPercent = AnsiConsole.Ask($"Min ATR % of price [[{current.MinAtrPercent}]]:", current.MinAtrPercent),
+            MaxAtrPercent = AnsiConsole.Ask($"Max ATR % of price [[{current.MaxAtrPercent}]]:", current.MaxAtrPercent),
             RequireVolumeConfirmation = AnsiConsole.Confirm("Require volume confirmation?", current.RequireVolumeConfirmation),
-            VolumeThreshold = AnsiConsole.Ask($"Volume spike threshold (x avg) [{current.VolumeThreshold}]:", current.VolumeThreshold),
+            VolumeThreshold = AnsiConsole.Ask($"Volume spike threshold (x avg) [[{current.VolumeThreshold}]]:", current.VolumeThreshold),
             RequireObvConfirmation = AnsiConsole.Confirm("Require OBV confirmation?", current.RequireObvConfirmation)
         };
 
@@ -643,6 +676,28 @@ class Program
         }
 
         return updated.ToStrategySettings();
+    }
+
+    static IStrategy SelectStrategy(StrategySettings? adxSettings = null)
+    {
+        var strategyChoice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Select [green]strategy[/]:")
+                .AddChoices(
+                    "ADX Trend Following (Recommended)",
+                    "RSI Mean Reversion",
+                    "MA Crossover",
+                    "Strategy Ensemble (All Combined)")
+        );
+
+        return strategyChoice switch
+        {
+            "ADX Trend Following (Recommended)" => new AdxTrendStrategy(adxSettings),
+            "RSI Mean Reversion" => new RsiStrategy(),
+            "MA Crossover" => new MaStrategy(),
+            "Strategy Ensemble (All Combined)" => StrategyEnsemble.CreateDefault(),
+            _ => new AdxTrendStrategy(adxSettings)
+        };
     }
 
     static void DisplayBacktestResults(BacktestResult result)
