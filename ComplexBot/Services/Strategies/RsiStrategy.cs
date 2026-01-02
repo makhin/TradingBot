@@ -33,7 +33,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>
     }
 
     public decimal? CurrentRsi => _rsi.Value;
-    public decimal? CurrentAtr => _atr.Value;
+    public override decimal? CurrentAtr => _atr.Value;
 
     /// <summary>
     /// Returns confidence based on RSI extremity

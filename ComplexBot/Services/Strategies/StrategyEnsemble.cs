@@ -10,6 +10,12 @@ public class StrategyEnsemble : IStrategy
 {
     public string Name => "Strategy Ensemble";
     public decimal? CurrentStopLoss => null;
+    public decimal? CurrentAtr => _strategies
+        .Select(s => s.Strategy.CurrentAtr)
+        .Where(a => a.HasValue)
+        .Select(a => a!.Value)
+        .DefaultIfEmpty(0)
+        .Average() is var avg && avg > 0 ? avg : null;
 
     private readonly EnsembleSettings _settings;
     private readonly List<StrategyWeight> _strategies;

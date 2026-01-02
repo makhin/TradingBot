@@ -162,7 +162,7 @@ public class BacktestEngine
         decimal entryPrice = ApplySlippage(candle.Close, direction, true);
         var sizing = _riskManager.CalculatePositionSize(
             entryPrice, signal.StopLoss.Value,
-            (_strategy as AdxTrendStrategy)?.CurrentAtr);
+            _strategy.CurrentAtr);
 
         if (sizing.Quantity <= 0)
             return;
@@ -177,7 +177,6 @@ public class BacktestEngine
 
         if (_journal != null)
         {
-            var adxStrategy = _strategy as AdxTrendStrategy;
             position.JournalTradeId = _journal.OpenTrade(new TradeJournalEntry
             {
                 EntryTime = candle.OpenTime,
@@ -189,8 +188,8 @@ public class BacktestEngine
                 Quantity = sizing.Quantity,
                 PositionValueUsd = position.PositionValue ?? 0,
                 RiskAmount = sizing.RiskAmount,
-                AdxValue = adxStrategy?.CurrentAdx ?? 0,
-                Atr = adxStrategy?.CurrentAtr ?? 0,
+                AdxValue = (_strategy as AdxTrendStrategy)?.CurrentAdx ?? 0,
+                Atr = _strategy.CurrentAtr ?? 0,
                 EntryReason = signal.Reason
             });
         }

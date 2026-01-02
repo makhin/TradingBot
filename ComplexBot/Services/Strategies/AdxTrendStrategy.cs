@@ -15,6 +15,12 @@ public interface IStrategy
     /// Used by BacktestEngine to sync with PositionState.
     /// </summary>
     decimal? CurrentStopLoss { get; }
+
+    /// <summary>
+    /// Current ATR value for volatility-based position sizing.
+    /// Used by RiskManager to adjust position size.
+    /// </summary>
+    decimal? CurrentAtr { get; }
 }
 
 /// <summary>
@@ -62,7 +68,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>
         _adxHistory = new Queue<decimal>(Settings.AdxSlopeLookback);
     }
 
-    public decimal? CurrentAtr => _atr.Value;
+    public override decimal? CurrentAtr => _atr.Value;
     public decimal? CurrentAdx => _adx.Value;
     public bool VolumeConfirmation => _obv.IsReady;
 

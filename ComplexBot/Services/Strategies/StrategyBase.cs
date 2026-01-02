@@ -12,6 +12,7 @@ public abstract class StrategyBase<TSettings> : IStrategy
 
     public abstract string Name { get; }
     public virtual decimal? CurrentStopLoss => null;
+    public virtual decimal? CurrentAtr => null;
 
     protected TSettings Settings { get; }
 

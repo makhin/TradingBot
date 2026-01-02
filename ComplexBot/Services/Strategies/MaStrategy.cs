@@ -33,7 +33,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>
         _volume = new VolumeIndicator(Settings.VolumePeriod, Settings.VolumeThreshold);
     }
 
-    public decimal? CurrentAtr => _atr.Value;
+    public override decimal? CurrentAtr => _atr.Value;
 
     /// <summary>
     /// Returns confidence based on MA separation and trend strength
