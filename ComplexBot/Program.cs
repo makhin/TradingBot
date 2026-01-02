@@ -7,13 +7,18 @@ using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Notifications;
+using ComplexBot.Configuration;
 
 namespace ComplexBot;
 
 class Program
 {
+    static ConfigurationService _configService = null!;
+
     static async Task Main(string[] args)
     {
+        _configService = new ConfigurationService();
+
         AnsiConsole.Write(new FigletText("Trading Bot").Color(Color.Cyan1));
         AnsiConsole.MarkupLine("[grey]ADX Trend Following Strategy with Risk Management[/]");
         AnsiConsole.MarkupLine("[grey]Based on research: target Sharpe 1.5-1.9, max DD <20%[/]\n");
@@ -22,13 +27,15 @@ class Program
             new SelectionPrompt<string>()
                 .Title("Select [green]mode[/]:")
                 .AddChoices(
-                    "Backtest", 
+                    "Backtest",
                     "Parameter Optimization",
-                    "Walk-Forward Analysis", 
+                    "Walk-Forward Analysis",
                     "Monte Carlo Simulation",
                     "Live Trading (Paper)",
                     "Live Trading (Real)",
-                    "Download Data", 
+                    "Download Data",
+                    "Configuration Settings",
+                    "Reset to Defaults",
                     "Exit")
         );
 
@@ -54,6 +61,12 @@ class Program
                 break;
             case "Download Data":
                 await DownloadData();
+                break;
+            case "Configuration Settings":
+                ConfigureSettings();
+                break;
+            case "Reset to Defaults":
+                _configService.ResetToDefaults();
                 break;
         }
     }
@@ -378,51 +391,56 @@ class Program
 
         AnsiConsole.MarkupLine($"\n[yellow]═══ {(paperTrade ? "PAPER" : "LIVE")} TRADING MODE ═══[/]\n");
 
-        // API credentials
-        var useTestnet = AnsiConsole.Confirm("Use Binance Testnet?", true);
-        
-        string apiKey, apiSecret;
-        if (useTestnet)
+        // Load API credentials from config
+        var config = _configService.GetConfiguration();
+        var apiKey = config.BinanceApi.ApiKey;
+        var apiSecret = config.BinanceApi.ApiSecret;
+        var useTestnet = config.BinanceApi.UseTestnet;
+
+        // Validate API keys
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(apiSecret))
         {
-            AnsiConsole.MarkupLine("[grey]Get testnet keys at: https://testnet.binance.vision/[/]");
-            apiKey = AnsiConsole.Ask<string>("Testnet API Key:");
-            apiSecret = AnsiConsole.Prompt(new TextPrompt<string>("Testnet API Secret:").Secret());
-        }
-        else
-        {
-            apiKey = AnsiConsole.Ask<string>("API Key:");
-            apiSecret = AnsiConsole.Prompt(new TextPrompt<string>("API Secret:").Secret());
+            AnsiConsole.MarkupLine("[red]✗ API keys not configured![/]");
+            AnsiConsole.MarkupLine("[yellow]Please configure API keys via:[/] Configuration Settings → API Keys");
+            if (useTestnet)
+            {
+                AnsiConsole.MarkupLine("[grey]Get testnet keys at: https://testnet.binance.vision/[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("[grey]Get API keys at: https://www.binance.com/en/my/settings/api-management[/]");
+            }
+            return;
         }
 
-        var symbol = AnsiConsole.Ask("Symbol:", "BTCUSDT");
+        AnsiConsole.MarkupLine($"[grey]Using {(useTestnet ? "Testnet" : "Live")} API keys from configuration[/]\n");
+
+        var symbol = AnsiConsole.Ask("Symbol:", config.LiveTrading.Symbol);
         var interval = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
-                .Title("Interval (recommended [green]4h[/] for medium-term):")
+                .Title($"Interval (current: [green]{config.LiveTrading.Interval}[/]):")
                 .AddChoices("1h", "4h", "1d")
         );
         var tradingMode = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
-                .Title("Trading mode:")
+                .Title($"Trading mode (current: [green]{config.LiveTrading.TradingMode}[/]):")
                 .AddChoices("Spot (no margin)", "Futures/Margin")
         );
 
         var riskSettings = GetRiskSettings();
         var strategySettings = GetStrategySettings();
-        var initialCapital = AnsiConsole.Ask("Initial capital [green](USDT)[/]:", 10000m);
+        var initialCapital = AnsiConsole.Ask($"Initial capital [green](USDT)[/] [{config.LiveTrading.InitialCapital}]:", config.LiveTrading.InitialCapital);
 
-        // Telegram configuration (optional)
+        // Telegram configuration from config
         TelegramNotifier? telegram = null;
-        if (AnsiConsole.Confirm("Enable Telegram notifications?", defaultValue: false))
+        if (config.Telegram.Enabled && !string.IsNullOrWhiteSpace(config.Telegram.BotToken))
         {
-            AnsiConsole.MarkupLine("\n[yellow]Telegram Configuration:[/]");
-            AnsiConsole.MarkupLine("[grey]Get bot token from @BotFather[/]");
-            AnsiConsole.MarkupLine("[grey]Get chat ID from https://api.telegram.org/bot<TOKEN>/getUpdates[/]\n");
-
-            var botToken = AnsiConsole.Ask<string>("Bot Token:");
-            var chatId = AnsiConsole.Ask<long>("Chat ID:");
-
-            telegram = new TelegramNotifier(botToken, chatId);
-            AnsiConsole.MarkupLine("[green]✓[/] Telegram notifications enabled\n");
+            telegram = new TelegramNotifier(config.Telegram.BotToken, config.Telegram.ChatId);
+            AnsiConsole.MarkupLine("[green]✓[/] Telegram notifications enabled (from config)\n");
+        }
+        else if (AnsiConsole.Confirm("Enable Telegram notifications?", defaultValue: false))
+        {
+            AnsiConsole.MarkupLine("[yellow]Please configure Telegram via:[/] Configuration Settings → Telegram Notifications");
         }
 
         var liveSettings = new LiveTraderSettings
@@ -553,44 +571,78 @@ class Program
 
     static RiskSettings GetRiskSettings()
     {
+        var config = _configService.GetConfiguration();
+        var current = config.RiskManagement;
+
         AnsiConsole.MarkupLine("\n[yellow]Risk Management Settings[/]");
-        
-        return new RiskSettings
+        AnsiConsole.MarkupLine("[grey]Press Enter to keep current value shown in brackets[/]\n");
+
+        var updated = new RiskManagementSettings
         {
-            RiskPerTradePercent = AnsiConsole.Ask("Risk per trade [green](%)[/]:", 1.5m),
-            MaxPortfolioHeatPercent = AnsiConsole.Ask("Max portfolio heat [green](%)[/]:", 15m),
-            MaxDrawdownPercent = AnsiConsole.Ask("Max drawdown circuit breaker [green](%)[/]:", 20m),
-            MaxDailyDrawdownPercent = AnsiConsole.Ask("Max daily drawdown [green](%)[/]:", 3m),
-            AtrStopMultiplier = AnsiConsole.Ask("ATR stop multiplier:", 2.5m),
-            TakeProfitMultiplier = AnsiConsole.Ask("Take profit ratio (reward:risk):", 1.5m)
+            RiskPerTradePercent = AnsiConsole.Ask($"Risk per trade [green](%)[/] [{current.RiskPerTradePercent}]:", current.RiskPerTradePercent),
+            MaxPortfolioHeatPercent = AnsiConsole.Ask($"Max portfolio heat [green](%)[/] [{current.MaxPortfolioHeatPercent}]:", current.MaxPortfolioHeatPercent),
+            MaxDrawdownPercent = AnsiConsole.Ask($"Max drawdown circuit breaker [green](%)[/] [{current.MaxDrawdownPercent}]:", current.MaxDrawdownPercent),
+            MaxDailyDrawdownPercent = AnsiConsole.Ask($"Max daily drawdown [green](%)[/] [{current.MaxDailyDrawdownPercent}]:", current.MaxDailyDrawdownPercent),
+            AtrStopMultiplier = AnsiConsole.Ask($"ATR stop multiplier [{current.AtrStopMultiplier}]:", current.AtrStopMultiplier),
+            TakeProfitMultiplier = AnsiConsole.Ask($"Take profit ratio (reward:risk) [{current.TakeProfitMultiplier}]:", current.TakeProfitMultiplier),
+            MinimumEquityUsd = AnsiConsole.Ask($"Minimum equity USD [{current.MinimumEquityUsd}]:", current.MinimumEquityUsd)
         };
+
+        if (AnsiConsole.Confirm("Save these settings?", defaultValue: true))
+        {
+            _configService.UpdateSection("RiskManagement", updated);
+        }
+
+        return updated.ToRiskSettings();
     }
 
     static StrategySettings GetStrategySettings()
     {
-        var useDefaults = AnsiConsole.Confirm("Use default strategy settings?", true);
-        
+        var config = _configService.GetConfiguration();
+        var current = config.Strategy;
+
+        var useDefaults = AnsiConsole.Confirm("Use saved strategy settings?", defaultValue: true);
+
         if (useDefaults)
-            return new StrategySettings();
+            return current.ToStrategySettings();
 
         AnsiConsole.MarkupLine("\n[yellow]Strategy Settings[/]");
-        
-        return new StrategySettings
+        AnsiConsole.MarkupLine("[grey]Press Enter to keep current value shown in brackets[/]\n");
+
+        var updated = new StrategyConfigSettings
         {
-            AdxPeriod = AnsiConsole.Ask("ADX period:", 14),
-            AdxThreshold = AnsiConsole.Ask("ADX entry threshold:", 25m),
-            AdxExitThreshold = AnsiConsole.Ask("ADX exit threshold:", 18m),
-            RequireAdxRising = AnsiConsole.Confirm("Require ADX rising?", false),
-            AdxSlopeLookback = AnsiConsole.Ask("ADX slope lookback (bars):", 5),
-            FastEmaPeriod = AnsiConsole.Ask("Fast EMA period:", 20),
-            SlowEmaPeriod = AnsiConsole.Ask("Slow EMA period:", 50),
-            AtrPeriod = AnsiConsole.Ask("ATR period:", 14),
-            MinAtrPercent = AnsiConsole.Ask("Min ATR % of price:", 0m),
-            MaxAtrPercent = AnsiConsole.Ask("Max ATR % of price:", 100m),
-            RequireVolumeConfirmation = AnsiConsole.Confirm("Require volume confirmation?", true),
-            VolumeThreshold = AnsiConsole.Ask("Volume spike threshold (x avg):", 1.5m),
-            RequireObvConfirmation = AnsiConsole.Confirm("Require OBV confirmation?", true)
+            AdxPeriod = AnsiConsole.Ask($"ADX period [{current.AdxPeriod}]:", current.AdxPeriod),
+            AdxThreshold = AnsiConsole.Ask($"ADX entry threshold [{current.AdxThreshold}]:", current.AdxThreshold),
+            AdxExitThreshold = AnsiConsole.Ask($"ADX exit threshold [{current.AdxExitThreshold}]:", current.AdxExitThreshold),
+            RequireAdxRising = AnsiConsole.Confirm("Require ADX rising?", current.RequireAdxRising),
+            AdxSlopeLookback = AnsiConsole.Ask($"ADX slope lookback (bars) [{current.AdxSlopeLookback}]:", current.AdxSlopeLookback),
+            FastEmaPeriod = AnsiConsole.Ask($"Fast EMA period [{current.FastEmaPeriod}]:", current.FastEmaPeriod),
+            SlowEmaPeriod = AnsiConsole.Ask($"Slow EMA period [{current.SlowEmaPeriod}]:", current.SlowEmaPeriod),
+            AtrPeriod = AnsiConsole.Ask($"ATR period [{current.AtrPeriod}]:", current.AtrPeriod),
+            MinAtrPercent = AnsiConsole.Ask($"Min ATR % of price [{current.MinAtrPercent}]:", current.MinAtrPercent),
+            MaxAtrPercent = AnsiConsole.Ask($"Max ATR % of price [{current.MaxAtrPercent}]:", current.MaxAtrPercent),
+            RequireVolumeConfirmation = AnsiConsole.Confirm("Require volume confirmation?", current.RequireVolumeConfirmation),
+            VolumeThreshold = AnsiConsole.Ask($"Volume spike threshold (x avg) [{current.VolumeThreshold}]:", current.VolumeThreshold),
+            RequireObvConfirmation = AnsiConsole.Confirm("Require OBV confirmation?", current.RequireObvConfirmation)
         };
+
+        // Copy remaining fields from current config
+        updated.RequireFreshTrend = current.RequireFreshTrend;
+        updated.AdxFallingExitBars = current.AdxFallingExitBars;
+        updated.MaxBarsInTrade = current.MaxBarsInTrade;
+        updated.AtrStopMultiplier = current.AtrStopMultiplier;
+        updated.TakeProfitMultiplier = current.TakeProfitMultiplier;
+        updated.VolumePeriod = current.VolumePeriod;
+        updated.ObvPeriod = current.ObvPeriod;
+        updated.PartialExitRMultiple = current.PartialExitRMultiple;
+        updated.PartialExitFraction = current.PartialExitFraction;
+
+        if (AnsiConsole.Confirm("Save these settings?", defaultValue: true))
+        {
+            _configService.UpdateSection("Strategy", updated);
+        }
+
+        return updated.ToStrategySettings();
     }
 
     static void DisplayBacktestResults(BacktestResult result)
@@ -775,5 +827,39 @@ class Program
         );
 
         return (color, message);
+    }
+
+    static void ConfigureSettings()
+    {
+        var section = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Which settings to configure?")
+                .AddChoices(
+                    "Risk Management",
+                    "Strategy Parameters",
+                    "Correlation Groups",
+                    "Telegram Notifications",
+                    "API Keys",
+                    "Back to Menu")
+        );
+
+        switch (section)
+        {
+            case "Risk Management":
+                _configService.EditInteractive("risk");
+                break;
+            case "Strategy Parameters":
+                _configService.EditInteractive("strategy");
+                break;
+            case "Correlation Groups":
+                _configService.EditInteractive("correlation");
+                break;
+            case "Telegram Notifications":
+                _configService.EditInteractive("telegram");
+                break;
+            case "API Keys":
+                _configService.EditInteractive("api");
+                break;
+        }
     }
 }

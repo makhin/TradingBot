@@ -9,19 +9,21 @@ public class PortfolioRiskManager
     private readonly Dictionary<string, string[]> _correlationGroups;
     private readonly AggregatedEquityTracker _equityTracker = new();
 
-    public PortfolioRiskManager(PortfolioRiskSettings settings)
+    public PortfolioRiskManager(
+        PortfolioRiskSettings settings,
+        Dictionary<string, string[]>? correlationGroups = null)
     {
         _settings = settings;
-
-        // Initialize correlation groups
-        _correlationGroups = new Dictionary<string, string[]>
-        {
-            ["BTC_CORRELATED"] = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
-            ["ALTCOINS_L1"] = ["ADAUSDT", "DOTUSDT", "AVAXUSDT", "MATICUSDT"],
-            ["ALTCOINS_DEFI"] = ["UNIUSDT", "AAVEUSDT", "LINKUSDT", "SUSHIUSDT"],
-            ["MEMECOINS"] = ["DOGEUSDT", "SHIBUSDT", "PEPEUSDT"]
-        };
+        _correlationGroups = correlationGroups ?? GetDefaultCorrelationGroups();
     }
+
+    private static Dictionary<string, string[]> GetDefaultCorrelationGroups() => new()
+    {
+        ["BTC_CORRELATED"] = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
+        ["ALTCOINS_L1"] = ["ADAUSDT", "DOTUSDT", "AVAXUSDT", "MATICUSDT"],
+        ["ALTCOINS_DEFI"] = ["UNIUSDT", "AAVEUSDT", "LINKUSDT", "SUSHIUSDT"],
+        ["MEMECOINS"] = ["DOGEUSDT", "SHIBUSDT", "PEPEUSDT"]
+    };
 
     public void RegisterSymbol(string symbol, RiskManager riskManager)
     {

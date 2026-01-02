@@ -12,9 +12,13 @@ obj/
 .vs/
 .vscode/
 
-# Configuration files with API keys
-appsettings.json
-appsettings.*.json
+# Configuration files with API keys (SimpleBot has keys in appsettings.json)
+SimpleBot/appsettings.json
+SimpleBot/appsettings.*.json
+
+# User-specific configuration (ComplexBot user overrides)
+appsettings.user.json
+**/appsettings.user.json
 
 # NuGet packages
 packages/
