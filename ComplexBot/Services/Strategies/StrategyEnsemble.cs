@@ -6,7 +6,7 @@ namespace ComplexBot.Services.Strategies;
 /// Strategy Ensemble - combines signals from multiple strategies using weighted voting.
 /// Only generates a signal when strategies reach consensus above minimum agreement threshold.
 /// </summary>
-public class StrategyEnsemble : IStrategy
+public class StrategyEnsemble : IStrategy, IHasConfidence
 {
     public string Name => "Strategy Ensemble";
     public decimal? CurrentStopLoss => null;
@@ -16,6 +16,22 @@ public class StrategyEnsemble : IStrategy
         .Select(a => a!.Value)
         .DefaultIfEmpty(0)
         .Average() is var avg && avg > 0 ? avg : null;
+
+    public decimal GetConfidence()
+    {
+        if (_strategies.Count == 0)
+            return 0.5m;
+
+        // Average confidence of all strategies that support confidence
+        var confidenceStrategies = _strategies
+            .Where(s => s.Strategy is IHasConfidence)
+            .ToList();
+
+        if (confidenceStrategies.Count == 0)
+            return 0.5m;
+
+        return confidenceStrategies.Average(s => ((IHasConfidence)s.Strategy).GetConfidence());
+    }
 
     private readonly EnsembleSettings _settings;
     private readonly List<StrategyWeight> _strategies;
@@ -77,7 +93,9 @@ public class StrategyEnsemble : IStrategy
                 Weight = sw.Weight,
                 StopLoss = signal?.StopLoss,
                 TakeProfit = signal?.TakeProfit,
-                Reason = signal?.Reason ?? "No signal"
+                Reason = signal?.Reason ?? "No signal",
+                PartialExitPercent = signal?.PartialExitPercent,
+                MoveStopToBreakeven = signal?.MoveStopToBreakeven ?? false
             });
         }
 
@@ -86,6 +104,7 @@ public class StrategyEnsemble : IStrategy
         var buyScore = CalculateScore(SignalType.Buy, totalWeight);
         var sellScore = CalculateScore(SignalType.Sell, totalWeight);
         var exitScore = CalculateScore(SignalType.Exit, totalWeight);
+        var partialExitScore = CalculateScore(SignalType.PartialExit, totalWeight);
 
         // Check exit consensus first (if we have a position)
         bool hasPosition = currentPosition.HasValue && currentPosition.Value != 0;
@@ -101,6 +120,40 @@ public class StrategyEnsemble : IStrategy
                 null,
                 null,
                 $"Ensemble Exit: {exitVotes.Count}/{_strategies.Count} strategies agree ({exitScore:P0} consensus)"
+            );
+        }
+
+        // Check partial exit consensus (if we have a position)
+        if (hasPosition && partialExitScore >= _settings.MinimumAgreement)
+        {
+            var partialExitVotes = _lastVotes.Where(v => v.Signal == SignalType.PartialExit).ToList();
+
+            // Average partial exit percent from all voting strategies
+            var avgPartialExitPercent = partialExitVotes
+                .Where(v => v.PartialExitPercent.HasValue)
+                .Select(v => v.PartialExitPercent!.Value)
+                .DefaultIfEmpty(0.5m)
+                .Average();
+
+            // Use consensus if any strategy wants to move to breakeven
+            var moveToBreakeven = partialExitVotes.Any(v => v.MoveStopToBreakeven);
+
+            // Get consensus new stop loss for partial exit
+            var newStopLoss = partialExitVotes
+                .Where(v => v.StopLoss.HasValue)
+                .Select(v => v.StopLoss!.Value)
+                .DefaultIfEmpty()
+                .FirstOrDefault();
+
+            return new TradeSignal(
+                symbol,
+                SignalType.PartialExit,
+                candle.Close,
+                newStopLoss,
+                null,
+                $"Ensemble Partial Exit: {partialExitVotes.Count}/{_strategies.Count} strategies ({partialExitScore:P0} consensus)",
+                PartialExitPercent: avgPartialExitPercent,
+                MoveStopToBreakeven: moveToBreakeven
             );
         }
 
@@ -155,26 +208,9 @@ public class StrategyEnsemble : IStrategy
 
     private decimal GetStrategyConfidence(IStrategy strategy)
     {
-        // Get confidence from strategy if it implements GetConfidence method
-        return strategy switch
-        {
-            AdxTrendStrategy adx => GetAdxConfidence(adx),
-            MaStrategy ma => ma.GetConfidence(),
-            RsiStrategy rsi => rsi.GetConfidence(),
-            _ => 0.5m // Default confidence for unknown strategies
-        };
-    }
-
-    private static decimal GetAdxConfidence(AdxTrendStrategy adx)
-    {
-        // ADX confidence based on ADX value strength
-        if (!adx.CurrentAdx.HasValue)
-            return 0m;
-
-        var adxValue = adx.CurrentAdx.Value;
-
-        // ADX 25 → 0.5, ADX 40 → 0.75, ADX 55+ → 1.0
-        return Math.Min(1m, 0.5m + (adxValue - 25) / 60m);
+        return strategy is IHasConfidence hasConfidence
+            ? hasConfidence.GetConfidence()
+            : 0.5m; // Default confidence for strategies without IHasConfidence
     }
 
     private static decimal? GetConsensusStopLoss(List<StrategyVote> votes, decimal price, bool isLong)
@@ -242,6 +278,8 @@ public record StrategyVote
     public decimal? StopLoss { get; init; }
     public decimal? TakeProfit { get; init; }
     public string Reason { get; init; } = "";
+    public decimal? PartialExitPercent { get; init; }
+    public bool MoveStopToBreakeven { get; init; }
 }
 
 public record EnsembleSettings

@@ -8,7 +8,7 @@ namespace ComplexBot.Services.Strategies;
 /// Entry: Fast MA crosses above/below Slow MA with volume confirmation
 /// Exit: Opposite crossover or trailing stop
 /// </summary>
-public class MaStrategy : StrategyBase<MaStrategySettings>
+public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
 {
     public override string Name => "MA Crossover";
     public override decimal? CurrentStopLoss => _trailingStop;

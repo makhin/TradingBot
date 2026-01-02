@@ -8,7 +8,7 @@ namespace ComplexBot.Services.Strategies;
 /// Entry: RSI oversold/overbought with price confirmation
 /// Exit: RSI returns to neutral zone or stop loss
 /// </summary>
-public class RsiStrategy : StrategyBase<RsiStrategySettings>
+public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
 {
     public override string Name => "RSI Mean Reversion";
     public override decimal? CurrentStopLoss => _stopLoss;

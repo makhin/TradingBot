@@ -24,12 +24,25 @@ public interface IStrategy
 }
 
 /// <summary>
+/// Interface for strategies that provide confidence level for their signals.
+/// Used by StrategyEnsemble for weighted voting.
+/// </summary>
+public interface IHasConfidence
+{
+    /// <summary>
+    /// Returns confidence level for current signal (0.0-1.0).
+    /// Higher values indicate stronger conviction in the signal.
+    /// </summary>
+    decimal GetConfidence();
+}
+
+/// <summary>
 /// ADX Trend Following Strategy with Volume Confirmation
 /// Entry: ADX > 25 + EMA crossover + MACD confirmation + OBV trend alignment
 /// Exit: ATR-based trailing stop or ADX < 20
 /// Based on research: simple trend-following with proper filters achieves Sharpe 1.5-1.9
 /// </summary>
-public class AdxTrendStrategy : StrategyBase<StrategySettings>
+public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 {
     public override string Name => "ADX Trend Following + Volume";
     public override decimal? CurrentStopLoss => _trailingStop;
@@ -71,6 +84,19 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>
     public override decimal? CurrentAtr => _atr.Value;
     public decimal? CurrentAdx => _adx.Value;
     public bool VolumeConfirmation => _obv.IsReady;
+
+    /// <summary>
+    /// Returns confidence based on ADX strength
+    /// ADX 25 → 0.5, ADX 40 → 0.75, ADX 55+ → 1.0
+    /// </summary>
+    public decimal GetConfidence()
+    {
+        if (!_adx.Value.HasValue)
+            return 0m;
+
+        var adxValue = _adx.Value.Value;
+        return Math.Min(1m, 0.5m + (adxValue - 25) / 60m);
+    }
 
     protected override void UpdateIndicators(Candle candle)
     {
