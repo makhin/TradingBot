@@ -148,6 +148,13 @@ public class RiskManager
         if (_currentEquity <= 0)
             return false;
 
+        // Check minimum equity requirement
+        if (_currentEquity < _settings.MinimumEquityUsd)
+        {
+            Console.WriteLine($"⛔ Equity below minimum: ${_currentEquity:F2} < ${_settings.MinimumEquityUsd:F2}");
+            return false;
+        }
+
         // Check daily loss limit (with unrealized P&L)
         if (IsDailyLimitExceeded())
         {
@@ -235,4 +242,5 @@ public record RiskSettings
     public decimal MaxDailyDrawdownPercent { get; init; } = 3m;  // 3% daily loss limit
     public decimal AtrStopMultiplier { get; init; } = 2.5m;  // 2.5x ATR for stops
     public decimal TakeProfitMultiplier { get; init; } = 1.5m;  // 1.5:1 reward:risk
+    public decimal MinimumEquityUsd { get; init; } = 100m;  // Minimum $100 to trade
 }
