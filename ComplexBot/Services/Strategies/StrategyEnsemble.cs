@@ -44,17 +44,26 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
     }
 
     /// <summary>
-    /// Create ensemble with default strategies using weights from settings
+    /// Create ensemble with default strategies using weights from settings.
+    ///
+    /// Philosophy: Combines TWO trading approaches for balance:
+    /// 1. Trend Following (ADX, MA Crossover) - trades WITH the trend, catches strong moves
+    /// 2. Mean Reversion (RSI) - trades AGAINST extremes, catches pullbacks
+    ///
+    /// This creates diversification:
+    /// - In strong trend: ADX/MA dominate, RSI stays quiet
+    /// - In ranging market: RSI may signal, ADX/MA filter
+    /// - When ALL agree (≥60%): maximum confidence in the signal
     /// </summary>
     public static StrategyEnsemble CreateDefault(EnsembleSettings? settings = null)
     {
         var effectiveSettings = settings ?? new EnsembleSettings();
         var ensemble = new StrategyEnsemble(effectiveSettings);
 
-        // Create strategies and get their weights from settings
-        var adxStrategy = new AdxTrendStrategy();
-        var maStrategy = new MaStrategy();
-        var rsiStrategy = new RsiStrategy();
+        // Create strategies: mix of trend-following and mean-reversion
+        var adxStrategy = new AdxTrendStrategy();   // Trend following
+        var maStrategy = new MaStrategy();          // Trend following
+        var rsiStrategy = new RsiStrategy();        // Mean reversion (counter-trend)
 
         // Get weights from settings, fallback to hardcoded defaults if not found
         var adxWeight = effectiveSettings.StrategyWeights.TryGetValue(adxStrategy.Name, out var adxW)
@@ -314,12 +323,16 @@ public record EnsembleSettings
     /// <summary>
     /// Strategy weights by name. Used by CreateDefault() to set initial weights.
     /// Weights must sum to <= 1.0 but don't need to sum exactly to 1.0.
+    ///
+    /// Default weights balance TWO philosophies:
+    /// - Trend Following (ADX 50% + MA 25% = 75%) - dominant in strong trends
+    /// - Mean Reversion (RSI 25%) - catches pullbacks, filtered by trend strategies
     /// </summary>
     public Dictionary<string, decimal> StrategyWeights { get; init; } = new()
     {
-        ["ADX Trend Following + Volume"] = 0.5m,
-        ["MA Crossover"] = 0.25m,
-        ["RSI Mean Reversion"] = 0.25m
+        ["ADX Trend Following + Volume"] = 0.5m,  // Primary trend follower
+        ["MA Crossover"] = 0.25m,                  // Secondary trend follower
+        ["RSI Mean Reversion"] = 0.25m             // Counter-trend (mean reversion)
     };
 }
 

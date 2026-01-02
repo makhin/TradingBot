@@ -5,7 +5,12 @@ using ComplexBot.Services.Filters;
 namespace ComplexBot.Services.Strategies;
 
 /// <summary>
-/// Simple Moving Average Crossover Strategy
+/// Simple Moving Average Crossover Strategy (Trend-Following)
+///
+/// Philosophy: TRADES WITH THE TREND (follows EMA crossovers)
+/// - Buys when fast EMA crosses above slow EMA (uptrend starts)
+/// - Sells when fast EMA crosses below slow EMA (downtrend starts)
+///
 /// Entry: Fast MA crosses above/below Slow MA with volume confirmation
 /// Exit: Opposite crossover or trailing stop
 /// </summary>

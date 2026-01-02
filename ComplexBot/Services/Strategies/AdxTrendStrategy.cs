@@ -38,9 +38,15 @@ public interface IHasConfidence
 }
 
 /// <summary>
-/// ADX Trend Following Strategy with Volume Confirmation
+/// ADX Trend Following Strategy with Volume Confirmation (Trend-Following)
+///
+/// Philosophy: TRADES WITH THE TREND (waits for strong directional moves)
+/// - Only enters when trend is confirmed (ADX > 25)
+/// - Exits when trend weakens (ADX < 20) or trailing stop hit
+///
 /// Entry: ADX > 25 + EMA crossover + MACD confirmation + OBV trend alignment
 /// Exit: ATR-based trailing stop or ADX < 20
+///
 /// Based on research: simple trend-following with proper filters achieves Sharpe 1.5-1.9
 /// </summary>
 public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence

@@ -5,9 +5,16 @@ using ComplexBot.Services.Filters;
 namespace ComplexBot.Services.Strategies;
 
 /// <summary>
-/// RSI Mean Reversion Strategy
+/// RSI Mean Reversion Strategy (Counter-Trend)
+///
+/// Philosophy: TRADES AGAINST EXTREMES (opposite of trend following)
+/// - Buys oversold conditions (expects bounce)
+/// - Sells overbought conditions (expects pullback)
+///
 /// Entry: RSI oversold/overbought with price confirmation
 /// Exit: RSI returns to neutral zone or stop loss
+///
+/// Note: Works best in ranging/oscillating markets. In strong trends, signals may be premature.
 /// </summary>
 public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
 {
