@@ -181,8 +181,8 @@ public class RiskManagerTests
         var adjustedRisk = manager.GetDrawdownAdjustedRisk();
 
         // Assert
-        // At 20% drawdown, risk should be reduced to 25% of original
-        Assert.True(adjustedRisk < 0.5m);
+        // At 20% drawdown, risk should be reduced to 25% of original (2.0 * 0.25 = 0.5)
+        Assert.Equal(0.5m, adjustedRisk);
         Assert.True(adjustedRisk > 0);
     }
 
