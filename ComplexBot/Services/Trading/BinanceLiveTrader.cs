@@ -8,6 +8,7 @@ using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Notifications;
+using ComplexBot.Services.State;
 using CryptoExchange.Net.Objects.Sockets;
 
 namespace ComplexBot.Services.Trading;
@@ -933,6 +934,99 @@ public class BinanceLiveTrader : IDisposable
         var formatted = $"[{timestamp}] {message}";
         OnLog?.Invoke(formatted);
         Console.WriteLine(formatted);
+    }
+
+    // Graceful Shutdown Support Methods
+
+    public StateManager.BotState BuildCurrentState()
+    {
+        var equity = _settings.PaperTrade ? _paperEquity : GetAccountBalanceAsync().Result;
+
+        var openPositions = new List<StateManager.SavedPosition>();
+        if (_currentPosition != 0 && _entryPrice.HasValue)
+        {
+            openPositions.Add(new StateManager.SavedPosition
+            {
+                Symbol = _settings.Symbol,
+                Direction = _currentPosition > 0 ? SignalType.Buy : SignalType.Sell,
+                EntryPrice = _entryPrice.Value,
+                Quantity = Math.Abs(_currentPosition),
+                RemainingQuantity = Math.Abs(_currentPosition),
+                StopLoss = _stopLoss ?? _entryPrice.Value,
+                TakeProfit = _takeProfit ?? 0,
+                RiskAmount = _stopLoss.HasValue
+                    ? Math.Abs(_entryPrice.Value - _stopLoss.Value) * Math.Abs(_currentPosition)
+                    : 0,
+                EntryTime = DateTime.UtcNow,
+                TradeId = 0,
+                CurrentPrice = GetCurrentPriceAsync().Result,
+                BreakevenMoved = false
+            });
+        }
+
+        var activeOcoOrders = new List<StateManager.SavedOcoOrder>();
+        if (_currentOcoOrderListId.HasValue)
+        {
+            activeOcoOrders.Add(new StateManager.SavedOcoOrder
+            {
+                Symbol = _settings.Symbol,
+                OrderListId = _currentOcoOrderListId.Value
+            });
+        }
+
+        return new StateManager.BotState
+        {
+            LastUpdate = DateTime.UtcNow,
+            CurrentEquity = equity,
+            PeakEquity = _riskManager.GetTotalEquity(),
+            DayStartEquity = equity,
+            CurrentTradingDay = DateTime.UtcNow.Date,
+            OpenPositions = openPositions,
+            ActiveOcoOrders = activeOcoOrders,
+            NextTradeId = 1
+        };
+    }
+
+    public List<StateManager.SavedPosition> GetOpenPositions()
+    {
+        var positions = new List<StateManager.SavedPosition>();
+
+        if (_currentPosition != 0 && _entryPrice.HasValue)
+        {
+            positions.Add(new StateManager.SavedPosition
+            {
+                Symbol = _settings.Symbol,
+                Direction = _currentPosition > 0 ? SignalType.Buy : SignalType.Sell,
+                EntryPrice = _entryPrice.Value,
+                Quantity = Math.Abs(_currentPosition),
+                RemainingQuantity = Math.Abs(_currentPosition),
+                StopLoss = _stopLoss ?? _entryPrice.Value,
+                TakeProfit = _takeProfit ?? 0,
+                RiskAmount = 0,
+                EntryTime = DateTime.UtcNow,
+                TradeId = 0,
+                CurrentPrice = GetCurrentPriceAsync().Result,
+                BreakevenMoved = false
+            });
+        }
+
+        return positions;
+    }
+
+    public async Task CancelOcoOrdersForSymbol(string symbol)
+    {
+        if (symbol == _settings.Symbol && _currentOcoOrderListId.HasValue)
+        {
+            await CancelOcoOrderAsync();
+        }
+    }
+
+    public async Task ClosePosition(string symbol, string reason)
+    {
+        if (symbol == _settings.Symbol && _currentPosition != 0)
+        {
+            await ClosePositionAsync(reason);
+        }
     }
 
     public void Dispose()

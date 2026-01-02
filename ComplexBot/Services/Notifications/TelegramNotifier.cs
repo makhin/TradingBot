@@ -139,6 +139,11 @@ public class TelegramNotifier
         await SendMessage(message);
     }
 
+    public async Task SendMessageAsync(string message)
+    {
+        await SendMessage(message);
+    }
+
     private async Task SendMessage(string message)
     {
         if (_bot == null) return;
