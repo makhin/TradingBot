@@ -40,3 +40,8 @@ Data/
 
 # Claude Code
 .claude/
+
+# Environment variables with secrets
+.env
+.env.local
+.env.*.local
