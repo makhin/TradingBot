@@ -1,5 +1,6 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Indicators;
+using ComplexBot.Services.Filters;
 using System.Linq;
 
 namespace ComplexBot.Services.Strategies;
@@ -53,7 +54,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
     private readonly Atr _atr;
     private readonly Macd _macd;
     private readonly Obv _obv;
-    private readonly VolumeIndicator _volume;
+    private readonly VolumeFilter _volumeFilter;
     private readonly Queue<decimal> _adxHistory;
     private decimal? _currentFastEma;
     private decimal? _currentSlowEma;
@@ -78,7 +79,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         _atr = new Atr(Settings.AtrPeriod);
         _macd = new Macd();
         _obv = new Obv(Settings.ObvPeriod);
-        _volume = new VolumeIndicator(Settings.VolumePeriod, Settings.VolumeThreshold);
+        _volumeFilter = new VolumeFilter(Settings.VolumePeriod, Settings.VolumeThreshold, Settings.RequireVolumeConfirmation);
         _adxHistory = new Queue<decimal>(Settings.AdxSlopeLookback);
     }
 
@@ -107,7 +108,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         _atr.Update(candle);
         _macd.Update(candle.Close);
         _obv.Update(candle);
-        _volume.Update(candle.Volume);
+        _volumeFilter.Update(candle.Volume);
 
         bool indicatorsReady = _adx.IsReady
             && _currentFastEma.HasValue
@@ -160,8 +161,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         bool macdBearish = _macd.Histogram < 0;
 
         // Volume confirmation (research: valid breakouts show 1.5-2x average volume)
-        bool volumeConfirmed = !Settings.RequireVolumeConfirmation ||
-            (_volume.IsReady && _volume.VolumeRatio >= Settings.VolumeThreshold);
+        bool volumeConfirmed = _volumeFilter.IsConfirmed();
         
         // OBV trend alignment
         bool obvBullish = !Settings.RequireObvConfirmation || !_obv.IsReady || _obv.IsBullish;
@@ -193,7 +193,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
                 candle.Close,
                 longStop,
                 longTakeProfit,
-                $"Long: ADX={adx:F1}, +DI={plusDi:F1}>{minusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
+                $"Long: ADX={adx:F1}, +DI={plusDi:F1}>{minusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volumeFilter.VolumeRatio:F1}x{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
             );
         }
 
@@ -215,7 +215,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
                 candle.Close,
                 shortStop,
                 shortTakeProfit,
-                $"Short: ADX={adx:F1}, -DI={minusDi:F1}>{plusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
+                $"Short: ADX={adx:F1}, -DI={minusDi:F1}>{plusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volumeFilter.VolumeRatio:F1}x{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
             );
         }
 
@@ -340,7 +340,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         _atr.Reset();
         _macd.Reset();
         _obv.Reset();
-        _volume.Reset();
+        _volumeFilter.Reset();
         ResetPosition();
         _wasAboveThreshold = false;
         _adxHistory.Clear();

@@ -1,5 +1,6 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Indicators;
+using ComplexBot.Services.Filters;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -16,7 +17,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
     private readonly Rsi _rsi;
     private readonly Atr _atr;
     private readonly Ema _trendFilter;
-    private readonly VolumeIndicator _volume;
+    private readonly VolumeFilter _volumeFilter;
 
     private decimal? _previousRsi;
     private decimal? _currentRsi;
@@ -29,7 +30,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
         _rsi = new Rsi(Settings.RsiPeriod);
         _atr = new Atr(Settings.AtrPeriod);
         _trendFilter = new Ema(Settings.TrendFilterPeriod);
-        _volume = new VolumeIndicator(Settings.VolumePeriod, Settings.VolumeThreshold);
+        _volumeFilter = new VolumeFilter(Settings.VolumePeriod, Settings.VolumeThreshold, Settings.RequireVolumeConfirmation);
     }
 
     public decimal? CurrentRsi => _rsi.Value;
@@ -66,7 +67,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
         _currentRsi = _rsi.Update(candle.Close);
         _atr.Update(candle);
         _currentTrendEma = _trendFilter.Update(candle.Close);
-        _volume.Update(candle.Volume);
+        _volumeFilter.Update(candle.Volume);
     }
 
     protected override bool IndicatorsReady =>
@@ -93,8 +94,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
             || !_currentRsi.HasValue || !_currentTrendEma.HasValue)
             return null;
 
-        bool volumeOk = !Settings.RequireVolumeConfirmation ||
-            (_volume.IsReady && _volume.VolumeRatio >= Settings.VolumeThreshold);
+        bool volumeOk = _volumeFilter.IsConfirmed();
         var atr = _atr.Value.Value;
         var rsi = _currentRsi.Value;
         var trendEma = _currentTrendEma.Value;
@@ -228,7 +228,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
         _rsi.Reset();
         _atr.Reset();
         _trendFilter.Reset();
-        _volume.Reset();
+        _volumeFilter.Reset();
         _previousRsi = null;
         ResetPosition();
     }

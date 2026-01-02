@@ -1,63 +1,63 @@
 using ComplexBot.Models;
-using ComplexBot.Services.Strategies;
-using ComplexBot.Services.RiskManagement;
 
 namespace ComplexBot.Services.Backtesting;
 
 /// <summary>
-/// Genetic Algorithm Parameter Optimizer
-/// Uses evolutionary algorithms to find optimal strategy parameters.
+/// Generic Genetic Algorithm Optimizer
+/// Uses evolutionary algorithms to find optimal parameters for any strategy.
 /// More efficient than grid search for large parameter spaces.
 /// </summary>
-public class GeneticOptimizer
+/// <typeparam name="TSettings">Type of settings to optimize (e.g., StrategySettings, MaStrategySettings)</typeparam>
+public class GeneticOptimizer<TSettings> where TSettings : class
 {
     private readonly GeneticOptimizerSettings _settings;
     private readonly Random _random;
+    private readonly Func<TSettings> _createRandom;
+    private readonly Func<TSettings, TSettings> _mutate;
+    private readonly Func<TSettings, TSettings, TSettings> _crossover;
+    private readonly Func<TSettings, bool> _validate;
 
-    public GeneticOptimizer(GeneticOptimizerSettings? settings = null)
+    /// <summary>
+    /// Creates a genetic optimizer with custom delegates for strategy-specific operations
+    /// </summary>
+    /// <param name="createRandom">Delegate to create random settings within valid ranges</param>
+    /// <param name="mutate">Delegate to mutate settings (returns mutated copy)</param>
+    /// <param name="crossover">Delegate to crossover two parent settings (returns offspring)</param>
+    /// <param name="validate">Delegate to validate settings (returns true if valid)</param>
+    /// <param name="settings">Optimizer configuration</param>
+    public GeneticOptimizer(
+        Func<TSettings> createRandom,
+        Func<TSettings, TSettings> mutate,
+        Func<TSettings, TSettings, TSettings> crossover,
+        Func<TSettings, bool> validate,
+        GeneticOptimizerSettings? settings = null)
     {
+        _createRandom = createRandom ?? throw new ArgumentNullException(nameof(createRandom));
+        _mutate = mutate ?? throw new ArgumentNullException(nameof(mutate));
+        _crossover = crossover ?? throw new ArgumentNullException(nameof(crossover));
+        _validate = validate ?? throw new ArgumentNullException(nameof(validate));
         _settings = settings ?? new GeneticOptimizerSettings();
         _random = new Random(_settings.RandomSeed ?? Environment.TickCount);
     }
 
-    public GeneticOptimizationResult Optimize(
-        List<Candle> candles,
-        string symbol,
-        RiskSettings riskSettings,
-        BacktestSettings backtestSettings,
-        IProgress<GeneticProgress>? progress = null)
+    /// <summary>
+    /// Runs genetic optimization on the provided dataset
+    /// </summary>
+    /// <param name="evaluateFitness">Function that evaluates fitness for a given settings configuration</param>
+    /// <param name="progress">Optional progress reporter</param>
+    public GeneticOptimizationResult<TSettings> Optimize(
+        Func<TSettings, decimal> evaluateFitness,
+        IProgress<GeneticProgress<TSettings>>? progress = null)
     {
-        // Validate input data
-        if (candles == null || candles.Count < _settings.MinimumCandles)
-        {
-            throw new ArgumentException(
-                $"Insufficient data for optimization. Required: {_settings.MinimumCandles} candles, provided: {candles?.Count ?? 0}",
-                nameof(candles));
-        }
-
-        // Split data: training/validation
-        int splitIndex = (int)(candles.Count * _settings.TrainingRatio);
-        var trainingData = candles.Take(splitIndex).ToList();
-        var validationData = candles.Skip(splitIndex).ToList();
-
-        // Ensure both sets have enough data
-        if (trainingData.Count < _settings.MinTrainingCandles || validationData.Count < _settings.MinValidationCandles)
-        {
-            throw new ArgumentException(
-                $"Data split resulted in insufficient samples. Training: {trainingData.Count} (min: {_settings.MinTrainingCandles}), " +
-                $"Validation: {validationData.Count} (min: {_settings.MinValidationCandles}).",
-                nameof(candles));
-        }
-
         // Initialize population
         var population = InitializePopulation();
-        var generationStats = new List<GenerationStats>();
-        Chromosome? bestEver = null;
+        var generationStats = new List<GenerationStats<TSettings>>();
+        Chromosome<TSettings>? bestEver = null;
 
         for (int gen = 0; gen < _settings.Generations; gen++)
         {
             // Evaluate fitness for each chromosome
-            EvaluatePopulation(population, trainingData, symbol, riskSettings, backtestSettings);
+            EvaluatePopulation(population, evaluateFitness);
 
             // Track statistics
             var stats = CalculateGenerationStats(gen, population);
@@ -67,11 +67,16 @@ public class GeneticOptimizer
             var currentBest = population.MaxBy(c => c.Fitness);
             if (currentBest != null && (bestEver == null || currentBest.Fitness > bestEver.Fitness))
             {
-                bestEver = currentBest with { }; // Clone
+                bestEver = new Chromosome<TSettings>
+                {
+                    Settings = currentBest.Settings,
+                    Fitness = currentBest.Fitness,
+                    IsEvaluated = true
+                };
             }
 
             // Report progress
-            progress?.Report(new GeneticProgress(
+            progress?.Report(new GeneticProgress<TSettings>(
                 gen + 1,
                 _settings.Generations,
                 stats.BestFitness,
@@ -82,7 +87,7 @@ public class GeneticOptimizer
             // Check for early stopping
             if (ShouldStop(generationStats))
             {
-                progress?.Report(new GeneticProgress(
+                progress?.Report(new GeneticProgress<TSettings>(
                     gen + 1,
                     _settings.Generations,
                     stats.BestFitness,
@@ -100,150 +105,68 @@ public class GeneticOptimizer
             }
         }
 
-        // Validate best parameters on out-of-sample data
-        var validationResults = ValidateBestParameters(
-            population.OrderByDescending(c => c.Fitness).Take(10).ToList(),
-            validationData,
-            symbol,
-            riskSettings,
-            backtestSettings
-        );
+        if (bestEver == null)
+            throw new InvalidOperationException("Optimization failed - no valid solution found");
 
-        return new GeneticOptimizationResult(
-            bestEver?.Settings ?? new StrategySettings(),
-            bestEver?.Fitness ?? 0,
-            validationResults,
-            generationStats,
-            trainingData.First().OpenTime,
-            trainingData.Last().CloseTime,
-            validationData.First().OpenTime,
-            validationData.Last().CloseTime
+        return new GeneticOptimizationResult<TSettings>(
+            bestEver.Settings,
+            bestEver.Fitness,
+            generationStats
         );
     }
 
-    private List<Chromosome> InitializePopulation()
+    private List<Chromosome<TSettings>> InitializePopulation()
     {
-        var population = new List<Chromosome>();
+        var population = new List<Chromosome<TSettings>>();
 
         for (int i = 0; i < _settings.PopulationSize; i++)
         {
-            population.Add(new Chromosome
+            population.Add(new Chromosome<TSettings>
             {
-                Settings = GenerateRandomSettings()
+                Settings = _createRandom()
             });
         }
 
         return population;
     }
 
-    private StrategySettings GenerateRandomSettings()
-    {
-        return new StrategySettings
-        {
-            AdxPeriod = RandomInRange(_settings.AdxPeriodMin, _settings.AdxPeriodMax),
-            AdxThreshold = RandomDecimalInRange(_settings.AdxThresholdMin, _settings.AdxThresholdMax),
-            AdxExitThreshold = RandomDecimalInRange(_settings.AdxExitThresholdMin, _settings.AdxExitThresholdMax),
-            FastEmaPeriod = RandomInRange(_settings.FastEmaMin, _settings.FastEmaMax),
-            SlowEmaPeriod = RandomInRange(_settings.SlowEmaMin, _settings.SlowEmaMax),
-            AtrPeriod = 14,
-            AtrStopMultiplier = RandomDecimalInRange(_settings.AtrMultiplierMin, _settings.AtrMultiplierMax),
-            TakeProfitMultiplier = RandomDecimalInRange(_settings.TakeProfitMultiplierMin, _settings.TakeProfitMultiplierMax),
-            VolumeThreshold = RandomDecimalInRange(_settings.VolumeThresholdMin, _settings.VolumeThresholdMax),
-            RequireVolumeConfirmation = _random.NextDouble() > 0.5,
-            RequireObvConfirmation = _random.NextDouble() > 0.5
-        };
-    }
-
     private void EvaluatePopulation(
-        List<Chromosome> population,
-        List<Candle> data,
-        string symbol,
-        RiskSettings riskSettings,
-        BacktestSettings backtestSettings)
+        List<Chromosome<TSettings>> population,
+        Func<TSettings, decimal> evaluateFitness)
     {
         // Parallel evaluation for better performance
         Parallel.ForEach(population, chromosome =>
         {
             if (!chromosome.IsEvaluated)
             {
-                chromosome.Fitness = EvaluateFitness(
-                    chromosome.Settings,
-                    data,
-                    symbol,
-                    riskSettings,
-                    backtestSettings
-                );
-                chromosome.IsEvaluated = true;
+                try
+                {
+                    chromosome.Fitness = evaluateFitness(chromosome.Settings);
+                    chromosome.IsEvaluated = true;
+                }
+                catch
+                {
+                    chromosome.Fitness = -1000m;
+                    chromosome.IsEvaluated = true;
+                }
             }
         });
     }
 
-    private decimal EvaluateFitness(
-        StrategySettings settings,
-        List<Candle> data,
-        string symbol,
-        RiskSettings riskSettings,
-        BacktestSettings backtestSettings)
+    private List<Chromosome<TSettings>> EvolvePopulation(List<Chromosome<TSettings>> population)
     {
-        // Validate settings
-        if (settings.FastEmaPeriod >= settings.SlowEmaPeriod)
-            return -1000m;
-
-        try
-        {
-            var strategy = new AdxTrendStrategy(settings);
-            var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
-            var result = engine.Run(data, symbol);
-
-            // Require minimum trades
-            if (result.Metrics.TotalTrades < _settings.MinTrades)
-                return -100m;
-
-            // Calculate fitness based on selected target
-            return _settings.FitnessFunction switch
-            {
-                FitnessFunction.Sharpe => result.Metrics.SharpeRatio,
-                FitnessFunction.Sortino => result.Metrics.SortinoRatio,
-                FitnessFunction.ProfitFactor => result.Metrics.ProfitFactor,
-                FitnessFunction.Return => result.Metrics.TotalReturn,
-                FitnessFunction.RiskAdjusted => CalculateRiskAdjustedFitness(result.Metrics),
-                FitnessFunction.Combined => CalculateCombinedFitness(result.Metrics),
-                _ => result.Metrics.SharpeRatio
-            };
-        }
-        catch
-        {
-            return -1000m;
-        }
-    }
-
-    private decimal CalculateRiskAdjustedFitness(PerformanceMetrics metrics)
-    {
-        // Penalize high drawdowns
-        var drawdownPenalty = Math.Max(0, metrics.MaxDrawdownPercent - 20) * 0.1m;
-        var sharpe = metrics.SharpeRatio;
-        return sharpe - drawdownPenalty;
-    }
-
-    private decimal CalculateCombinedFitness(PerformanceMetrics metrics)
-    {
-        // Multi-objective: Sharpe * (1 + ProfitFactor/10) * (1 - MaxDD/100)
-        var sharpeComponent = Math.Max(0, metrics.SharpeRatio);
-        var pfComponent = 1 + Math.Min(3, metrics.ProfitFactor) / 10;
-        var ddComponent = 1 - Math.Min(1, metrics.MaxDrawdownPercent / 100);
-
-        return sharpeComponent * pfComponent * ddComponent;
-    }
-
-    private List<Chromosome> EvolvePopulation(List<Chromosome> population)
-    {
-        var newPopulation = new List<Chromosome>();
+        var newPopulation = new List<Chromosome<TSettings>>();
 
         // Elitism: keep top performers
         var elite = population
             .OrderByDescending(c => c.Fitness)
             .Take(_settings.EliteCount)
-            .Select(c => c with { IsEvaluated = true })
+            .Select(c => new Chromosome<TSettings>
+            {
+                Settings = c.Settings,
+                Fitness = c.Fitness,
+                IsEvaluated = true
+            })
             .ToList();
 
         newPopulation.AddRange(elite);
@@ -263,10 +186,10 @@ public class GeneticOptimizer
         return newPopulation;
     }
 
-    private Chromosome SelectParent(List<Chromosome> population)
+    private Chromosome<TSettings> SelectParent(List<Chromosome<TSettings>> population)
     {
         // Tournament selection
-        var tournament = new List<Chromosome>();
+        var tournament = new List<Chromosome<TSettings>>();
         for (int i = 0; i < _settings.TournamentSize; i++)
         {
             tournament.Add(population[_random.Next(population.Count)]);
@@ -274,96 +197,52 @@ public class GeneticOptimizer
         return tournament.MaxBy(c => c.Fitness) ?? population[0];
     }
 
-    private Chromosome Crossover(Chromosome parent1, Chromosome parent2)
+    private Chromosome<TSettings> Crossover(Chromosome<TSettings> parent1, Chromosome<TSettings> parent2)
     {
         if (_random.NextDouble() > _settings.CrossoverRate)
         {
-            return _random.NextDouble() > 0.5 ? parent1 with { IsEvaluated = false } : parent2 with { IsEvaluated = false };
+            // No crossover - return copy of one parent
+            return new Chromosome<TSettings>
+            {
+                Settings = _random.NextDouble() > 0.5 ? parent1.Settings : parent2.Settings,
+                IsEvaluated = false
+            };
         }
 
-        // Uniform crossover
-        return new Chromosome
+        // Apply custom crossover delegate
+        return new Chromosome<TSettings>
         {
-            Settings = new StrategySettings
-            {
-                AdxPeriod = Pick(parent1.Settings.AdxPeriod, parent2.Settings.AdxPeriod),
-                AdxThreshold = Pick(parent1.Settings.AdxThreshold, parent2.Settings.AdxThreshold),
-                AdxExitThreshold = Pick(parent1.Settings.AdxExitThreshold, parent2.Settings.AdxExitThreshold),
-                FastEmaPeriod = Pick(parent1.Settings.FastEmaPeriod, parent2.Settings.FastEmaPeriod),
-                SlowEmaPeriod = Pick(parent1.Settings.SlowEmaPeriod, parent2.Settings.SlowEmaPeriod),
-                AtrPeriod = 14,
-                AtrStopMultiplier = Pick(parent1.Settings.AtrStopMultiplier, parent2.Settings.AtrStopMultiplier),
-                TakeProfitMultiplier = Pick(parent1.Settings.TakeProfitMultiplier, parent2.Settings.TakeProfitMultiplier),
-                VolumeThreshold = Pick(parent1.Settings.VolumeThreshold, parent2.Settings.VolumeThreshold),
-                RequireVolumeConfirmation = Pick(parent1.Settings.RequireVolumeConfirmation, parent2.Settings.RequireVolumeConfirmation),
-                RequireObvConfirmation = Pick(parent1.Settings.RequireObvConfirmation, parent2.Settings.RequireObvConfirmation)
-            },
+            Settings = _crossover(parent1.Settings, parent2.Settings),
             IsEvaluated = false
         };
     }
 
-    private T Pick<T>(T a, T b) => _random.NextDouble() > 0.5 ? a : b;
-
-    private Chromosome Mutate(Chromosome chromosome)
+    private Chromosome<TSettings> Mutate(Chromosome<TSettings> chromosome)
     {
         if (_random.NextDouble() > _settings.MutationRate)
             return chromosome;
 
-        var settings = chromosome.Settings;
-
-        // Mutate random parameter (10 mutable parameters)
-        var paramIndex = _random.Next(10);
-        settings = paramIndex switch
+        // Apply custom mutation delegate
+        return new Chromosome<TSettings>
         {
-            0 => settings with { AdxPeriod = MutateInt(settings.AdxPeriod, _settings.AdxPeriodMin, _settings.AdxPeriodMax) },
-            1 => settings with { AdxThreshold = MutateDecimal(settings.AdxThreshold, _settings.AdxThresholdMin, _settings.AdxThresholdMax) },
-            2 => settings with { AdxExitThreshold = MutateDecimal(settings.AdxExitThreshold, _settings.AdxExitThresholdMin, _settings.AdxExitThresholdMax) },
-            3 => settings with { FastEmaPeriod = MutateInt(settings.FastEmaPeriod, _settings.FastEmaMin, _settings.FastEmaMax) },
-            4 => settings with { SlowEmaPeriod = MutateInt(settings.SlowEmaPeriod, _settings.SlowEmaMin, _settings.SlowEmaMax) },
-            5 => settings with { AtrStopMultiplier = MutateDecimal(settings.AtrStopMultiplier, _settings.AtrMultiplierMin, _settings.AtrMultiplierMax) },
-            6 => settings with { TakeProfitMultiplier = MutateDecimal(settings.TakeProfitMultiplier, _settings.TakeProfitMultiplierMin, _settings.TakeProfitMultiplierMax) },
-            7 => settings with { VolumeThreshold = MutateDecimal(settings.VolumeThreshold, _settings.VolumeThresholdMin, _settings.VolumeThresholdMax) },
-            8 => settings with { RequireVolumeConfirmation = !settings.RequireVolumeConfirmation },
-            _ => settings with { RequireObvConfirmation = !settings.RequireObvConfirmation }
+            Settings = _mutate(chromosome.Settings),
+            IsEvaluated = false
         };
-
-        return new Chromosome { Settings = settings, IsEvaluated = false };
     }
 
-    private int MutateInt(int value, int min, int max)
-    {
-        var delta = (max - min) / 4;
-        var newValue = value + _random.Next(-delta, delta + 1);
-        return Math.Clamp(newValue, min, max);
-    }
-
-    private decimal MutateDecimal(decimal value, decimal min, decimal max)
-    {
-        var delta = (max - min) / 4;
-        var newValue = value + (decimal)(_random.NextDouble() * 2 - 1) * delta;
-        return Math.Clamp(newValue, min, max);
-    }
-
-    private int RandomInRange(int min, int max) => _random.Next(min, max + 1);
-
-    private decimal RandomDecimalInRange(decimal min, decimal max)
-    {
-        return min + (decimal)_random.NextDouble() * (max - min);
-    }
-
-    private GenerationStats CalculateGenerationStats(int generation, List<Chromosome> population)
+    private GenerationStats<TSettings> CalculateGenerationStats(int generation, List<Chromosome<TSettings>> population)
     {
         var fitnesses = population.Select(c => c.Fitness).ToList();
-        return new GenerationStats(
+        return new GenerationStats<TSettings>(
             generation,
             fitnesses.Max(),
             fitnesses.Average(),
             fitnesses.Min(),
-            population.MaxBy(c => c.Fitness)?.Settings ?? new StrategySettings()
+            population.MaxBy(c => c.Fitness)?.Settings!
         );
     }
 
-    private bool ShouldStop(List<GenerationStats> stats)
+    private bool ShouldStop(List<GenerationStats<TSettings>> stats)
     {
         if (stats.Count < _settings.EarlyStoppingPatience)
             return false;
@@ -373,50 +252,21 @@ public class GeneticOptimizer
 
         return improvement < _settings.EarlyStoppingThreshold;
     }
-
-    private List<ValidationResult> ValidateBestParameters(
-        List<Chromosome> topChromosomes,
-        List<Candle> validationData,
-        string symbol,
-        RiskSettings riskSettings,
-        BacktestSettings backtestSettings)
-    {
-        var results = new List<ValidationResult>();
-
-        foreach (var chromosome in topChromosomes)
-        {
-            var strategy = new AdxTrendStrategy(chromosome.Settings);
-            var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
-            var result = engine.Run(validationData, symbol);
-
-            var validationFitness = _settings.FitnessFunction switch
-            {
-                FitnessFunction.Sharpe => result.Metrics.SharpeRatio,
-                FitnessFunction.Sortino => result.Metrics.SortinoRatio,
-                FitnessFunction.ProfitFactor => result.Metrics.ProfitFactor,
-                FitnessFunction.Return => result.Metrics.TotalReturn,
-                _ => result.Metrics.SharpeRatio
-            };
-
-            results.Add(new ValidationResult(
-                chromosome.Settings,
-                chromosome.Fitness,
-                validationFitness,
-                result
-            ));
-        }
-
-        return results.OrderByDescending(r => r.ValidationFitness).ToList();
-    }
 }
 
-public record Chromosome
+/// <summary>
+/// Chromosome representing a candidate solution
+/// </summary>
+public record Chromosome<TSettings> where TSettings : class
 {
-    public StrategySettings Settings { get; init; } = new();
+    public required TSettings Settings { get; init; }
     public decimal Fitness { get; set; }
     public bool IsEvaluated { get; set; }
 }
 
+/// <summary>
+/// Genetic optimizer configuration (strategy-agnostic)
+/// </summary>
 public record GeneticOptimizerSettings
 {
     // Population
@@ -435,94 +285,46 @@ public record GeneticOptimizerSettings
     public int EarlyStoppingPatience { get; init; } = 10;
     public decimal EarlyStoppingThreshold { get; init; } = 0.01m;
 
-    // Fitness
-    public FitnessFunction FitnessFunction { get; init; } = FitnessFunction.RiskAdjusted;
-    public int MinTrades { get; init; } = 30;
-
-    // Data split
-    public decimal TrainingRatio { get; init; } = 0.7m;
-
-    // Minimum data requirements
-    public int MinimumCandles { get; init; } = 200;
-    public int MinTrainingCandles { get; init; } = 100;
-    public int MinValidationCandles { get; init; } = 50;
-
     // Random seed (null = random)
     public int? RandomSeed { get; init; }
-
-    // Parameter ranges
-    public int AdxPeriodMin { get; init; } = 10;
-    public int AdxPeriodMax { get; init; } = 25;
-    public decimal AdxThresholdMin { get; init; } = 18m;
-    public decimal AdxThresholdMax { get; init; } = 35m;
-    public decimal AdxExitThresholdMin { get; init; } = 12m;
-    public decimal AdxExitThresholdMax { get; init; } = 25m;
-    public int FastEmaMin { get; init; } = 8;
-    public int FastEmaMax { get; init; } = 30;
-    public int SlowEmaMin { get; init; } = 35;
-    public int SlowEmaMax { get; init; } = 100;
-    public decimal AtrMultiplierMin { get; init; } = 1.5m;
-    public decimal AtrMultiplierMax { get; init; } = 4.0m;
-    public decimal TakeProfitMultiplierMin { get; init; } = 1.0m;
-    public decimal TakeProfitMultiplierMax { get; init; } = 3.0m;
-    public decimal VolumeThresholdMin { get; init; } = 1.0m;
-    public decimal VolumeThresholdMax { get; init; } = 2.5m;
 }
 
-public enum FitnessFunction
-{
-    Sharpe,
-    Sortino,
-    ProfitFactor,
-    Return,
-    RiskAdjusted,
-    Combined
-}
-
-public record GenerationStats(
+/// <summary>
+/// Statistics for a single generation
+/// </summary>
+public record GenerationStats<TSettings>(
     int Generation,
     decimal BestFitness,
     decimal AverageFitness,
     decimal WorstFitness,
-    StrategySettings BestSettings
-);
+    TSettings BestSettings
+) where TSettings : class;
 
-public record ValidationResult(
-    StrategySettings Settings,
-    decimal TrainingFitness,
-    decimal ValidationFitness,
-    BacktestResult BacktestResult
-)
-{
-    public decimal Robustness => TrainingFitness > 0 ? ValidationFitness / TrainingFitness * 100 : 0;
-    public bool IsRobust => Robustness >= 50;
-}
-
-public record GeneticOptimizationResult(
-    StrategySettings BestSettings,
+/// <summary>
+/// Final optimization result
+/// </summary>
+public record GeneticOptimizationResult<TSettings>(
+    TSettings BestSettings,
     decimal BestFitness,
-    List<ValidationResult> ValidationResults,
-    List<GenerationStats> GenerationHistory,
-    DateTime TrainingStart,
-    DateTime TrainingEnd,
-    DateTime ValidationStart,
-    DateTime ValidationEnd
-)
+    List<GenerationStats<TSettings>> GenerationHistory
+) where TSettings : class
 {
-    public ValidationResult? BestRobustResult => ValidationResults.FirstOrDefault(r => r.IsRobust);
     public decimal ConvergenceRate => GenerationHistory.Count > 1
         ? (GenerationHistory.Last().BestFitness - GenerationHistory.First().BestFitness) / GenerationHistory.Count
         : 0;
 }
 
-public record GeneticProgress(
+/// <summary>
+/// Progress report during optimization
+/// </summary>
+public record GeneticProgress<TSettings>(
     int CurrentGeneration,
     int TotalGenerations,
     decimal BestFitness,
     decimal AverageFitness,
-    StrategySettings? CurrentBest,
+    TSettings? CurrentBest,
     string? Message = null
-)
+) where TSettings : class
 {
     public int PercentComplete => TotalGenerations > 0 ? CurrentGeneration * 100 / TotalGenerations : 0;
 }

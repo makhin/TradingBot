@@ -1,5 +1,6 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Indicators;
+using ComplexBot.Services.Filters;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -16,7 +17,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
     private readonly Ema _fastMa;
     private readonly Ema _slowMa;
     private readonly Atr _atr;
-    private readonly VolumeIndicator _volume;
+    private readonly VolumeFilter _volumeFilter;
 
     private decimal? _previousFastMa;
     private decimal? _previousSlowMa;
@@ -30,7 +31,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
         _fastMa = new Ema(Settings.FastMaPeriod);
         _slowMa = new Ema(Settings.SlowMaPeriod);
         _atr = new Atr(Settings.AtrPeriod);
-        _volume = new VolumeIndicator(Settings.VolumePeriod, Settings.VolumeThreshold);
+        _volumeFilter = new VolumeFilter(Settings.VolumePeriod, Settings.VolumeThreshold, Settings.RequireVolumeConfirmation);
     }
 
     public override decimal? CurrentAtr => _atr.Value;
@@ -54,7 +55,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
         _currentFastMa = _fastMa.Update(candle.Close);
         _currentSlowMa = _slowMa.Update(candle.Close);
         _atr.Update(candle);
-        _volume.Update(candle.Volume);
+        _volumeFilter.Update(candle.Volume);
     }
 
     protected override bool IndicatorsReady =>
@@ -84,8 +85,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
             || !_currentFastMa.HasValue || !_currentSlowMa.HasValue)
             return null;
 
-        bool volumeOk = !Settings.RequireVolumeConfirmation ||
-            (_volume.IsReady && _volume.VolumeRatio >= Settings.VolumeThreshold);
+        bool volumeOk = _volumeFilter.IsConfirmed();
         var fastMa = _currentFastMa.Value;
         var slowMa = _currentSlowMa.Value;
 
@@ -207,7 +207,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
         _fastMa.Reset();
         _slowMa.Reset();
         _atr.Reset();
-        _volume.Reset();
+        _volumeFilter.Reset();
         _previousFastMa = null;
         _previousSlowMa = null;
         ResetPosition();
