@@ -14,6 +14,7 @@ public class BotConfiguration
     public RiskManagementSettings RiskManagement { get; set; } = new();
     public PortfolioRiskConfigSettings PortfolioRisk { get; set; } = new();
     public StrategyConfigSettings Strategy { get; set; } = new();
+    public EnsembleConfigSettings Ensemble { get; set; } = new();
     public BacktestingSettings Backtesting { get; set; } = new();
     public LiveTradingSettings LiveTrading { get; set; } = new();
     public OptimizationSettings Optimization { get; set; } = new();
@@ -130,6 +131,26 @@ public class StrategyConfigSettings
         RequireObvConfirmation = RequireObvConfirmation,
         PartialExitRMultiple = PartialExitRMultiple,
         PartialExitFraction = PartialExitFraction
+    };
+}
+
+public class EnsembleConfigSettings
+{
+    public bool Enabled { get; set; } = false;
+    public decimal MinimumAgreement { get; set; } = 0.6m;
+    public bool UseConfidenceWeighting { get; set; } = true;
+    public Dictionary<string, decimal> StrategyWeights { get; set; } = new()
+    {
+        ["ADX Trend Following + Volume"] = 0.5m,
+        ["MA Crossover"] = 0.25m,
+        ["RSI Mean Reversion"] = 0.25m
+    };
+
+    public EnsembleSettings ToEnsembleSettings() => new()
+    {
+        MinimumAgreement = MinimumAgreement,
+        UseConfidenceWeighting = UseConfidenceWeighting,
+        StrategyWeights = StrategyWeights ?? new Dictionary<string, decimal>()
     };
 }
 

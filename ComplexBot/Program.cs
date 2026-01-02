@@ -680,6 +680,10 @@ class Program
 
     static IStrategy SelectStrategy(StrategySettings? adxSettings = null)
     {
+        var ensembleSettings = _configService.GetConfiguration()
+            .Ensemble
+            .ToEnsembleSettings();
+
         var strategyChoice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("Select [green]strategy[/]:")
@@ -695,7 +699,7 @@ class Program
             "ADX Trend Following (Recommended)" => new AdxTrendStrategy(adxSettings),
             "RSI Mean Reversion" => new RsiStrategy(),
             "MA Crossover" => new MaStrategy(),
-            "Strategy Ensemble (All Combined)" => StrategyEnsemble.CreateDefault(),
+            "Strategy Ensemble (All Combined)" => StrategyEnsemble.CreateDefault(ensembleSettings),
             _ => new AdxTrendStrategy(adxSettings)
         };
     }
