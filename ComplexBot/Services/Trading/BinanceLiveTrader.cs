@@ -89,6 +89,157 @@ public class BinanceLiveTrader : IDisposable
         return result.Data.Price;
     }
 
+    private record OrderResult(bool Success, decimal FilledQuantity, decimal AveragePrice, string? ErrorMessage);
+
+    private async Task<OrderResult> PlaceLimitOrderWithTimeout(
+        OrderSide side,
+        decimal quantity,
+        decimal limitPrice,
+        int timeoutSeconds = 5)
+    {
+        if (_settings.PaperTrade)
+        {
+            // Paper trading - simulate immediate fill at limit price
+            await Task.Delay(100); // Small delay to simulate
+            Log($"[PAPER] Limit order filled: {quantity:F5} @ {limitPrice:F2}");
+            return new OrderResult(true, quantity, limitPrice, null);
+        }
+
+        try
+        {
+            // Place limit order
+            var orderResult = await _restClient.SpotApi.Trading.PlaceOrderAsync(
+                _settings.Symbol,
+                side,
+                SpotOrderType.Limit,
+                quantity,
+                price: limitPrice,
+                timeInForce: TimeInForce.GoodTillCanceled
+            );
+
+            if (!orderResult.Success)
+            {
+                return new OrderResult(false, 0, 0, orderResult.Error?.Message);
+            }
+
+            var orderId = orderResult.Data.Id;
+            Log($"Limit order placed: ID={orderId}, Price={limitPrice:F2}");
+
+            // Wait for fill with timeout
+            var startTime = DateTime.UtcNow;
+            while ((DateTime.UtcNow - startTime).TotalSeconds < timeoutSeconds)
+            {
+                await Task.Delay(200); // Check every 200ms
+
+                var queryResult = await _restClient.SpotApi.Trading.GetOrderAsync(_settings.Symbol, orderId);
+                if (!queryResult.Success)
+                    continue;
+
+                var order = queryResult.Data;
+
+                // Check if fully filled
+                if (order.Status == Binance.Net.Enums.OrderStatus.Filled)
+                {
+                    var avgPrice = order.AverageFillPrice ?? limitPrice;
+                    Log($"✅ Limit order filled: {order.QuantityFilled:F5} @ {avgPrice:F2}");
+                    return new OrderResult(true, order.QuantityFilled, avgPrice, null);
+                }
+
+                // Check if partially filled
+                if (order.QuantityFilled > 0 && order.Status == Binance.Net.Enums.OrderStatus.PartiallyFilled)
+                {
+                    // Continue waiting for full fill
+                    continue;
+                }
+
+                // Check if cancelled or rejected
+                if (order.Status == Binance.Net.Enums.OrderStatus.Canceled ||
+                    order.Status == Binance.Net.Enums.OrderStatus.Rejected ||
+                    order.Status == Binance.Net.Enums.OrderStatus.Expired)
+                {
+                    return new OrderResult(false, 0, 0, $"Order {order.Status}");
+                }
+            }
+
+            // Timeout - cancel the order
+            Log($"⏱️ Limit order timeout, cancelling...");
+            var cancelResult = await _restClient.SpotApi.Trading.CancelOrderAsync(_settings.Symbol, orderId);
+
+            if (cancelResult.Success)
+            {
+                // Check if any partial fill occurred
+                var finalQuery = await _restClient.SpotApi.Trading.GetOrderAsync(_settings.Symbol, orderId);
+                if (finalQuery.Success && finalQuery.Data.QuantityFilled > 0)
+                {
+                    var avgPrice = finalQuery.Data.AverageFillPrice ?? limitPrice;
+                    Log($"⚠️ Partial fill: {finalQuery.Data.QuantityFilled:F5} @ {avgPrice:F2}");
+                    return new OrderResult(true, finalQuery.Data.QuantityFilled, avgPrice, "Partial fill");
+                }
+            }
+
+            return new OrderResult(false, 0, 0, "Timeout - order not filled");
+        }
+        catch (Exception ex)
+        {
+            Log($"Limit order error: {ex.Message}");
+            return new OrderResult(false, 0, 0, ex.Message);
+        }
+    }
+
+    private async Task<OrderResult> EnterPositionSmart(
+        OrderSide side,
+        decimal quantity,
+        decimal currentPrice)
+    {
+        if (_settings.PaperTrade)
+        {
+            // Paper trading - just use market simulation
+            return new OrderResult(true, quantity, currentPrice, null);
+        }
+
+        // Try limit order first (slightly better price)
+        decimal limitPrice = side == OrderSide.Buy
+            ? currentPrice * 0.9995m  // 0.05% better for buy
+            : currentPrice * 1.0005m; // 0.05% better for sell
+
+        Log($"Attempting limit order @ {limitPrice:F2} (market: {currentPrice:F2})");
+        var limitResult = await PlaceLimitOrderWithTimeout(side, quantity, limitPrice, timeoutSeconds: 3);
+
+        if (limitResult.Success)
+        {
+            // Limit order filled - great!
+            var savedAmount = Math.Abs(limitResult.AveragePrice - currentPrice) * limitResult.FilledQuantity;
+            Log($"💰 Limit order saved ${savedAmount:F2} vs market price");
+            return limitResult;
+        }
+
+        // Limit order failed - fallback to market order
+        Log($"Limit order failed, using market order...");
+
+        try
+        {
+            var marketResult = await _restClient.SpotApi.Trading.PlaceOrderAsync(
+                _settings.Symbol,
+                side,
+                SpotOrderType.Market,
+                quantity
+            );
+
+            if (!marketResult.Success)
+            {
+                return new OrderResult(false, 0, 0, marketResult.Error?.Message);
+            }
+
+            var avgPrice = marketResult.Data.AverageFillPrice ?? currentPrice;
+            Log($"Market order filled: {quantity:F5} @ {avgPrice:F2}");
+            return new OrderResult(true, quantity, avgPrice, null);
+        }
+        catch (Exception ex)
+        {
+            return new OrderResult(false, 0, 0, ex.Message);
+        }
+    }
+
     private async Task<bool> PlaceOcoOrderAsync(
         OrderSide side,
         decimal quantity,
@@ -491,22 +642,19 @@ public class BinanceLiveTrader : IDisposable
             {
                 var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
 
-                // 1. Открыть позицию маркет ордером
-                var result = await _restClient.SpotApi.Trading.PlaceOrderAsync(
-                    _settings.Symbol,
-                    side,
-                    SpotOrderType.Market,
-                    quantity
-                );
+                // 1. Открыть позицию умным способом (limit -> market fallback)
+                var orderResult = await EnterPositionSmart(side, quantity, price);
 
-                if (!result.Success)
+                if (!orderResult.Success)
                 {
-                    Log($"Order failed: {result.Error?.Message}");
+                    Log($"Order failed: {orderResult.ErrorMessage}");
                     return;
                 }
 
+                var actualPrice = orderResult.AveragePrice;
+                var actualQuantity = orderResult.FilledQuantity;
+
                 // Validate execution slippage
-                var actualPrice = result.Data.AverageFillPrice ?? price;
                 var validation = _executionValidator.ValidateExecution(price, actualPrice, side);
                 var slippageDesc = _executionValidator.GetSlippageDescription(validation, side);
                 Log(slippageDesc);
@@ -517,7 +665,7 @@ public class BinanceLiveTrader : IDisposable
                     Log($"   Expected: {validation.ExpectedPrice:F2}, Actual: {validation.ActualPrice:F2}");
                 }
 
-                _currentPosition = direction == TradeDirection.Long ? quantity : -quantity;
+                _currentPosition = direction == TradeDirection.Long ? actualQuantity : -actualQuantity;
                 _entryPrice = actualPrice;
                 _stopLoss = stopLoss;
                 _takeProfit = takeProfit;
@@ -526,13 +674,13 @@ public class BinanceLiveTrader : IDisposable
                     _settings.Symbol,
                     direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
                     Math.Abs(_currentPosition),
-                    Math.Abs(price - stopLoss) * quantity,
-                    price,
+                    Math.Abs(actualPrice - stopLoss) * actualQuantity,
+                    actualPrice,
                     stopLoss,
-                    price);
+                    actualPrice);
 
                 var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
-                Log($"Opened {direction} {quantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}");
+                Log($"Opened {direction} {actualQuantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}");
 
                 // 2. Сразу выставить OCO для защиты (если есть тейк-профит)
                 if (takeProfit.HasValue)
@@ -542,22 +690,22 @@ public class BinanceLiveTrader : IDisposable
                         ? stopLoss * 0.995m  // 0.5% ниже для лонга
                         : stopLoss * 1.005m; // 0.5% выше для шорта
 
-                    await PlaceOcoOrderAsync(exitSide, quantity, stopLoss, stopLimitPrice, takeProfit.Value);
+                    await PlaceOcoOrderAsync(exitSide, actualQuantity, stopLoss, stopLimitPrice, takeProfit.Value);
                 }
 
                 // 3. Отправить Telegram уведомление
                 if (_telegram != null)
                 {
-                    var riskAmt = Math.Abs(price - stopLoss) * quantity;
+                    var riskAmt = Math.Abs(actualPrice - stopLoss) * actualQuantity;
                     var signal = new TradeSignal(
                         _settings.Symbol,
                         direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
-                        price,
+                        actualPrice,
                         stopLoss,
                         takeProfit,
                         $"{direction} position opened"
                     );
-                    await _telegram.SendTradeOpen(signal, quantity, riskAmt);
+                    await _telegram.SendTradeOpen(signal, actualQuantity, riskAmt);
                 }
             }
             catch (Exception ex)
