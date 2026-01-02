@@ -12,6 +12,7 @@
     <PackageReference Include="CryptoExchange.Net" Version="10.0.2" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <PackageReference Include="Spectre.Console" Version="0.54.0" />
+    <PackageReference Include="Telegram.Bot" Version="22.8.0" />
   </ItemGroup>
 
 </Project>

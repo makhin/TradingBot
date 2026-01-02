@@ -108,21 +108,60 @@ public class RiskManager
         };
     }
 
+    public void UpdatePositionPrice(string symbol, decimal currentPrice)
+    {
+        var position = _openPositions.FirstOrDefault(p => p.Symbol == symbol);
+        if (position != null)
+        {
+            _openPositions.Remove(position);
+            _openPositions.Add(position with { CurrentPrice = currentPrice });
+        }
+    }
+
+    public decimal GetUnrealizedPnL()
+    {
+        decimal total = 0;
+        foreach (var pos in _openPositions)
+        {
+            var pnl = pos.Direction == SignalType.Buy
+                ? (pos.CurrentPrice - pos.EntryPrice) * pos.RemainingQuantity
+                : (pos.EntryPrice - pos.CurrentPrice) * pos.RemainingQuantity;
+            total += pnl;
+        }
+        return total;
+    }
+
+    public decimal GetTotalEquity()
+    {
+        return _currentEquity + GetUnrealizedPnL();
+    }
+
+    public decimal GetTotalDrawdownPercent()
+    {
+        var totalEquity = GetTotalEquity();
+        if (_peakEquity <= 0) return 0;
+        return (_peakEquity - totalEquity) / _peakEquity * 100;
+    }
+
     public bool CanOpenPosition()
     {
         if (_currentEquity <= 0)
             return false;
 
-        // Check daily loss limit
+        // Check daily loss limit (with unrealized P&L)
         if (IsDailyLimitExceeded())
         {
             Console.WriteLine($"⛔ Daily loss limit exceeded: {GetDailyDrawdownPercent():F2}%");
             return false;
         }
 
-        // Check drawdown circuit breaker
-        if (CurrentDrawdown >= _settings.MaxDrawdownPercent)
+        // Check total drawdown (including unrealized P&L)
+        var totalDrawdown = GetTotalDrawdownPercent();
+        if (totalDrawdown >= _settings.MaxDrawdownPercent)
+        {
+            Console.WriteLine($"⛔ Max drawdown exceeded (including unrealized): {totalDrawdown:F2}%");
             return false;
+        }
 
         // Check portfolio heat
         if (PortfolioHeat >= _settings.MaxPortfolioHeatPercent)
@@ -131,16 +170,18 @@ public class RiskManager
         return true;
     }
 
-    public void AddPosition(string symbol, decimal quantity, decimal riskAmount, decimal entryPrice, decimal stopLoss)
+    public void AddPosition(string symbol, SignalType direction, decimal quantity, decimal riskAmount, decimal entryPrice, decimal stopLoss, decimal currentPrice)
     {
         _openPositions.Add(new OpenPosition(
             symbol,
+            direction,
             quantity,
             quantity,
             riskAmount,
             entryPrice,
             stopLoss,
-            false));
+            false,
+            currentPrice));
     }
 
     public void RemovePosition(string symbol)
@@ -152,7 +193,8 @@ public class RiskManager
         string symbol,
         decimal remainingQuantity,
         decimal stopLoss,
-        bool breakevenMoved)
+        bool breakevenMoved,
+        decimal currentPrice)
     {
         var position = _openPositions.FirstOrDefault(p => p.Symbol == symbol);
         if (position == null)
@@ -165,7 +207,8 @@ public class RiskManager
             RemainingQuantity = remainingQuantity,
             RiskAmount = riskAmount,
             StopLoss = stopLoss,
-            BreakevenMoved = breakevenMoved
+            BreakevenMoved = breakevenMoved,
+            CurrentPrice = currentPrice
         });
     }
 
@@ -174,12 +217,14 @@ public class RiskManager
 
 public record OpenPosition(
     string Symbol,
+    SignalType Direction,
     decimal Quantity,
     decimal RemainingQuantity,
     decimal RiskAmount,
     decimal EntryPrice,
     decimal StopLoss,
-    bool BreakevenMoved
+    bool BreakevenMoved,
+    decimal CurrentPrice
 );
 
 public record RiskSettings

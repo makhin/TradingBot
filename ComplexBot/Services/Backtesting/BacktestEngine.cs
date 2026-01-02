@@ -203,8 +203,14 @@ public class BacktestEngine
                                 bestPnL = 0;
                                 barsInTrade = 0;
 
-                                _riskManager.AddPosition(symbol, position, sizing.RiskAmount,
-                                    adjustedEntryPrice, signal.StopLoss.Value);
+                                _riskManager.AddPosition(
+                                    symbol,
+                                    signal.Type,
+                                    position,
+                                    sizing.RiskAmount,
+                                    adjustedEntryPrice,
+                                    signal.StopLoss.Value,
+                                    adjustedEntryPrice);
 
                                 if (_journal != null)
                                 {
@@ -275,8 +281,14 @@ public class BacktestEngine
                                 bestPnL = 0;
                                 barsInTrade = 0;
 
-                                _riskManager.AddPosition(symbol, sizing.Quantity, sizing.RiskAmount,
-                                    adjustedEntryPrice, signal.StopLoss.Value);
+                                _riskManager.AddPosition(
+                                    symbol,
+                                    signal.Type,
+                                    sizing.Quantity,
+                                    sizing.RiskAmount,
+                                    adjustedEntryPrice,
+                                    signal.StopLoss.Value,
+                                    adjustedEntryPrice);
 
                                 if (_journal != null)
                                 {
@@ -389,7 +401,8 @@ public class BacktestEngine
                                     symbol,
                                     remainingQuantity,
                                     stopLoss ?? entryPrice!.Value,
-                                    signal.MoveStopToBreakeven);
+                                    signal.MoveStopToBreakeven,
+                                    exitPricePartial);
                             }
                         }
                         break;

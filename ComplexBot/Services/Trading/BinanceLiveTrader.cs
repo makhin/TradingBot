@@ -7,6 +7,7 @@ using CryptoExchange.Net.Sockets;
 using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Services.RiskManagement;
+using ComplexBot.Services.Notifications;
 using CryptoExchange.Net.Objects.Sockets;
 
 namespace ComplexBot.Services.Trading;
@@ -18,6 +19,7 @@ public class BinanceLiveTrader : IDisposable
     private readonly IStrategy _strategy;
     private readonly RiskManager _riskManager;
     private readonly LiveTraderSettings _settings;
+    private readonly TelegramNotifier? _telegram;
     private readonly List<Candle> _candleBuffer = new();
     
     private decimal _currentPosition;
@@ -39,11 +41,13 @@ public class BinanceLiveTrader : IDisposable
         string apiSecret,
         IStrategy strategy,
         RiskSettings riskSettings,
-        LiveTraderSettings? settings = null)
+        LiveTraderSettings? settings = null,
+        TelegramNotifier? telegram = null)
     {
         _settings = settings ?? new LiveTraderSettings();
         _strategy = strategy;
         _riskManager = new RiskManager(riskSettings, _settings.InitialCapital);
+        _telegram = telegram;
 
         _restClient = new BinanceRestClient(options =>
         {
@@ -323,10 +327,16 @@ public class BinanceLiveTrader : IDisposable
         );
 
         _candleBuffer.Add(candle);
-        
+
         // Keep buffer size manageable
         while (_candleBuffer.Count > _settings.WarmupCandles * 2)
             _candleBuffer.RemoveAt(0);
+
+        // Update position price for unrealized P&L tracking
+        if (_currentPosition != 0)
+        {
+            _riskManager.UpdatePositionPrice(_settings.Symbol, candle.Close);
+        }
 
         // Check stop loss/take profit on current candle
         await CheckTakeProfitAsync(candle);
@@ -462,10 +472,12 @@ public class BinanceLiveTrader : IDisposable
             _takeProfit = takeProfit;
             _riskManager.AddPosition(
                 _settings.Symbol,
+                direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
                 Math.Abs(_currentPosition),
                 Math.Abs(price - stopLoss) * quantity,
                 price,
-                stopLoss);
+                stopLoss,
+                price);
 
             var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
             Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}{takeProfitText}");
@@ -496,8 +508,14 @@ public class BinanceLiveTrader : IDisposable
                 _stopLoss = stopLoss;
                 _takeProfit = takeProfit;
 
-                _riskManager.AddPosition(_settings.Symbol, Math.Abs(_currentPosition),
-                    Math.Abs(price - stopLoss) * quantity, price, stopLoss);
+                _riskManager.AddPosition(
+                    _settings.Symbol,
+                    direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
+                    Math.Abs(_currentPosition),
+                    Math.Abs(price - stopLoss) * quantity,
+                    price,
+                    stopLoss,
+                    price);
 
                 var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
                 Log($"Opened {direction} {quantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}");
@@ -511,6 +529,21 @@ public class BinanceLiveTrader : IDisposable
                         : stopLoss * 1.005m; // 0.5% выше для шорта
 
                     await PlaceOcoOrderAsync(exitSide, quantity, stopLoss, stopLimitPrice, takeProfit.Value);
+                }
+
+                // 3. Отправить Telegram уведомление
+                if (_telegram != null)
+                {
+                    var riskAmt = Math.Abs(price - stopLoss) * quantity;
+                    var signal = new TradeSignal(
+                        _settings.Symbol,
+                        direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
+                        price,
+                        stopLoss,
+                        takeProfit,
+                        $"{direction} position opened"
+                    );
+                    await _telegram.SendTradeOpen(signal, quantity, riskAmt);
                 }
             }
             catch (Exception ex)
@@ -583,6 +616,14 @@ public class BinanceLiveTrader : IDisposable
             : await GetAccountBalanceAsync();
         _riskManager.UpdateEquity(equity);
         OnEquityUpdate?.Invoke(equity);
+
+        // Send Telegram notification
+        if (_telegram != null && _entryPrice.HasValue)
+        {
+            var riskAmount = Math.Abs(_entryPrice.Value - (_stopLoss ?? _entryPrice.Value)) * quantity;
+            var rMultiple = riskAmount > 0 ? netPnl / riskAmount : 0;
+            await _telegram.SendTradeClose(_settings.Symbol, _entryPrice.Value, currentPrice, netPnl, rMultiple, reason);
+        }
 
         // Reset position
         _currentPosition = 0;
@@ -685,7 +726,8 @@ public class BinanceLiveTrader : IDisposable
             _settings.Symbol,
             remainingQuantity,
             _stopLoss ?? _entryPrice!.Value,
-            signal.MoveStopToBreakeven);
+            signal.MoveStopToBreakeven,
+            currentPrice);
 
         // Обновить OCO для оставшейся позиции
         if (!_settings.PaperTrade && _takeProfit.HasValue && _stopLoss.HasValue)

@@ -6,6 +6,7 @@ using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Services.Trading;
+using ComplexBot.Services.Notifications;
 
 namespace ComplexBot;
 
@@ -409,6 +410,21 @@ class Program
         var strategySettings = GetStrategySettings();
         var initialCapital = AnsiConsole.Ask("Initial capital [green](USDT)[/]:", 10000m);
 
+        // Telegram configuration (optional)
+        TelegramNotifier? telegram = null;
+        if (AnsiConsole.Confirm("Enable Telegram notifications?", defaultValue: false))
+        {
+            AnsiConsole.MarkupLine("\n[yellow]Telegram Configuration:[/]");
+            AnsiConsole.MarkupLine("[grey]Get bot token from @BotFather[/]");
+            AnsiConsole.MarkupLine("[grey]Get chat ID from https://api.telegram.org/bot<TOKEN>/getUpdates[/]\n");
+
+            var botToken = AnsiConsole.Ask<string>("Bot Token:");
+            var chatId = AnsiConsole.Ask<long>("Chat ID:");
+
+            telegram = new TelegramNotifier(botToken, chatId);
+            AnsiConsole.MarkupLine("[green]✓[/] Telegram notifications enabled\n");
+        }
+
         var liveSettings = new LiveTraderSettings
         {
             Symbol = symbol,
@@ -421,7 +437,7 @@ class Program
 
         var strategy = new AdxTrendStrategy(strategySettings);
         using var trader = new BinanceLiveTrader(
-            apiKey, apiSecret, strategy, riskSettings, liveSettings);
+            apiKey, apiSecret, strategy, riskSettings, liveSettings, telegram);
 
         // Setup signal display
         var signalTable = new Table()
