@@ -27,6 +27,7 @@ public class BinanceLiveTrader : IDisposable
     private decimal _paperEquity;
     private bool _isRunning;
     private UpdateSubscription? _subscription;
+    private long? _currentOcoOrderListId;
 
     public event Action<string>? OnLog;
     public event Action<TradeSignal>? OnSignal;
@@ -78,8 +79,118 @@ public class BinanceLiveTrader : IDisposable
         var result = await _restClient.SpotApi.ExchangeData.GetPriceAsync(_settings.Symbol);
         if (!result.Success)
             throw new Exception($"Failed to get price: {result.Error?.Message}");
-        
+
         return result.Data.Price;
+    }
+
+    private async Task<bool> PlaceOcoOrderAsync(
+        OrderSide side,
+        decimal quantity,
+        decimal stopLossPrice,
+        decimal stopLossLimitPrice,
+        decimal takeProfitPrice)
+    {
+        if (_settings.PaperTrade)
+        {
+            // Paper trading - just log, no actual OCO order
+            Log($"[PAPER] OCO would be placed: TP={takeProfitPrice:F2}, SL={stopLossPrice:F2}");
+            return true;
+        }
+
+        try
+        {
+            // OCO ордер: стоп-лосс + тейк-профит, один отменяет другой
+            var result = await _restClient.SpotApi.Trading.PlaceOcoOrderAsync(
+                symbol: _settings.Symbol,
+                side: side,
+                quantity: quantity,
+                price: takeProfitPrice,                // Limit order (take profit)
+                stopPrice: stopLossPrice,              // Stop trigger price
+                stopLimitPrice: stopLossLimitPrice,    // Stop limit price
+                stopLimitTimeInForce: TimeInForce.GoodTillCanceled
+            );
+
+            if (result.Success)
+            {
+                _currentOcoOrderListId = result.Data.Id;
+                Log($"✅ OCO Order placed:");
+                Log($"   Take Profit: {takeProfitPrice:F2}");
+                Log($"   Stop Loss: {stopLossPrice:F2} (limit: {stopLossLimitPrice:F2})");
+                Log($"   Order List ID: {result.Data.Id}");
+                return true;
+            }
+            else
+            {
+                Log($"❌ OCO Order failed: {result.Error?.Message}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"❌ OCO Order exception: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> CancelOcoOrderAsync()
+    {
+        if (!_currentOcoOrderListId.HasValue || _settings.PaperTrade)
+            return true;
+
+        try
+        {
+            var result = await _restClient.SpotApi.Trading.CancelOcoOrderAsync(
+                _settings.Symbol,
+                orderListId: _currentOcoOrderListId.Value
+            );
+
+            if (result.Success)
+            {
+                Log($"✅ OCO Order cancelled (ID: {_currentOcoOrderListId})");
+                _currentOcoOrderListId = null;
+                return true;
+            }
+            else
+            {
+                Log($"❌ OCO Cancel failed: {result.Error?.Message}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"❌ OCO Cancel exception: {ex.Message}");
+            return false;
+        }
+    }
+
+    public async Task UpdateTrailingStopAsync(decimal newStopPrice, decimal takeProfitPrice)
+    {
+        if (_currentPosition == 0 || _settings.PaperTrade)
+        {
+            if (_settings.PaperTrade)
+            {
+                _stopLoss = newStopPrice;
+                Log($"[PAPER] Trailing stop updated to {newStopPrice:F2}");
+            }
+            return;
+        }
+
+        // 1. Отменить существующий OCO
+        await CancelOcoOrderAsync();
+
+        // 2. Создать новый с обновлённым стопом
+        var quantity = Math.Abs(_currentPosition);
+        var side = _currentPosition > 0 ? OrderSide.Sell : OrderSide.Buy;
+
+        // Stop limit price должен быть чуть ниже/выше stop price для защиты от проскальзывания
+        var stopLimitPrice = _currentPosition > 0
+            ? newStopPrice * 0.995m  // 0.5% ниже для лонга
+            : newStopPrice * 1.005m; // 0.5% выше для шорта
+
+        await PlaceOcoOrderAsync(side, quantity, newStopPrice, stopLimitPrice, takeProfitPrice);
+
+        _stopLoss = newStopPrice;
+        Log($"🔄 Trailing stop updated to {newStopPrice:F2}");
     }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
@@ -135,18 +246,23 @@ public class BinanceLiveTrader : IDisposable
     public async Task StopAsync()
     {
         _isRunning = false;
-        
+
         if (_subscription != null)
         {
             await _subscription.CloseAsync();
             _subscription = null;
         }
 
-        // Close any open position
+        // Cancel OCO orders and close any open position
         if (_currentPosition != 0)
         {
             Log("Closing open position...");
             await ClosePositionAsync("Manual stop");
+        }
+        else
+        {
+            // Cancel OCO even if position was closed by exchange
+            await CancelOcoOrderAsync();
         }
 
         Log("Trader stopped.");
@@ -360,7 +476,8 @@ public class BinanceLiveTrader : IDisposable
             try
             {
                 var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
-                
+
+                // 1. Открыть позицию маркет ордером
                 var result = await _restClient.SpotApi.Trading.PlaceOrderAsync(
                     _settings.Symbol,
                     side,
@@ -378,12 +495,23 @@ public class BinanceLiveTrader : IDisposable
                 _entryPrice = result.Data.AverageFillPrice ?? price;
                 _stopLoss = stopLoss;
                 _takeProfit = takeProfit;
-                
-                _riskManager.AddPosition(_settings.Symbol, Math.Abs(_currentPosition), 
+
+                _riskManager.AddPosition(_settings.Symbol, Math.Abs(_currentPosition),
                     Math.Abs(price - stopLoss) * quantity, price, stopLoss);
 
                 var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
                 Log($"Opened {direction} {quantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}");
+
+                // 2. Сразу выставить OCO для защиты (если есть тейк-профит)
+                if (takeProfit.HasValue)
+                {
+                    var exitSide = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
+                    var stopLimitPrice = direction == TradeDirection.Long
+                        ? stopLoss * 0.995m  // 0.5% ниже для лонга
+                        : stopLoss * 1.005m; // 0.5% выше для шорта
+
+                    await PlaceOcoOrderAsync(exitSide, quantity, stopLoss, stopLimitPrice, takeProfit.Value);
+                }
             }
             catch (Exception ex)
             {
@@ -395,6 +523,9 @@ public class BinanceLiveTrader : IDisposable
     private async Task ClosePositionAsync(string reason)
     {
         if (_currentPosition == 0) return;
+
+        // Отменить OCO, если был выставлен
+        await CancelOcoOrderAsync();
 
         var currentPrice = await GetCurrentPriceAsync();
         var direction = _currentPosition > 0 ? TradeDirection.Long : TradeDirection.Short;
@@ -546,6 +677,7 @@ public class BinanceLiveTrader : IDisposable
             _stopLoss = null;
             _takeProfit = null;
             _riskManager.RemovePosition(_settings.Symbol);
+            await CancelOcoOrderAsync();
             return;
         }
 
@@ -554,6 +686,12 @@ public class BinanceLiveTrader : IDisposable
             remainingQuantity,
             _stopLoss ?? _entryPrice!.Value,
             signal.MoveStopToBreakeven);
+
+        // Обновить OCO для оставшейся позиции
+        if (!_settings.PaperTrade && _takeProfit.HasValue && _stopLoss.HasValue)
+        {
+            await UpdateTrailingStopAsync(_stopLoss.Value, _takeProfit.Value);
+        }
     }
 
     private decimal CalculateTradingCosts(decimal entryPrice, decimal exitPrice, decimal quantity)
