@@ -127,12 +127,44 @@ class Program
                 .Title("Select strategy to optimize:")
                 .AddChoices(
                     "ADX Trend Following (Full Grid Search)",
+                    "MA Crossover (Genetic)",
+                    "RSI Mean Reversion (Genetic)",
                     "RSI Mean Reversion (Quick Test)",
-                    "MA Crossover (Quick Test)")
+                    "MA Crossover (Quick Test)",
+                    "Strategy Ensemble (Weights Only)",
+                    "Strategy Ensemble (Full - All Parameters)")
         );
 
         var riskSettings = GetRiskSettings();
         var backtestSettings = new BacktestSettings { InitialCapital = 10000m };
+
+        if (strategyChoice == "Strategy Ensemble (Weights Only)")
+        {
+            var optimizeFor = PromptOptimizationTarget();
+            await RunEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            return;
+        }
+
+        if (strategyChoice == "Strategy Ensemble (Full - All Parameters)")
+        {
+            var optimizeFor = PromptOptimizationTarget();
+            await RunFullEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            return;
+        }
+
+        if (strategyChoice == "MA Crossover (Genetic)")
+        {
+            var optimizeFor = PromptOptimizationTarget();
+            await RunMaOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            return;
+        }
+
+        if (strategyChoice == "RSI Mean Reversion (Genetic)")
+        {
+            var optimizeFor = PromptOptimizationTarget();
+            await RunRsiOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            return;
+        }
 
         if (strategyChoice != "ADX Trend Following (Full Grid Search)")
         {
@@ -154,31 +186,21 @@ class Program
 
         // ADX Optimization
         AnsiConsole.MarkupLine("\n[yellow]ADX Parameter Ranges (Grid Search)[/]");
-        
-        var optimizeFor = AnsiConsole.Prompt(
-            new SelectionPrompt<OptimizationTarget>()
-                .Title("Optimize for:")
-                .AddChoices(
-                    OptimizationTarget.RiskAdjusted,
-                    OptimizationTarget.SharpeRatio,
-                    OptimizationTarget.SortinoRatio,
-                    OptimizationTarget.ProfitFactor,
-                    OptimizationTarget.TotalReturn
-                )
-        );
+
+        var adxOptimizeFor = PromptOptimizationTarget();
 
         var useDefaultRanges = AnsiConsole.Confirm("Use default parameter ranges?", true);
-        
+
         OptimizerSettings optimizerSettings;
         if (useDefaultRanges)
         {
-            optimizerSettings = new OptimizerSettings { OptimizeFor = optimizeFor };
+            optimizerSettings = new OptimizerSettings { OptimizeFor = adxOptimizeFor };
         }
         else
         {
             optimizerSettings = new OptimizerSettings
             {
-                OptimizeFor = optimizeFor,
+                OptimizeFor = adxOptimizeFor,
                 AdxPeriodRange = ParseIntRange(AnsiConsole.Ask("ADX periods [green](comma-separated)[/]:", "10,14,20")),
                 AdxThresholdRange = ParseDecimalRange(AnsiConsole.Ask("ADX thresholds:", "20,25,30")),
                 FastEmaRange = ParseIntRange(AnsiConsole.Ask("Fast EMA periods:", "10,15,20,25")),
@@ -222,6 +244,263 @@ class Program
 
     static decimal[] ParseDecimalRange(string input) => 
         input.Split(',').Select(s => decimal.Parse(s.Trim())).ToArray();
+
+    static OptimizationTarget PromptOptimizationTarget() =>
+        AnsiConsole.Prompt(
+            new SelectionPrompt<OptimizationTarget>()
+                .Title("Optimize for:")
+                .AddChoices(
+                    OptimizationTarget.RiskAdjusted,
+                    OptimizationTarget.SharpeRatio,
+                    OptimizationTarget.SortinoRatio,
+                    OptimizationTarget.ProfitFactor,
+                    OptimizationTarget.TotalReturn
+                )
+        );
+
+    static FitnessFunction ToFitnessFunction(OptimizationTarget target) => target switch
+    {
+        OptimizationTarget.SharpeRatio => FitnessFunction.Sharpe,
+        OptimizationTarget.SortinoRatio => FitnessFunction.Sortino,
+        OptimizationTarget.ProfitFactor => FitnessFunction.ProfitFactor,
+        OptimizationTarget.TotalReturn => FitnessFunction.Return,
+        OptimizationTarget.RiskAdjusted => FitnessFunction.RiskAdjusted,
+        _ => FitnessFunction.RiskAdjusted
+    };
+
+    static async Task RunEnsembleOptimization(
+        List<Candle> candles,
+        string symbol,
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings,
+        OptimizationTarget optimizeFor)
+    {
+        var config = _configService.GetConfiguration();
+        var optimizerConfig = config.EnsembleOptimizer.ToEnsembleOptimizerConfig();
+        var geneticSettings = config.GeneticOptimizer.ToGeneticOptimizerSettings();
+        var optimizer = new EnsembleStrategyOptimizer(optimizerConfig, riskSettings, backtestSettings, optimizeFor);
+
+        GeneticOptimizationResult<EnsembleOptimizationSettings> result = null!;
+        await AnsiConsole.Progress()
+            .StartAsync(async ctx =>
+            {
+                var task = ctx.AddTask("Optimizing ensemble...");
+                var progress = new Progress<GeneticProgress<EnsembleOptimizationSettings>>(p =>
+                {
+                    task.Description = $"Optimizing ensemble... Gen {p.CurrentGeneration}/{p.TotalGenerations}";
+                    task.Value = p.PercentComplete;
+                });
+
+                result = optimizer.Optimize(candles, symbol, geneticSettings, progress);
+                await Task.CompletedTask;
+            });
+
+        var bestSettings = result.BestSettings;
+        var ensembleSettings = bestSettings.ToEnsembleSettings();
+        var strategy = StrategyEnsemble.CreateDefault(ensembleSettings);
+        var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
+        var backtestResult = engine.Run(candles, symbol);
+
+        DisplayEnsembleOptimizationResults(result, backtestResult);
+        PromptSaveEnsembleSettings(bestSettings);
+    }
+
+    static async Task RunFullEnsembleOptimization(
+        List<Candle> candles,
+        string symbol,
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings,
+        OptimizationTarget optimizeFor)
+    {
+        var config = _configService.GetConfiguration();
+        var geneticSettings = config.GeneticOptimizer.ToGeneticOptimizerSettings();
+
+        // Use larger population and more generations for the bigger search space
+        geneticSettings = geneticSettings with
+        {
+            PopulationSize = Math.Max(geneticSettings.PopulationSize, 150),
+            Generations = Math.Max(geneticSettings.Generations, 80)
+        };
+
+        var optimizer = new FullEnsembleOptimizer(
+            riskSettings: riskSettings,
+            backtestSettings: backtestSettings,
+            optimizeFor: optimizeFor);
+
+        AnsiConsole.MarkupLine($"\n[yellow]Full Ensemble Optimization (~25 parameters)[/]");
+        AnsiConsole.MarkupLine($"[grey]Population: {geneticSettings.PopulationSize}, Generations: {geneticSettings.Generations}[/]");
+        AnsiConsole.MarkupLine("[grey]This may take a while...[/]\n");
+
+        GeneticOptimizationResult<FullEnsembleSettings> result = null!;
+        await AnsiConsole.Progress()
+            .StartAsync(async ctx =>
+            {
+                var task = ctx.AddTask("Optimizing full ensemble...");
+                var progress = new Progress<GeneticProgress<FullEnsembleSettings>>(p =>
+                {
+                    task.Description = $"Optimizing full ensemble... Gen {p.CurrentGeneration}/{p.TotalGenerations} (Best: {p.BestFitness:F2})";
+                    task.Value = p.PercentComplete;
+                });
+
+                result = optimizer.Optimize(candles, symbol, geneticSettings, progress);
+                await Task.CompletedTask;
+            });
+
+        var bestSettings = result.BestSettings;
+        var strategy = FullEnsembleOptimizer.CreateEnsembleFromSettings(bestSettings);
+        var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
+        var backtestResult = engine.Run(candles, symbol);
+
+        DisplayFullEnsembleResults(result, backtestResult);
+    }
+
+    static void DisplayFullEnsembleResults(
+        GeneticOptimizationResult<FullEnsembleSettings> result,
+        BacktestResult backtestResult)
+    {
+        var best = result.BestSettings;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[yellow]Full Ensemble Optimization Results[/]").RuleStyle("grey"));
+
+        // Weights table
+        var weightsTable = new Table()
+            .Border(TableBorder.Rounded)
+            .Title("[cyan]Strategy Weights[/]")
+            .AddColumn("Strategy")
+            .AddColumn("Weight");
+
+        weightsTable.AddRow("ADX Trend Following", $"{best.AdxWeight:P0}");
+        weightsTable.AddRow("MA Crossover", $"{best.MaWeight:P0}");
+        weightsTable.AddRow("RSI Mean Reversion", $"{best.RsiWeight:P0}");
+        weightsTable.AddRow("Minimum Agreement", $"{best.MinimumAgreement:P0}");
+        weightsTable.AddRow("Confidence Weighting", best.UseConfidenceWeighting ? "Yes" : "No");
+
+        AnsiConsole.Write(weightsTable);
+
+        // ADX parameters
+        var adxTable = new Table()
+            .Border(TableBorder.Simple)
+            .Title("[cyan]ADX Strategy Parameters[/]")
+            .AddColumn("Parameter")
+            .AddColumn("Value");
+
+        adxTable.AddRow("ADX Period", best.AdxPeriod.ToString());
+        adxTable.AddRow("ADX Threshold", $"{best.AdxThreshold:F1}");
+        adxTable.AddRow("ADX Exit", $"{best.AdxExitThreshold:F1}");
+        adxTable.AddRow("Fast/Slow EMA", $"{best.AdxFastEmaPeriod}/{best.AdxSlowEmaPeriod}");
+        adxTable.AddRow("ATR Stop", $"{best.AdxAtrStopMultiplier:F2}x");
+        adxTable.AddRow("Volume", $"{best.AdxVolumeThreshold:F2}x");
+
+        AnsiConsole.Write(adxTable);
+
+        // MA parameters
+        var maTable = new Table()
+            .Border(TableBorder.Simple)
+            .Title("[cyan]MA Strategy Parameters[/]")
+            .AddColumn("Parameter")
+            .AddColumn("Value");
+
+        maTable.AddRow("Fast/Slow MA", $"{best.MaFastPeriod}/{best.MaSlowPeriod}");
+        maTable.AddRow("ATR Stop", $"{best.MaAtrStopMultiplier:F2}x");
+        maTable.AddRow("Take Profit", $"{best.MaTakeProfitMultiplier:F2}x");
+        maTable.AddRow("Volume", $"{best.MaVolumeThreshold:F2}x");
+
+        AnsiConsole.Write(maTable);
+
+        // RSI parameters
+        var rsiTable = new Table()
+            .Border(TableBorder.Simple)
+            .Title("[cyan]RSI Strategy Parameters[/]")
+            .AddColumn("Parameter")
+            .AddColumn("Value");
+
+        rsiTable.AddRow("RSI Period", best.RsiPeriod.ToString());
+        rsiTable.AddRow("Oversold/Overbought", $"{best.RsiOversoldLevel:F1}/{best.RsiOverboughtLevel:F1}");
+        rsiTable.AddRow("ATR Stop", $"{best.RsiAtrStopMultiplier:F2}x");
+        rsiTable.AddRow("Take Profit", $"{best.RsiTakeProfitMultiplier:F2}x");
+        rsiTable.AddRow("Trend Filter", best.RsiUseTrendFilter ? "Yes" : "No");
+
+        AnsiConsole.Write(rsiTable);
+
+        AnsiConsole.MarkupLine($"\n[green]Best Fitness: {result.BestFitness:F2}[/]");
+
+        DisplayBacktestResults(backtestResult);
+    }
+
+    static async Task RunMaOptimization(
+        List<Candle> candles,
+        string symbol,
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings,
+        OptimizationTarget optimizeFor)
+    {
+        var config = _configService.GetConfiguration();
+        var optimizerConfig = config.MaOptimizer.ToMaOptimizerConfig();
+        var geneticSettings = config.GeneticOptimizer.ToGeneticOptimizerSettings();
+        var fitness = ToFitnessFunction(optimizeFor);
+        var optimizer = new MaStrategyOptimizer(optimizerConfig, riskSettings, backtestSettings, fitness);
+
+        GeneticOptimizationResult<MaStrategySettings> result = null!;
+        await AnsiConsole.Progress()
+            .StartAsync(async ctx =>
+            {
+                var task = ctx.AddTask("Optimizing MA...");
+                var progress = new Progress<GeneticProgress<MaStrategySettings>>(p =>
+                {
+                    task.Description = $"Optimizing MA... Gen {p.CurrentGeneration}/{p.TotalGenerations}";
+                    task.Value = p.PercentComplete;
+                });
+
+                result = optimizer.Optimize(candles, symbol, geneticSettings, progress);
+                await Task.CompletedTask;
+            });
+
+        var bestSettings = result.BestSettings;
+        var strategy = new MaStrategy(bestSettings);
+        var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
+        var backtestResult = engine.Run(candles, symbol);
+
+        DisplayMaOptimizationResults(result, backtestResult);
+        PromptSaveMaSettings(bestSettings);
+    }
+
+    static async Task RunRsiOptimization(
+        List<Candle> candles,
+        string symbol,
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings,
+        OptimizationTarget optimizeFor)
+    {
+        var config = _configService.GetConfiguration();
+        var optimizerConfig = config.RsiOptimizer.ToRsiOptimizerConfig();
+        var geneticSettings = config.GeneticOptimizer.ToGeneticOptimizerSettings();
+        var fitness = ToFitnessFunction(optimizeFor);
+        var optimizer = new RsiStrategyOptimizer(optimizerConfig, riskSettings, backtestSettings, fitness);
+
+        GeneticOptimizationResult<RsiStrategySettings> result = null!;
+        await AnsiConsole.Progress()
+            .StartAsync(async ctx =>
+            {
+                var task = ctx.AddTask("Optimizing RSI...");
+                var progress = new Progress<GeneticProgress<RsiStrategySettings>>(p =>
+                {
+                    task.Description = $"Optimizing RSI... Gen {p.CurrentGeneration}/{p.TotalGenerations}";
+                    task.Value = p.PercentComplete;
+                });
+
+                result = optimizer.Optimize(candles, symbol, geneticSettings, progress);
+                await Task.CompletedTask;
+            });
+
+        var bestSettings = result.BestSettings;
+        var strategy = new RsiStrategy(bestSettings);
+        var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
+        var backtestResult = engine.Run(candles, symbol);
+
+        DisplayRsiOptimizationResults(result, backtestResult);
+        PromptSaveRsiSettings(bestSettings);
+    }
 
     static void DisplayOptimizationResults(OptimizationResult result)
     {
@@ -308,6 +587,127 @@ class Program
         {
             AnsiConsole.MarkupLine("\n[red]⚠ No robust parameter sets found. Try wider ranges or more data.[/]");
         }
+    }
+
+    static void DisplayEnsembleOptimizationResults(
+        GeneticOptimizationResult<EnsembleOptimizationSettings> result,
+        BacktestResult backtestResult)
+    {
+        var best = result.BestSettings;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[yellow]Ensemble Optimization Results[/]").RuleStyle("grey"));
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Metric")
+            .AddColumn("Value");
+
+        table.AddRow("Best fitness", result.BestFitness.ToString("F2"));
+        table.AddRow("Minimum agreement", $"{best.MinimumAgreement:P0}");
+        table.AddRow("Use confidence weighting", best.UseConfidenceWeighting ? "Yes" : "No");
+        table.AddRow("ADX weight", best.AdxWeight.ToString("F2"));
+        table.AddRow("MA weight", best.MaWeight.ToString("F2"));
+        table.AddRow("RSI weight", best.RsiWeight.ToString("F2"));
+
+        AnsiConsole.Write(table);
+
+        DisplayBacktestResults(backtestResult);
+    }
+
+    static void DisplayMaOptimizationResults(
+        GeneticOptimizationResult<MaStrategySettings> result,
+        BacktestResult backtestResult)
+    {
+        var best = result.BestSettings;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[yellow]MA Optimization Results[/]").RuleStyle("grey"));
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Metric")
+            .AddColumn("Value");
+
+        table.AddRow("Best fitness", result.BestFitness.ToString("F2"));
+        table.AddRow("Fast/Slow MA", $"{best.FastMaPeriod} / {best.SlowMaPeriod}");
+        table.AddRow("ATR stop", best.AtrStopMultiplier.ToString("F2"));
+        table.AddRow("Take profit", best.TakeProfitMultiplier.ToString("F2"));
+        table.AddRow("Volume threshold", best.VolumeThreshold.ToString("F2"));
+        table.AddRow("Volume required", best.RequireVolumeConfirmation ? "Yes" : "No");
+
+        AnsiConsole.Write(table);
+
+        DisplayBacktestResults(backtestResult);
+    }
+
+    static void DisplayRsiOptimizationResults(
+        GeneticOptimizationResult<RsiStrategySettings> result,
+        BacktestResult backtestResult)
+    {
+        var best = result.BestSettings;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[yellow]RSI Optimization Results[/]").RuleStyle("grey"));
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Metric")
+            .AddColumn("Value");
+
+        table.AddRow("Best fitness", result.BestFitness.ToString("F2"));
+        table.AddRow("RSI period", best.RsiPeriod.ToString());
+        table.AddRow("Oversold/Overbought", $"{best.OversoldLevel:F1} / {best.OverboughtLevel:F1}");
+        table.AddRow("ATR stop", best.AtrStopMultiplier.ToString("F2"));
+        table.AddRow("Take profit", best.TakeProfitMultiplier.ToString("F2"));
+        table.AddRow("Trend filter", best.UseTrendFilter ? $"Yes ({best.TrendFilterPeriod})" : "No");
+        table.AddRow("Exit on neutral", best.ExitOnNeutral ? "Yes" : "No");
+        table.AddRow("Volume threshold", best.VolumeThreshold.ToString("F2"));
+        table.AddRow("Volume required", best.RequireVolumeConfirmation ? "Yes" : "No");
+
+        AnsiConsole.Write(table);
+
+        DisplayBacktestResults(backtestResult);
+    }
+
+    static void PromptSaveEnsembleSettings(EnsembleOptimizationSettings settings)
+    {
+        if (!AnsiConsole.Confirm("Save best ensemble settings to appsettings.user.json?", defaultValue: true))
+            return;
+
+        var current = _configService.GetConfiguration().Ensemble;
+        var updated = new EnsembleConfigSettings
+        {
+            Enabled = current.Enabled,
+            MinimumAgreement = settings.MinimumAgreement,
+            UseConfidenceWeighting = settings.UseConfidenceWeighting,
+            StrategyWeights = new Dictionary<string, decimal>
+            {
+                ["ADX Trend Following + Volume"] = settings.AdxWeight,
+                ["MA Crossover"] = settings.MaWeight,
+                ["RSI Mean Reversion"] = settings.RsiWeight
+            }
+        };
+
+        _configService.UpdateSection("Ensemble", updated);
+    }
+
+    static void PromptSaveMaSettings(MaStrategySettings settings)
+    {
+        if (!AnsiConsole.Confirm("Save best MA settings to appsettings.user.json?", defaultValue: true))
+            return;
+
+        var updated = MaStrategyConfigSettings.FromSettings(settings);
+        _configService.UpdateSection("MaStrategy", updated);
+    }
+
+    static void PromptSaveRsiSettings(RsiStrategySettings settings)
+    {
+        if (!AnsiConsole.Confirm("Save best RSI settings to appsettings.user.json?", defaultValue: true))
+            return;
+
+        var updated = RsiStrategyConfigSettings.FromSettings(settings);
+        _configService.UpdateSection("RsiStrategy", updated);
     }
 
     static async Task RunWalkForward()

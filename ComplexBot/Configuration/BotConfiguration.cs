@@ -15,9 +15,15 @@ public class BotConfiguration
     public PortfolioRiskConfigSettings PortfolioRisk { get; set; } = new();
     public StrategyConfigSettings Strategy { get; set; } = new();
     public EnsembleConfigSettings Ensemble { get; set; } = new();
+    public EnsembleOptimizerConfigSettings EnsembleOptimizer { get; set; } = new();
+    public MaStrategyConfigSettings MaStrategy { get; set; } = new();
+    public RsiStrategyConfigSettings RsiStrategy { get; set; } = new();
+    public MaOptimizerConfigSettings MaOptimizer { get; set; } = new();
+    public RsiOptimizerConfigSettings RsiOptimizer { get; set; } = new();
     public BacktestingSettings Backtesting { get; set; } = new();
     public LiveTradingSettings LiveTrading { get; set; } = new();
     public OptimizationSettings Optimization { get; set; } = new();
+    public GeneticOptimizerConfigSettings GeneticOptimizer { get; set; } = new();
 }
 
 public class BinanceApiSettings
@@ -154,6 +160,194 @@ public class EnsembleConfigSettings
     };
 }
 
+public class MaStrategyConfigSettings
+{
+    public int FastMaPeriod { get; set; } = 10;
+    public int SlowMaPeriod { get; set; } = 30;
+    public int AtrPeriod { get; set; } = 14;
+    public decimal AtrStopMultiplier { get; set; } = 2.0m;
+    public decimal TakeProfitMultiplier { get; set; } = 2.0m;
+    public int VolumePeriod { get; set; } = 20;
+    public decimal VolumeThreshold { get; set; } = 1.2m;
+    public bool RequireVolumeConfirmation { get; set; } = true;
+
+    public MaStrategySettings ToMaStrategySettings() => new()
+    {
+        FastMaPeriod = FastMaPeriod,
+        SlowMaPeriod = SlowMaPeriod,
+        AtrPeriod = AtrPeriod,
+        AtrStopMultiplier = AtrStopMultiplier,
+        TakeProfitMultiplier = TakeProfitMultiplier,
+        VolumePeriod = VolumePeriod,
+        VolumeThreshold = VolumeThreshold,
+        RequireVolumeConfirmation = RequireVolumeConfirmation
+    };
+
+    public static MaStrategyConfigSettings FromSettings(MaStrategySettings settings) => new()
+    {
+        FastMaPeriod = settings.FastMaPeriod,
+        SlowMaPeriod = settings.SlowMaPeriod,
+        AtrPeriod = settings.AtrPeriod,
+        AtrStopMultiplier = settings.AtrStopMultiplier,
+        TakeProfitMultiplier = settings.TakeProfitMultiplier,
+        VolumePeriod = settings.VolumePeriod,
+        VolumeThreshold = settings.VolumeThreshold,
+        RequireVolumeConfirmation = settings.RequireVolumeConfirmation
+    };
+}
+
+public class RsiStrategyConfigSettings
+{
+    public int RsiPeriod { get; set; } = 14;
+    public decimal OversoldLevel { get; set; } = 30m;
+    public decimal OverboughtLevel { get; set; } = 70m;
+    public decimal NeutralZoneLow { get; set; } = 45m;
+    public decimal NeutralZoneHigh { get; set; } = 55m;
+    public bool ExitOnNeutral { get; set; } = false;
+    public int AtrPeriod { get; set; } = 14;
+    public decimal AtrStopMultiplier { get; set; } = 1.5m;
+    public decimal TakeProfitMultiplier { get; set; } = 2.0m;
+    public int TrendFilterPeriod { get; set; } = 50;
+    public bool UseTrendFilter { get; set; } = true;
+    public int VolumePeriod { get; set; } = 20;
+    public decimal VolumeThreshold { get; set; } = 1.0m;
+    public bool RequireVolumeConfirmation { get; set; } = false;
+
+    public RsiStrategySettings ToRsiStrategySettings() => new()
+    {
+        RsiPeriod = RsiPeriod,
+        OversoldLevel = OversoldLevel,
+        OverboughtLevel = OverboughtLevel,
+        NeutralZoneLow = NeutralZoneLow,
+        NeutralZoneHigh = NeutralZoneHigh,
+        ExitOnNeutral = ExitOnNeutral,
+        AtrPeriod = AtrPeriod,
+        AtrStopMultiplier = AtrStopMultiplier,
+        TakeProfitMultiplier = TakeProfitMultiplier,
+        TrendFilterPeriod = TrendFilterPeriod,
+        UseTrendFilter = UseTrendFilter,
+        VolumePeriod = VolumePeriod,
+        VolumeThreshold = VolumeThreshold,
+        RequireVolumeConfirmation = RequireVolumeConfirmation
+    };
+
+    public static RsiStrategyConfigSettings FromSettings(RsiStrategySettings settings) => new()
+    {
+        RsiPeriod = settings.RsiPeriod,
+        OversoldLevel = settings.OversoldLevel,
+        OverboughtLevel = settings.OverboughtLevel,
+        NeutralZoneLow = settings.NeutralZoneLow,
+        NeutralZoneHigh = settings.NeutralZoneHigh,
+        ExitOnNeutral = settings.ExitOnNeutral,
+        AtrPeriod = settings.AtrPeriod,
+        AtrStopMultiplier = settings.AtrStopMultiplier,
+        TakeProfitMultiplier = settings.TakeProfitMultiplier,
+        TrendFilterPeriod = settings.TrendFilterPeriod,
+        UseTrendFilter = settings.UseTrendFilter,
+        VolumePeriod = settings.VolumePeriod,
+        VolumeThreshold = settings.VolumeThreshold,
+        RequireVolumeConfirmation = settings.RequireVolumeConfirmation
+    };
+}
+
+public class EnsembleOptimizerConfigSettings
+{
+    public decimal WeightMin { get; set; } = 0.05m;
+    public decimal WeightMax { get; set; } = 1.0m;
+    public decimal MinimumAgreementMin { get; set; } = 0.4m;
+    public decimal MinimumAgreementMax { get; set; } = 0.8m;
+    public bool AllowConfidenceWeightingToggle { get; set; } = true;
+    public bool DefaultUseConfidenceWeighting { get; set; } = true;
+    public int MinTrades { get; set; } = 20;
+
+    public EnsembleOptimizerConfig ToEnsembleOptimizerConfig() => new()
+    {
+        WeightMin = WeightMin,
+        WeightMax = WeightMax,
+        MinimumAgreementMin = MinimumAgreementMin,
+        MinimumAgreementMax = MinimumAgreementMax,
+        AllowConfidenceWeightingToggle = AllowConfidenceWeightingToggle,
+        DefaultUseConfidenceWeighting = DefaultUseConfidenceWeighting,
+        MinTrades = MinTrades
+    };
+}
+
+public class MaOptimizerConfigSettings
+{
+    public int FastMaMin { get; set; } = 5;
+    public int FastMaMax { get; set; } = 25;
+    public int SlowMaMin { get; set; } = 20;
+    public int SlowMaMax { get; set; } = 120;
+    public int AtrPeriod { get; set; } = 14;
+    public decimal AtrMultiplierMin { get; set; } = 1.5m;
+    public decimal AtrMultiplierMax { get; set; } = 4.0m;
+    public decimal TakeProfitMultiplierMin { get; set; } = 1.0m;
+    public decimal TakeProfitMultiplierMax { get; set; } = 3.0m;
+    public int VolumePeriod { get; set; } = 20;
+    public decimal VolumeThresholdMin { get; set; } = 1.0m;
+    public decimal VolumeThresholdMax { get; set; } = 2.5m;
+
+    public MaOptimizerConfig ToMaOptimizerConfig() => new()
+    {
+        FastMaMin = FastMaMin,
+        FastMaMax = FastMaMax,
+        SlowMaMin = SlowMaMin,
+        SlowMaMax = SlowMaMax,
+        AtrPeriod = AtrPeriod,
+        AtrMultiplierMin = AtrMultiplierMin,
+        AtrMultiplierMax = AtrMultiplierMax,
+        TakeProfitMultiplierMin = TakeProfitMultiplierMin,
+        TakeProfitMultiplierMax = TakeProfitMultiplierMax,
+        VolumePeriod = VolumePeriod,
+        VolumeThresholdMin = VolumeThresholdMin,
+        VolumeThresholdMax = VolumeThresholdMax
+    };
+}
+
+public class RsiOptimizerConfigSettings
+{
+    public int RsiPeriodMin { get; set; } = 10;
+    public int RsiPeriodMax { get; set; } = 20;
+    public decimal OversoldMin { get; set; } = 20m;
+    public decimal OversoldMax { get; set; } = 35m;
+    public decimal OverboughtMin { get; set; } = 65m;
+    public decimal OverboughtMax { get; set; } = 80m;
+    public decimal NeutralZoneLow { get; set; } = 45m;
+    public decimal NeutralZoneHigh { get; set; } = 55m;
+    public int AtrPeriod { get; set; } = 14;
+    public decimal AtrMultiplierMin { get; set; } = 1.0m;
+    public decimal AtrMultiplierMax { get; set; } = 3.5m;
+    public decimal TakeProfitMultiplierMin { get; set; } = 1.5m;
+    public decimal TakeProfitMultiplierMax { get; set; } = 3.0m;
+    public int TrendFilterMin { get; set; } = 20;
+    public int TrendFilterMax { get; set; } = 100;
+    public int VolumePeriod { get; set; } = 20;
+    public decimal VolumeThresholdMin { get; set; } = 1.0m;
+    public decimal VolumeThresholdMax { get; set; } = 2.5m;
+
+    public RsiOptimizerConfig ToRsiOptimizerConfig() => new()
+    {
+        RsiPeriodMin = RsiPeriodMin,
+        RsiPeriodMax = RsiPeriodMax,
+        OversoldMin = OversoldMin,
+        OversoldMax = OversoldMax,
+        OverboughtMin = OverboughtMin,
+        OverboughtMax = OverboughtMax,
+        NeutralZoneLow = NeutralZoneLow,
+        NeutralZoneHigh = NeutralZoneHigh,
+        AtrPeriod = AtrPeriod,
+        AtrMultiplierMin = AtrMultiplierMin,
+        AtrMultiplierMax = AtrMultiplierMax,
+        TakeProfitMultiplierMin = TakeProfitMultiplierMin,
+        TakeProfitMultiplierMax = TakeProfitMultiplierMax,
+        TrendFilterMin = TrendFilterMin,
+        TrendFilterMax = TrendFilterMax,
+        VolumePeriod = VolumePeriod,
+        VolumeThresholdMin = VolumeThresholdMin,
+        VolumeThresholdMax = VolumeThresholdMax
+    };
+}
+
 public class BacktestingSettings
 {
     public decimal InitialCapital { get; set; } = 10000m;
@@ -231,5 +425,31 @@ public class OptimizationSettings
         "ProfitFactor" => OptimizationTarget.ProfitFactor,
         "TotalReturn" => OptimizationTarget.TotalReturn,
         _ => OptimizationTarget.RiskAdjusted
+    };
+}
+
+public class GeneticOptimizerConfigSettings
+{
+    public int PopulationSize { get; set; } = 100;
+    public int Generations { get; set; } = 50;
+    public int EliteCount { get; set; } = 5;
+    public int TournamentSize { get; set; } = 5;
+    public double CrossoverRate { get; set; } = 0.8;
+    public double MutationRate { get; set; } = 0.15;
+    public int EarlyStoppingPatience { get; set; } = 10;
+    public decimal EarlyStoppingThreshold { get; set; } = 0.01m;
+    public int? RandomSeed { get; set; }
+
+    public GeneticOptimizerSettings ToGeneticOptimizerSettings() => new()
+    {
+        PopulationSize = PopulationSize,
+        Generations = Generations,
+        EliteCount = EliteCount,
+        TournamentSize = TournamentSize,
+        CrossoverRate = CrossoverRate,
+        MutationRate = MutationRate,
+        EarlyStoppingPatience = EarlyStoppingPatience,
+        EarlyStoppingThreshold = EarlyStoppingThreshold,
+        RandomSeed = RandomSeed
     };
 }

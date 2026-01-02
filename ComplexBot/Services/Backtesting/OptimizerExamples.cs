@@ -134,6 +134,36 @@ public static class OptimizerExamples
     }
 
     /// <summary>
+    /// Example 2b: Optimize MA strategy using helper optimizer
+    /// </summary>
+    public static void OptimizeMaStrategyWithHelper(
+        List<Candle> candles,
+        string symbol,
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings)
+    {
+        var maOptimizer = new MaStrategyOptimizer(
+            config: new MaOptimizerConfig(),
+            riskSettings: riskSettings,
+            backtestSettings: backtestSettings,
+            fitnessFunction: FitnessFunction.RiskAdjusted,
+            minTrades: 20);
+
+        var result = maOptimizer.Optimize(
+            candles,
+            symbol,
+            settings: new GeneticOptimizerSettings { PopulationSize = 80, Generations = 40 },
+            progress: new Progress<GeneticProgress<MaStrategySettings>>(p =>
+            {
+                Console.WriteLine($"Gen {p.CurrentGeneration}: Best={p.BestFitness:F2}");
+            })
+        );
+
+        Console.WriteLine($"Best MA settings: Fast={result.BestSettings.FastMaPeriod}, Slow={result.BestSettings.SlowMaPeriod}");
+        Console.WriteLine($"Fitness: {result.BestFitness:F2}");
+    }
+
+    /// <summary>
     /// Example 3: Optimize RSI strategy
     /// </summary>
     public static GeneticOptimizer<RsiStrategySettings> CreateRsiOptimizer()
@@ -179,6 +209,36 @@ public static class OptimizerExamples
                 settings.OversoldLevel < 50 && settings.OverboughtLevel > 50,
             settings: new GeneticOptimizerSettings { PopulationSize = 80, Generations = 40 }
         );
+    }
+
+    /// <summary>
+    /// Example 3b: Optimize RSI strategy using helper optimizer
+    /// </summary>
+    public static void OptimizeRsiStrategyWithHelper(
+        List<Candle> candles,
+        string symbol,
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings)
+    {
+        var rsiOptimizer = new RsiStrategyOptimizer(
+            config: new RsiOptimizerConfig(),
+            riskSettings: riskSettings,
+            backtestSettings: backtestSettings,
+            fitnessFunction: FitnessFunction.RiskAdjusted,
+            minTrades: 20);
+
+        var result = rsiOptimizer.Optimize(
+            candles,
+            symbol,
+            settings: new GeneticOptimizerSettings { PopulationSize = 80, Generations = 40 },
+            progress: new Progress<GeneticProgress<RsiStrategySettings>>(p =>
+            {
+                Console.WriteLine($"Gen {p.CurrentGeneration}: Best={p.BestFitness:F2}");
+            })
+        );
+
+        Console.WriteLine($"Best RSI settings: Period={result.BestSettings.RsiPeriod}");
+        Console.WriteLine($"Fitness: {result.BestFitness:F2}");
     }
 
     // Helper methods
