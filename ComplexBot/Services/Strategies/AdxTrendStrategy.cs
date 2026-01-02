@@ -9,6 +9,12 @@ public interface IStrategy
     string Name { get; }
     TradeSignal? Analyze(Candle candle, decimal? currentPosition, string symbol);
     void Reset();
+
+    /// <summary>
+    /// Current stop loss level (trailing stop if applicable).
+    /// Used by BacktestEngine to sync with PositionState.
+    /// </summary>
+    decimal? CurrentStopLoss { get; }
 }
 
 /// <summary>
@@ -17,11 +23,11 @@ public interface IStrategy
 /// Exit: ATR-based trailing stop or ADX < 20
 /// Based on research: simple trend-following with proper filters achieves Sharpe 1.5-1.9
 /// </summary>
-public class AdxTrendStrategy : IStrategy
+public class AdxTrendStrategy : StrategyBase<StrategySettings>
 {
-    public string Name => "ADX Trend Following + Volume";
+    public override string Name => "ADX Trend Following + Volume";
+    public override decimal? CurrentStopLoss => _trailingStop;
 
-    private readonly StrategySettings _settings;
     private readonly Adx _adx;
     private readonly Ema _fastEma;
     private readonly Ema _slowEma;
@@ -30,6 +36,9 @@ public class AdxTrendStrategy : IStrategy
     private readonly Obv _obv;
     private readonly VolumeIndicator _volume;
     private readonly Queue<decimal> _adxHistory;
+    private decimal? _currentFastEma;
+    private decimal? _currentSlowEma;
+    private bool _adxRising;
     
     private decimal? _entryPrice;
     private decimal? _trailingStop;
@@ -41,65 +50,56 @@ public class AdxTrendStrategy : IStrategy
     private decimal? _previousAdx;
     private bool _breakevenMoved;
 
-    public AdxTrendStrategy(StrategySettings? settings = null)
+    public AdxTrendStrategy(StrategySettings? settings = null) : base(settings)
     {
-        _settings = settings ?? new StrategySettings();
-        _adx = new Adx(_settings.AdxPeriod);
-        _fastEma = new Ema(_settings.FastEmaPeriod);
-        _slowEma = new Ema(_settings.SlowEmaPeriod);
-        _atr = new Atr(_settings.AtrPeriod);
+        _adx = new Adx(Settings.AdxPeriod);
+        _fastEma = new Ema(Settings.FastEmaPeriod);
+        _slowEma = new Ema(Settings.SlowEmaPeriod);
+        _atr = new Atr(Settings.AtrPeriod);
         _macd = new Macd();
-        _obv = new Obv(_settings.ObvPeriod);
-        _volume = new VolumeIndicator(_settings.VolumePeriod, _settings.VolumeThreshold);
-        _adxHistory = new Queue<decimal>(_settings.AdxSlopeLookback);
+        _obv = new Obv(Settings.ObvPeriod);
+        _volume = new VolumeIndicator(Settings.VolumePeriod, Settings.VolumeThreshold);
+        _adxHistory = new Queue<decimal>(Settings.AdxSlopeLookback);
     }
 
     public decimal? CurrentAtr => _atr.Value;
     public decimal? CurrentAdx => _adx.Value;
     public bool VolumeConfirmation => _obv.IsReady;
 
-    public TradeSignal? Analyze(Candle candle, decimal? currentPosition, string symbol)
+    protected override void UpdateIndicators(Candle candle)
     {
-        // Update all indicators
         _adx.Update(candle);
-        var fastEma = _fastEma.Update(candle.Close);
-        var slowEma = _slowEma.Update(candle.Close);
+        _currentFastEma = _fastEma.Update(candle.Close);
+        _currentSlowEma = _slowEma.Update(candle.Close);
         _atr.Update(candle);
         _macd.Update(candle.Close);
         _obv.Update(candle);
         _volume.Update(candle.Volume);
 
-        // Check if indicators are ready
-        if (!_adx.IsReady || !fastEma.HasValue || !slowEma.HasValue || !_atr.Value.HasValue)
-            return null;
+        bool indicatorsReady = _adx.IsReady
+            && _currentFastEma.HasValue
+            && _currentSlowEma.HasValue
+            && _atr.Value.HasValue;
 
-        var adxValue = _adx.Value!.Value;
-        bool adxRising = IsAdxRising(adxValue);
-        UpdateAdxHistory(adxValue);
-        UpdateAdxFallingStreak(adxValue);
-
-        bool hasPosition = currentPosition.HasValue && currentPosition.Value != 0;
-
-        // Check exit conditions first if we have a position
-        if (hasPosition && _entryPrice.HasValue)
+        if (indicatorsReady)
         {
-            _settings.BarsSinceEntry++;
-            var exitSignal = CheckExitConditions(candle, currentPosition!.Value, symbol);
-            if (exitSignal != null)
-                return exitSignal;
+            var adxValue = _adx.Value!.Value;
+            _adxRising = IsAdxRising(adxValue);
+            UpdateAdxHistory(adxValue);
+            UpdateAdxFallingStreak(adxValue);
         }
-
-        // Check entry conditions if no position
-        if (!hasPosition)
-        {
-            return CheckEntryConditions(candle, fastEma.Value, slowEma.Value, symbol, adxRising);
-        }
-
-        return null;
     }
 
-    private TradeSignal? CheckEntryConditions(Candle candle, decimal fastEma, decimal slowEma, string symbol, bool adxRising)
+    protected override bool IndicatorsReady =>
+        _adx.IsReady && _currentFastEma.HasValue && _currentSlowEma.HasValue && _atr.Value.HasValue;
+
+    protected override TradeSignal? CheckEntryConditions(Candle candle, string symbol)
     {
+        if (!_currentFastEma.HasValue || !_currentSlowEma.HasValue)
+            return null;
+
+        var fastEma = _currentFastEma.Value;
+        var slowEma = _currentSlowEma.Value;
         decimal adx = _adx.Value!.Value;
         decimal plusDi = _adx.PlusDi!.Value;
         decimal minusDi = _adx.MinusDi!.Value;
@@ -107,7 +107,7 @@ public class AdxTrendStrategy : IStrategy
         decimal atrPercent = candle.Close == 0 ? 0 : atr / candle.Close * 100m;
 
         // ADX must be above threshold (trending market)
-        bool isTrending = adx >= _settings.AdxThreshold;
+        bool isTrending = adx >= Settings.AdxThreshold;
         
         // Track if we crossed above threshold (fresh trend)
         bool freshTrend = isTrending && !_wasAboveThreshold;
@@ -116,10 +116,10 @@ public class AdxTrendStrategy : IStrategy
         if (!isTrending)
             return null;
 
-        if (atrPercent < _settings.MinAtrPercent || atrPercent > _settings.MaxAtrPercent)
+        if (atrPercent < Settings.MinAtrPercent || atrPercent > Settings.MaxAtrPercent)
             return null;
 
-        if (!adxRising)
+        if (!_adxRising)
             return null;
 
         // MACD confirmation
@@ -127,20 +127,20 @@ public class AdxTrendStrategy : IStrategy
         bool macdBearish = _macd.Histogram < 0;
 
         // Volume confirmation (research: valid breakouts show 1.5-2x average volume)
-        bool volumeConfirmed = !_settings.RequireVolumeConfirmation || 
-            (_volume.IsReady && _volume.VolumeRatio >= _settings.VolumeThreshold);
+        bool volumeConfirmed = !Settings.RequireVolumeConfirmation ||
+            (_volume.IsReady && _volume.VolumeRatio >= Settings.VolumeThreshold);
         
         // OBV trend alignment
-        bool obvBullish = !_settings.RequireObvConfirmation || !_obv.IsReady || _obv.IsBullish;
-        bool obvBearish = !_settings.RequireObvConfirmation || !_obv.IsReady || _obv.IsBearish;
+        bool obvBullish = !Settings.RequireObvConfirmation || !_obv.IsReady || _obv.IsBullish;
+        bool obvBearish = !Settings.RequireObvConfirmation || !_obv.IsReady || _obv.IsBearish;
 
         // Calculate stops
-        decimal longStop = candle.Close - (atr * _settings.AtrStopMultiplier);
-        decimal shortStop = candle.Close + (atr * _settings.AtrStopMultiplier);
-        decimal longTakeProfit = candle.Close + (atr * _settings.AtrStopMultiplier * _settings.TakeProfitMultiplier);
-        decimal shortTakeProfit = candle.Close - (atr * _settings.AtrStopMultiplier * _settings.TakeProfitMultiplier);
+        decimal longStop = candle.Close - (atr * Settings.AtrStopMultiplier);
+        decimal shortStop = candle.Close + (atr * Settings.AtrStopMultiplier);
+        decimal longTakeProfit = candle.Close + (atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier);
+        decimal shortTakeProfit = candle.Close - (atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier);
 
-        bool entryFreshTrendOk = !_settings.RequireFreshTrend || freshTrend;
+        bool entryFreshTrendOk = !Settings.RequireFreshTrend || freshTrend;
 
         // Long entry: Fast EMA > Slow EMA + +DI > -DI + MACD bullish + volume/OBV confirmed + optional fresh trend
         if (fastEma > slowEma && plusDi > minusDi && macdBullish && volumeConfirmed && obvBullish && entryFreshTrendOk)
@@ -149,7 +149,7 @@ public class AdxTrendStrategy : IStrategy
             _highestSinceEntry = candle.High;
             _trailingStop = longStop;
             _initialStop = longStop;
-            _settings.BarsSinceEntry = 0;
+            Settings.BarsSinceEntry = 0;
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
@@ -160,7 +160,7 @@ public class AdxTrendStrategy : IStrategy
                 candle.Close,
                 longStop,
                 longTakeProfit,
-                $"Long: ADX={adx:F1}, +DI={plusDi:F1}>{minusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x{(_settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
+                $"Long: ADX={adx:F1}, +DI={plusDi:F1}>{minusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
             );
         }
 
@@ -171,7 +171,7 @@ public class AdxTrendStrategy : IStrategy
             _lowestSinceEntry = candle.Low;
             _trailingStop = shortStop;
             _initialStop = shortStop;
-            _settings.BarsSinceEntry = 0;
+            Settings.BarsSinceEntry = 0;
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
@@ -182,15 +182,19 @@ public class AdxTrendStrategy : IStrategy
                 candle.Close,
                 shortStop,
                 shortTakeProfit,
-                $"Short: ADX={adx:F1}, -DI={minusDi:F1}>{plusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x{(_settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
+                $"Short: ADX={adx:F1}, -DI={minusDi:F1}>{plusDi:F1}, MACD={_macd.Histogram:F2}, Vol={_volume.VolumeRatio:F1}x{(Settings.RequireFreshTrend ? ", FreshTrend" : string.Empty)}"
             );
         }
 
         return null;
     }
 
-    private TradeSignal? CheckExitConditions(Candle candle, decimal position, string symbol)
+    protected override TradeSignal? CheckExitConditions(Candle candle, decimal position, string symbol)
     {
+        if (!_entryPrice.HasValue)
+            return null;
+
+        Settings.BarsSinceEntry++;
         decimal atr = _atr.Value!.Value;
         decimal adx = _adx.Value!.Value;
         bool isLong = position > 0;
@@ -201,7 +205,7 @@ public class AdxTrendStrategy : IStrategy
             if (candle.High > (_highestSinceEntry ?? candle.High))
             {
                 _highestSinceEntry = candle.High;
-                decimal newStop = candle.High - (atr * _settings.AtrStopMultiplier);
+                decimal newStop = candle.High - (atr * Settings.AtrStopMultiplier);
                 _trailingStop = Math.Max(_trailingStop ?? 0, newStop);
             }
 
@@ -218,7 +222,7 @@ public class AdxTrendStrategy : IStrategy
             if (candle.Low < (_lowestSinceEntry ?? candle.Low))
             {
                 _lowestSinceEntry = candle.Low;
-                decimal newStop = candle.Low + (atr * _settings.AtrStopMultiplier);
+                decimal newStop = candle.Low + (atr * Settings.AtrStopMultiplier);
                 _trailingStop = Math.Min(_trailingStop ?? decimal.MaxValue, newStop);
             }
 
@@ -232,7 +236,7 @@ public class AdxTrendStrategy : IStrategy
         }
 
         if (!_breakevenMoved && _entryPrice.HasValue && _initialStop.HasValue
-            && _settings.PartialExitRMultiple > 0 && _settings.PartialExitFraction > 0)
+            && Settings.PartialExitRMultiple > 0 && Settings.PartialExitFraction > 0)
         {
             decimal riskPerUnit = Math.Abs(_entryPrice.Value - _initialStop.Value);
             if (riskPerUnit > 0)
@@ -241,7 +245,7 @@ public class AdxTrendStrategy : IStrategy
                     ? (candle.High - _entryPrice.Value) / riskPerUnit
                     : (_entryPrice.Value - candle.Low) / riskPerUnit;
 
-                if (achievedR >= _settings.PartialExitRMultiple)
+                if (achievedR >= Settings.PartialExitRMultiple)
                 {
                     _breakevenMoved = true;
                     _trailingStop = _entryPrice.Value;
@@ -252,21 +256,21 @@ public class AdxTrendStrategy : IStrategy
                         candle.Close,
                         _entryPrice.Value,
                         null,
-                        $"Partial exit at {_settings.PartialExitRMultiple:F1}R, move stop to breakeven",
-                        PartialExitPercent: _settings.PartialExitFraction,
+                        $"Partial exit at {Settings.PartialExitRMultiple:F1}R, move stop to breakeven",
+                        PartialExitPercent: Settings.PartialExitFraction,
                         MoveStopToBreakeven: true);
                 }
             }
         }
 
-        if (_settings.MaxBarsInTrade > 0 && _settings.BarsSinceEntry >= _settings.MaxBarsInTrade)
+        if (Settings.MaxBarsInTrade > 0 && Settings.BarsSinceEntry >= Settings.MaxBarsInTrade)
         {
             ResetPosition();
             return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
                 "Time stop");
         }
 
-        if (_settings.AdxFallingExitBars > 0 && _adxFallingStreak >= _settings.AdxFallingExitBars)
+        if (Settings.AdxFallingExitBars > 0 && _adxFallingStreak >= Settings.AdxFallingExitBars)
         {
             ResetPosition();
             return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
@@ -274,11 +278,11 @@ public class AdxTrendStrategy : IStrategy
         }
 
         // Exit if trend weakens significantly
-        if (adx < _settings.AdxExitThreshold)
+        if (adx < Settings.AdxExitThreshold)
         {
             ResetPosition();
             return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
-                $"ADX dropped below {_settings.AdxExitThreshold} (trend weakening)");
+                $"ADX dropped below {Settings.AdxExitThreshold} (trend weakening)");
         }
 
         return null;
@@ -291,11 +295,11 @@ public class AdxTrendStrategy : IStrategy
         _initialStop = null;
         _highestSinceEntry = null;
         _lowestSinceEntry = null;
-        _settings.BarsSinceEntry = 0;
+        Settings.BarsSinceEntry = 0;
         _breakevenMoved = false;
     }
 
-    public void Reset()
+    public override void Reset()
     {
         _adx.Reset();
         _fastEma.Reset();
@@ -313,10 +317,10 @@ public class AdxTrendStrategy : IStrategy
 
     private void UpdateAdxHistory(decimal currentAdx)
     {
-        if (_settings.AdxSlopeLookback <= 0)
+        if (Settings.AdxSlopeLookback <= 0)
             return;
 
-        if (_adxHistory.Count == _settings.AdxSlopeLookback)
+        if (_adxHistory.Count == Settings.AdxSlopeLookback)
             _adxHistory.Dequeue();
 
         _adxHistory.Enqueue(currentAdx);
@@ -324,10 +328,10 @@ public class AdxTrendStrategy : IStrategy
 
     private bool IsAdxRising(decimal currentAdx)
     {
-        if (!_settings.RequireAdxRising)
+        if (!Settings.RequireAdxRising)
             return true;
 
-        if (_settings.AdxSlopeLookback <= 0 || _adxHistory.Count < _settings.AdxSlopeLookback)
+        if (Settings.AdxSlopeLookback <= 0 || _adxHistory.Count < Settings.AdxSlopeLookback)
             return false;
 
         decimal averageAdx = _adxHistory.Average();

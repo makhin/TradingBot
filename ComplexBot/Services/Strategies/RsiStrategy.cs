@@ -8,29 +8,28 @@ namespace ComplexBot.Services.Strategies;
 /// Entry: RSI oversold/overbought with price confirmation
 /// Exit: RSI returns to neutral zone or stop loss
 /// </summary>
-public class RsiStrategy : IStrategy
+public class RsiStrategy : StrategyBase<RsiStrategySettings>
 {
-    public string Name => "RSI Mean Reversion";
+    public override string Name => "RSI Mean Reversion";
+    public override decimal? CurrentStopLoss => _stopLoss;
 
-    private readonly RsiStrategySettings _settings;
     private readonly Rsi _rsi;
     private readonly Atr _atr;
     private readonly Ema _trendFilter;
     private readonly VolumeIndicator _volume;
 
     private decimal? _previousRsi;
+    private decimal? _currentRsi;
+    private decimal? _currentTrendEma;
     private decimal? _entryPrice;
     private decimal? _stopLoss;
-    private bool _inPosition;
-    private SignalType _positionDirection;
 
-    public RsiStrategy(RsiStrategySettings? settings = null)
+    public RsiStrategy(RsiStrategySettings? settings = null) : base(settings)
     {
-        _settings = settings ?? new RsiStrategySettings();
-        _rsi = new Rsi(_settings.RsiPeriod);
-        _atr = new Atr(_settings.AtrPeriod);
-        _trendFilter = new Ema(_settings.TrendFilterPeriod);
-        _volume = new VolumeIndicator(_settings.VolumePeriod, _settings.VolumeThreshold);
+        _rsi = new Rsi(Settings.RsiPeriod);
+        _atr = new Atr(Settings.AtrPeriod);
+        _trendFilter = new Ema(Settings.TrendFilterPeriod);
+        _volume = new VolumeIndicator(Settings.VolumePeriod, Settings.VolumeThreshold);
     }
 
     public decimal? CurrentRsi => _rsi.Value;
@@ -48,88 +47,73 @@ public class RsiStrategy : IStrategy
         var rsi = _rsi.Value.Value;
 
         // Confidence increases with RSI extremity
-        if (rsi <= _settings.OversoldLevel)
+        if (rsi <= Settings.OversoldLevel)
         {
             // RSI 30 → 0.5, RSI 20 → 0.75, RSI 10 → 1.0
-            return Math.Min(1m, 0.5m + (_settings.OversoldLevel - rsi) / 40m);
+            return Math.Min(1m, 0.5m + (Settings.OversoldLevel - rsi) / 40m);
         }
-        else if (rsi >= _settings.OverboughtLevel)
+        else if (rsi >= Settings.OverboughtLevel)
         {
             // RSI 70 → 0.5, RSI 80 → 0.75, RSI 90 → 1.0
-            return Math.Min(1m, 0.5m + (rsi - _settings.OverboughtLevel) / 40m);
+            return Math.Min(1m, 0.5m + (rsi - Settings.OverboughtLevel) / 40m);
         }
 
         return 0m;
     }
 
-    public TradeSignal? Analyze(Candle candle, decimal? currentPosition, string symbol)
+    protected override void UpdateIndicators(Candle candle)
     {
-        // Update indicators
-        var rsi = _rsi.Update(candle.Close);
+        _currentRsi = _rsi.Update(candle.Close);
         _atr.Update(candle);
-        var trendEma = _trendFilter.Update(candle.Close);
+        _currentTrendEma = _trendFilter.Update(candle.Close);
         _volume.Update(candle.Volume);
-
-        // Check if indicators are ready
-        if (!rsi.HasValue || !_atr.Value.HasValue || !trendEma.HasValue)
-        {
-            _previousRsi = rsi;
-            return null;
-        }
-
-        bool hasPosition = currentPosition.HasValue && currentPosition.Value != 0;
-        _inPosition = hasPosition;
-
-        // Check exit conditions first
-        if (hasPosition && _entryPrice.HasValue)
-        {
-            var exitSignal = CheckExitConditions(candle, currentPosition!.Value, rsi.Value, symbol);
-            if (exitSignal != null)
-            {
-                _previousRsi = rsi;
-                return exitSignal;
-            }
-        }
-
-        // Check entry conditions
-        if (!hasPosition && _previousRsi.HasValue)
-        {
-            var entrySignal = CheckEntryConditions(candle, rsi.Value, trendEma.Value, symbol);
-            if (entrySignal != null)
-            {
-                _previousRsi = rsi;
-                return entrySignal;
-            }
-        }
-
-        _previousRsi = rsi;
-        return null;
     }
 
-    private TradeSignal? CheckEntryConditions(Candle candle, decimal rsi, decimal trendEma, string symbol)
+    protected override bool IndicatorsReady =>
+        _currentRsi.HasValue && _atr.Value.HasValue && _currentTrendEma.HasValue;
+
+    protected override void OnIndicatorsNotReady()
     {
-        if (!_previousRsi.HasValue || !_atr.Value.HasValue)
+        _previousRsi = _currentRsi;
+    }
+
+    protected override void AfterSignal(TradeSignal signal)
+    {
+        _previousRsi = _currentRsi;
+    }
+
+    protected override void AfterNoSignal()
+    {
+        _previousRsi = _currentRsi;
+    }
+
+    protected override TradeSignal? CheckEntryConditions(Candle candle, string symbol)
+    {
+        if (!_previousRsi.HasValue || !_atr.Value.HasValue
+            || !_currentRsi.HasValue || !_currentTrendEma.HasValue)
             return null;
 
-        bool volumeOk = !_settings.RequireVolumeConfirmation || _volume.Value > _settings.VolumeThreshold;
+        bool volumeOk = !Settings.RequireVolumeConfirmation ||
+            (_volume.IsReady && _volume.VolumeRatio >= Settings.VolumeThreshold);
         var atr = _atr.Value.Value;
+        var rsi = _currentRsi.Value;
+        var trendEma = _currentTrendEma.Value;
 
         // Oversold condition - potential long entry
         // RSI crosses above oversold level (was oversold, now recovering)
-        if (_previousRsi.Value <= _settings.OversoldLevel && rsi > _settings.OversoldLevel && volumeOk)
+        if (_previousRsi.Value <= Settings.OversoldLevel && rsi > Settings.OversoldLevel && volumeOk)
         {
             // Optional: Only take longs above trend EMA
-            if (_settings.UseTrendFilter && candle.Close < trendEma)
+            if (Settings.UseTrendFilter && candle.Close < trendEma)
             {
                 return null; // Skip - price below trend
             }
 
-            var stopLoss = candle.Close - atr * _settings.AtrStopMultiplier;
-            var takeProfit = candle.Close + atr * _settings.AtrStopMultiplier * _settings.TakeProfitMultiplier;
+            var stopLoss = candle.Close - atr * Settings.AtrStopMultiplier;
+            var takeProfit = candle.Close + atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
             _entryPrice = candle.Close;
             _stopLoss = stopLoss;
-            _positionDirection = SignalType.Buy;
 
             return new TradeSignal(
                 symbol,
@@ -137,26 +121,25 @@ public class RsiStrategy : IStrategy
                 candle.Close,
                 stopLoss,
                 takeProfit,
-                $"RSI Oversold Recovery: RSI crossed above {_settings.OversoldLevel} (now {rsi:F1})"
+                $"RSI Oversold Recovery: RSI crossed above {Settings.OversoldLevel} (now {rsi:F1})"
             );
         }
 
         // Overbought condition - potential short entry
         // RSI crosses below overbought level (was overbought, now declining)
-        if (_previousRsi.Value >= _settings.OverboughtLevel && rsi < _settings.OverboughtLevel && volumeOk)
+        if (_previousRsi.Value >= Settings.OverboughtLevel && rsi < Settings.OverboughtLevel && volumeOk)
         {
             // Optional: Only take shorts below trend EMA
-            if (_settings.UseTrendFilter && candle.Close > trendEma)
+            if (Settings.UseTrendFilter && candle.Close > trendEma)
             {
                 return null; // Skip - price above trend
             }
 
-            var stopLoss = candle.Close + atr * _settings.AtrStopMultiplier;
-            var takeProfit = candle.Close - atr * _settings.AtrStopMultiplier * _settings.TakeProfitMultiplier;
+            var stopLoss = candle.Close + atr * Settings.AtrStopMultiplier;
+            var takeProfit = candle.Close - atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
             _entryPrice = candle.Close;
             _stopLoss = stopLoss;
-            _positionDirection = SignalType.Sell;
 
             return new TradeSignal(
                 symbol,
@@ -164,19 +147,20 @@ public class RsiStrategy : IStrategy
                 candle.Close,
                 stopLoss,
                 takeProfit,
-                $"RSI Overbought Reversal: RSI crossed below {_settings.OverboughtLevel} (now {rsi:F1})"
+                $"RSI Overbought Reversal: RSI crossed below {Settings.OverboughtLevel} (now {rsi:F1})"
             );
         }
 
         return null;
     }
 
-    private TradeSignal? CheckExitConditions(Candle candle, decimal position, decimal rsi, string symbol)
+    protected override TradeSignal? CheckExitConditions(Candle candle, decimal position, string symbol)
     {
-        if (!_stopLoss.HasValue || !_entryPrice.HasValue)
+        if (!_stopLoss.HasValue || !_entryPrice.HasValue || !_currentRsi.HasValue)
             return null;
 
         bool isLong = position > 0;
+        var rsi = _currentRsi.Value;
 
         // Stop loss check
         if (isLong && candle.Low <= _stopLoss.Value)
@@ -196,7 +180,7 @@ public class RsiStrategy : IStrategy
         if (isLong)
         {
             // Exit long when RSI reaches overbought (mean reversion complete)
-            if (rsi >= _settings.OverboughtLevel)
+            if (rsi >= Settings.OverboughtLevel)
             {
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
@@ -204,7 +188,7 @@ public class RsiStrategy : IStrategy
             }
 
             // Exit long when RSI returns to neutral zone
-            if (_settings.ExitOnNeutral && rsi >= _settings.NeutralZoneHigh)
+            if (Settings.ExitOnNeutral && rsi >= Settings.NeutralZoneHigh)
             {
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
@@ -214,7 +198,7 @@ public class RsiStrategy : IStrategy
         else
         {
             // Exit short when RSI reaches oversold (mean reversion complete)
-            if (rsi <= _settings.OversoldLevel)
+            if (rsi <= Settings.OversoldLevel)
             {
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
@@ -222,7 +206,7 @@ public class RsiStrategy : IStrategy
             }
 
             // Exit short when RSI returns to neutral zone
-            if (_settings.ExitOnNeutral && rsi <= _settings.NeutralZoneLow)
+            if (Settings.ExitOnNeutral && rsi <= Settings.NeutralZoneLow)
             {
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
@@ -237,10 +221,9 @@ public class RsiStrategy : IStrategy
     {
         _entryPrice = null;
         _stopLoss = null;
-        _inPosition = false;
     }
 
-    public void Reset()
+    public override void Reset()
     {
         _rsi.Reset();
         _atr.Reset();

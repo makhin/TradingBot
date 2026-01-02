@@ -9,6 +9,7 @@ namespace ComplexBot.Services.Strategies;
 public class StrategyEnsemble : IStrategy
 {
     public string Name => "Strategy Ensemble";
+    public decimal? CurrentStopLoss => null;
 
     private readonly EnsembleSettings _settings;
     private readonly List<StrategyWeight> _strategies;

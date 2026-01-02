@@ -8,11 +8,11 @@ namespace ComplexBot.Services.Strategies;
 /// Entry: Fast MA crosses above/below Slow MA with volume confirmation
 /// Exit: Opposite crossover or trailing stop
 /// </summary>
-public class MaStrategy : IStrategy
+public class MaStrategy : StrategyBase<MaStrategySettings>
 {
-    public string Name => "MA Crossover";
+    public override string Name => "MA Crossover";
+    public override decimal? CurrentStopLoss => _trailingStop;
 
-    private readonly MaStrategySettings _settings;
     private readonly Ema _fastMa;
     private readonly Ema _slowMa;
     private readonly Atr _atr;
@@ -20,18 +20,17 @@ public class MaStrategy : IStrategy
 
     private decimal? _previousFastMa;
     private decimal? _previousSlowMa;
+    private decimal? _currentFastMa;
+    private decimal? _currentSlowMa;
     private decimal? _entryPrice;
     private decimal? _trailingStop;
-    private bool _inPosition;
-    private SignalType _positionDirection;
 
-    public MaStrategy(MaStrategySettings? settings = null)
+    public MaStrategy(MaStrategySettings? settings = null) : base(settings)
     {
-        _settings = settings ?? new MaStrategySettings();
-        _fastMa = new Ema(_settings.FastMaPeriod);
-        _slowMa = new Ema(_settings.SlowMaPeriod);
-        _atr = new Atr(_settings.AtrPeriod);
-        _volume = new VolumeIndicator(_settings.VolumePeriod, _settings.VolumeThreshold);
+        _fastMa = new Ema(Settings.FastMaPeriod);
+        _slowMa = new Ema(Settings.SlowMaPeriod);
+        _atr = new Atr(Settings.AtrPeriod);
+        _volume = new VolumeIndicator(Settings.VolumePeriod, Settings.VolumeThreshold);
     }
 
     public decimal? CurrentAtr => _atr.Value;
@@ -50,71 +49,55 @@ public class MaStrategy : IStrategy
         return Math.Min(1m, 0.5m + separation / 4m);
     }
 
-    public TradeSignal? Analyze(Candle candle, decimal? currentPosition, string symbol)
+    protected override void UpdateIndicators(Candle candle)
     {
-        // Update indicators
-        var fastMa = _fastMa.Update(candle.Close);
-        var slowMa = _slowMa.Update(candle.Close);
+        _currentFastMa = _fastMa.Update(candle.Close);
+        _currentSlowMa = _slowMa.Update(candle.Close);
         _atr.Update(candle);
         _volume.Update(candle.Volume);
-
-        // Check if indicators are ready
-        if (!fastMa.HasValue || !slowMa.HasValue || !_atr.Value.HasValue)
-        {
-            _previousFastMa = fastMa;
-            _previousSlowMa = slowMa;
-            return null;
-        }
-
-        bool hasPosition = currentPosition.HasValue && currentPosition.Value != 0;
-        _inPosition = hasPosition;
-
-        // Check exit conditions first
-        if (hasPosition && _entryPrice.HasValue)
-        {
-            var exitSignal = CheckExitConditions(candle, currentPosition!.Value, fastMa.Value, slowMa.Value, symbol);
-            if (exitSignal != null)
-            {
-                _previousFastMa = fastMa;
-                _previousSlowMa = slowMa;
-                return exitSignal;
-            }
-        }
-
-        // Check entry conditions
-        if (!hasPosition && _previousFastMa.HasValue && _previousSlowMa.HasValue)
-        {
-            var entrySignal = CheckEntryConditions(candle, fastMa.Value, slowMa.Value, symbol);
-            if (entrySignal != null)
-            {
-                _previousFastMa = fastMa;
-                _previousSlowMa = slowMa;
-                return entrySignal;
-            }
-        }
-
-        _previousFastMa = fastMa;
-        _previousSlowMa = slowMa;
-        return null;
     }
 
-    private TradeSignal? CheckEntryConditions(Candle candle, decimal fastMa, decimal slowMa, string symbol)
+    protected override bool IndicatorsReady =>
+        _currentFastMa.HasValue && _currentSlowMa.HasValue && _atr.Value.HasValue;
+
+    protected override void OnIndicatorsNotReady()
     {
-        if (!_previousFastMa.HasValue || !_previousSlowMa.HasValue || !_atr.Value.HasValue)
+        _previousFastMa = _currentFastMa;
+        _previousSlowMa = _currentSlowMa;
+    }
+
+    protected override void AfterSignal(TradeSignal signal)
+    {
+        _previousFastMa = _currentFastMa;
+        _previousSlowMa = _currentSlowMa;
+    }
+
+    protected override void AfterNoSignal()
+    {
+        _previousFastMa = _currentFastMa;
+        _previousSlowMa = _currentSlowMa;
+    }
+
+    protected override TradeSignal? CheckEntryConditions(Candle candle, string symbol)
+    {
+        if (!_previousFastMa.HasValue || !_previousSlowMa.HasValue || !_atr.Value.HasValue
+            || !_currentFastMa.HasValue || !_currentSlowMa.HasValue)
             return null;
 
-        bool volumeOk = !_settings.RequireVolumeConfirmation || _volume.Value > _settings.VolumeThreshold;
+        bool volumeOk = !Settings.RequireVolumeConfirmation ||
+            (_volume.IsReady && _volume.VolumeRatio >= Settings.VolumeThreshold);
+        var fastMa = _currentFastMa.Value;
+        var slowMa = _currentSlowMa.Value;
 
         // Bullish crossover: Fast MA crosses above Slow MA
         if (_previousFastMa.Value <= _previousSlowMa.Value && fastMa > slowMa && volumeOk)
         {
             var atr = _atr.Value.Value;
-            var stopLoss = candle.Close - atr * _settings.AtrStopMultiplier;
-            var takeProfit = candle.Close + atr * _settings.AtrStopMultiplier * _settings.TakeProfitMultiplier;
+            var stopLoss = candle.Close - atr * Settings.AtrStopMultiplier;
+            var takeProfit = candle.Close + atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
             _entryPrice = candle.Close;
             _trailingStop = stopLoss;
-            _positionDirection = SignalType.Buy;
 
             return new TradeSignal(
                 symbol,
@@ -122,7 +105,7 @@ public class MaStrategy : IStrategy
                 candle.Close,
                 stopLoss,
                 takeProfit,
-                $"MA Crossover: Fast({_settings.FastMaPeriod}) crossed above Slow({_settings.SlowMaPeriod})"
+                $"MA Crossover: Fast({Settings.FastMaPeriod}) crossed above Slow({Settings.SlowMaPeriod})"
             );
         }
 
@@ -130,12 +113,11 @@ public class MaStrategy : IStrategy
         if (_previousFastMa.Value >= _previousSlowMa.Value && fastMa < slowMa && volumeOk)
         {
             var atr = _atr.Value.Value;
-            var stopLoss = candle.Close + atr * _settings.AtrStopMultiplier;
-            var takeProfit = candle.Close - atr * _settings.AtrStopMultiplier * _settings.TakeProfitMultiplier;
+            var stopLoss = candle.Close + atr * Settings.AtrStopMultiplier;
+            var takeProfit = candle.Close - atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
             _entryPrice = candle.Close;
             _trailingStop = stopLoss;
-            _positionDirection = SignalType.Sell;
 
             return new TradeSignal(
                 symbol,
@@ -143,25 +125,28 @@ public class MaStrategy : IStrategy
                 candle.Close,
                 stopLoss,
                 takeProfit,
-                $"MA Crossover: Fast({_settings.FastMaPeriod}) crossed below Slow({_settings.SlowMaPeriod})"
+                $"MA Crossover: Fast({Settings.FastMaPeriod}) crossed below Slow({Settings.SlowMaPeriod})"
             );
         }
 
         return null;
     }
 
-    private TradeSignal? CheckExitConditions(Candle candle, decimal position, decimal fastMa, decimal slowMa, string symbol)
+    protected override TradeSignal? CheckExitConditions(Candle candle, decimal position, string symbol)
     {
-        if (!_atr.Value.HasValue || !_entryPrice.HasValue)
+        if (!_atr.Value.HasValue || !_entryPrice.HasValue
+            || !_currentFastMa.HasValue || !_currentSlowMa.HasValue)
             return null;
 
         bool isLong = position > 0;
         var atr = _atr.Value.Value;
+        var fastMa = _currentFastMa.Value;
+        var slowMa = _currentSlowMa.Value;
 
         // Update trailing stop
         if (isLong && _trailingStop.HasValue)
         {
-            var newStop = candle.Close - atr * _settings.AtrStopMultiplier;
+            var newStop = candle.Close - atr * Settings.AtrStopMultiplier;
             if (newStop > _trailingStop.Value)
                 _trailingStop = newStop;
 
@@ -175,7 +160,7 @@ public class MaStrategy : IStrategy
         }
         else if (!isLong && _trailingStop.HasValue)
         {
-            var newStop = candle.Close + atr * _settings.AtrStopMultiplier;
+            var newStop = candle.Close + atr * Settings.AtrStopMultiplier;
             if (newStop < _trailingStop.Value)
                 _trailingStop = newStop;
 
@@ -215,10 +200,9 @@ public class MaStrategy : IStrategy
     {
         _entryPrice = null;
         _trailingStop = null;
-        _inPosition = false;
     }
 
-    public void Reset()
+    public override void Reset()
     {
         _fastMa.Reset();
         _slowMa.Reset();
