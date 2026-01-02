@@ -20,6 +20,7 @@ public class BinanceLiveTrader : IDisposable
     private readonly RiskManager _riskManager;
     private readonly LiveTraderSettings _settings;
     private readonly TelegramNotifier? _telegram;
+    private readonly ExecutionValidator _executionValidator;
     private readonly List<Candle> _candleBuffer = new();
     
     private decimal _currentPosition;
@@ -48,6 +49,7 @@ public class BinanceLiveTrader : IDisposable
         _strategy = strategy;
         _riskManager = new RiskManager(riskSettings, _settings.InitialCapital);
         _telegram = telegram;
+        _executionValidator = new ExecutionValidator(maxSlippagePercent: 0.5m);
 
         _restClient = new BinanceRestClient(options =>
         {
@@ -503,8 +505,20 @@ public class BinanceLiveTrader : IDisposable
                     return;
                 }
 
+                // Validate execution slippage
+                var actualPrice = result.Data.AverageFillPrice ?? price;
+                var validation = _executionValidator.ValidateExecution(price, actualPrice, side);
+                var slippageDesc = _executionValidator.GetSlippageDescription(validation, side);
+                Log(slippageDesc);
+
+                if (!validation.IsAcceptable)
+                {
+                    Log($"⚠️ WARNING: {validation.RejectReason}");
+                    Log($"   Expected: {validation.ExpectedPrice:F2}, Actual: {validation.ActualPrice:F2}");
+                }
+
                 _currentPosition = direction == TradeDirection.Long ? quantity : -quantity;
-                _entryPrice = result.Data.AverageFillPrice ?? price;
+                _entryPrice = actualPrice;
                 _stopLoss = stopLoss;
                 _takeProfit = takeProfit;
 
@@ -594,7 +608,11 @@ public class BinanceLiveTrader : IDisposable
                     return;
                 }
 
+                // Validate execution slippage
                 var fillPrice = result.Data.AverageFillPrice ?? currentPrice;
+                var validation = _executionValidator.ValidateExecution(currentPrice, fillPrice, side);
+                var slippageDesc = _executionValidator.GetSlippageDescription(validation, side);
+
                 grossPnl = direction == TradeDirection.Long
                     ? (fillPrice - _entryPrice!.Value) * quantity
                     : (_entryPrice!.Value - fillPrice) * quantity;
@@ -602,6 +620,12 @@ public class BinanceLiveTrader : IDisposable
                 netPnl = grossPnl - tradingCosts;
 
                 Log($"Closed {direction} {quantity:F5} @ {fillPrice:F2}, Gross PnL: {grossPnl:F2} USDT, Net PnL: {netPnl:F2} USDT (costs: {tradingCosts:F2}) - {reason}");
+                Log(slippageDesc);
+
+                if (!validation.IsAcceptable)
+                {
+                    Log($"⚠️ WARNING: Exit {validation.RejectReason}");
+                }
             }
             catch (Exception ex)
             {
@@ -681,7 +705,11 @@ public class BinanceLiveTrader : IDisposable
                     return;
                 }
 
+                // Validate execution slippage
                 var fillPrice = result.Data.AverageFillPrice ?? currentPrice;
+                var validation = _executionValidator.ValidateExecution(currentPrice, fillPrice, side);
+                var slippageDesc = _executionValidator.GetSlippageDescription(validation, side);
+
                 grossPnl = direction == TradeDirection.Long
                     ? (fillPrice - _entryPrice!.Value) * exitQuantity
                     : (_entryPrice!.Value - fillPrice) * exitQuantity;
@@ -689,6 +717,12 @@ public class BinanceLiveTrader : IDisposable
                 netPnl = grossPnl - tradingCosts;
 
                 Log($"Partial close {direction} {exitQuantity:F5} @ {fillPrice:F2}, Net PnL: {netPnl:F2} USDT - {signal.Reason}");
+                Log(slippageDesc);
+
+                if (!validation.IsAcceptable)
+                {
+                    Log($"⚠️ WARNING: Partial exit {validation.RejectReason}");
+                }
             }
             catch (Exception ex)
             {
