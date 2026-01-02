@@ -2608,6 +2608,306 @@ A: Установите `MaxConcurrentPositions = 10`, но помните - б�
 
 ---
 
+### State Persistence (Сохранение состояния)
+
+**Зачем это нужно?**
+
+При перезапуске бота (обновление, перезагрузка сервера, crash) вся информация об открытых позициях теряется:
+- 😱 Бот не знает что у вас открыта позиция
+- 😱 Не может управлять стоп-лоссом
+- 😱 Не знает entry price, risk amount
+- 😱 OCO ордера остаются висеть на бирже, но бот о них не знает
+
+**State Persistence решает эту проблему** - сохраняет состояние в файл и восстанавливает после перезапуска.
+
+**Как работает?**
+
+```csharp
+var stateManager = new StateManager("bot_state.json");
+
+// При запуске - загрузить состояние
+var savedState = await stateManager.LoadState();
+
+if (savedState != null)
+{
+    // Сверить с биржей
+    var reconciliation = await stateManager.ReconcileWithExchange(
+        binanceClient,
+        savedState,
+        symbol
+    );
+
+    // Восстановить позиции
+    RestorePositions(savedState);
+}
+
+// При каждом изменении - сохранить
+await stateManager.SaveState(BuildCurrentState());
+```
+
+**Что сохраняется:**
+
+```json
+{
+  "LastUpdate": "2026-01-02T15:30:00Z",
+  "CurrentEquity": 9750.50,
+  "PeakEquity": 10250.00,
+  "DayStartEquity": 10000.00,
+  "CurrentTradingDay": "2026-01-02",
+  "OpenPositions": [
+    {
+      "Symbol": "BTCUSDT",
+      "Direction": "Buy",
+      "EntryPrice": 45000.0,
+      "Quantity": 0.22,
+      "RemainingQuantity": 0.11,
+      "StopLoss": 44500.0,
+      "TakeProfit": 46500.0,
+      "RiskAmount": 110.0,
+      "EntryTime": "2026-01-02T14:00:00Z",
+      "TradeId": 42,
+      "CurrentPrice": 45250.0,
+      "BreakevenMoved": true
+    }
+  ],
+  "ActiveOcoOrders": [
+    {
+      "Symbol": "BTCUSDT",
+      "OrderListId": 123456789
+    }
+  ],
+  "NextTradeId": 43
+}
+```
+
+**Когда происходит сохранение:**
+
+```
+✅ Позиция открыта      → SaveState()
+✅ Позиция закрыта      → SaveState()
+✅ Частичный выход      → SaveState()
+✅ Стоп перемещён       → SaveState()
+✅ OCO ордер выставлен  → SaveState()
+✅ Equity обновлён      → SaveState()
+```
+
+**Восстановление после перезапуска:**
+
+**Сценарий 1: Всё в порядке**
+
+```
+[Запуск бота]
+📂 State loaded: 1 positions, Equity: $9,750.50
+🔄 Reconciling state with exchange...
+
+Checking position: BTCUSDT
+  Expected quantity: 0.11
+  Actual balance: 0.11 BTC
+✅ Position confirmed: BTCUSDT 0.11000
+
+Checking OCO order: #123456789
+✅ OCO order active: BTCUSDT #123456789
+
+📊 Reconciliation complete:
+   Positions: 1 confirmed, 0 mismatched
+   OCO Orders: 1 active, 0 missing
+
+✅ Bot resumed successfully!
+   Position: BTCUSDT Long @ 45000
+   Stop Loss: 44500 (OCO active)
+   Take Profit: 46500
+```
+
+**Сценарий 2: Позиция закрылась пока бот был выключен**
+
+```
+[Запуск бота]
+📂 State loaded: 1 positions, Equity: $9,750.50
+🔄 Reconciling state with exchange...
+
+Checking position: BTCUSDT
+  Expected quantity: 0.11
+  Actual balance: 0.00 BTC
+⚠️ Position mismatch: BTCUSDT
+   Expected: 0.11000, Actual: 0.00000
+
+Checking OCO order: #123456789
+⚠️ OCO order not found: BTCUSDT #123456789
+   This may mean the order was filled or cancelled
+
+📊 Reconciliation complete:
+   Positions: 0 confirmed, 1 mismatched
+   OCO Orders: 0 active, 1 missing
+
+⚠️ ACTION REQUIRED:
+   Position was likely closed by stop-loss or take-profit
+   Check your trade history on Binance
+   Manually adjust equity if needed
+```
+
+**Сценарий 3: Первый запуск (нет сохранённого состояния)**
+
+```
+[Запуск бота]
+📂 No saved state found, starting fresh
+
+Bot initialized:
+  Initial Equity: $10,000.00
+  Open Positions: 0
+  Ready to trade!
+```
+
+**Как включить State Persistence в BinanceLiveTrader:**
+
+```csharp
+public class BinanceLiveTrader
+{
+    private readonly StateManager _stateManager;
+
+    public BinanceLiveTrader(...)
+    {
+        _stateManager = new StateManager("bot_state.json");
+    }
+
+    public async Task StartAsync()
+    {
+        // 1. Загрузить состояние
+        var savedState = await _stateManager.LoadState();
+
+        if (savedState != null)
+        {
+            // 2. Сверить с биржей
+            var reconciliation = await _stateManager.ReconcileWithExchange(
+                _restClient, savedState, _settings.Symbol);
+
+            // 3. Восстановить equity
+            _riskManager.UpdateEquity(savedState.CurrentEquity);
+
+            // 4. Восстановить позицию
+            if (reconciliation.PositionsConfirmed.Count > 0)
+            {
+                var pos = reconciliation.PositionsConfirmed[0];
+                _currentPosition = pos.Direction == SignalType.Buy
+                    ? pos.RemainingQuantity
+                    : -pos.RemainingQuantity;
+                _entryPrice = pos.EntryPrice;
+                _stopLoss = pos.StopLoss;
+                _takeProfit = pos.TakeProfit;
+
+                // Восстановить в RiskManager
+                _riskManager.AddPosition(
+                    pos.Symbol, pos.Direction,
+                    pos.RemainingQuantity, pos.RiskAmount,
+                    pos.EntryPrice, pos.StopLoss, pos.CurrentPrice);
+
+                Log($"✅ Position restored: {pos.Symbol} {pos.RemainingQuantity:F5} @ {pos.EntryPrice:F2}");
+            }
+
+            // 5. Восстановить OCO ордер ID
+            if (reconciliation.OcoOrdersActive.Count > 0)
+            {
+                _currentOcoOrderListId = reconciliation.OcoOrdersActive[0].OrderListId;
+                Log($"✅ OCO order restored: #{_currentOcoOrderListId}");
+            }
+        }
+
+        // Продолжить нормальную работу...
+    }
+
+    private async Task OpenPositionAsync(...)
+    {
+        // ... открыть позицию ...
+
+        // Сохранить состояние
+        await SaveCurrentState();
+    }
+
+    private async Task SaveCurrentState()
+    {
+        var state = new StateManager.BotState
+        {
+            LastUpdate = DateTime.UtcNow,
+            CurrentEquity = await GetAccountBalanceAsync(),
+            PeakEquity = _riskManager.GetPeakEquity(),
+            DayStartEquity = _riskManager.GetDayStartEquity(),
+            CurrentTradingDay = DateTime.UtcNow.Date,
+            OpenPositions = BuildOpenPositions(),
+            ActiveOcoOrders = BuildActiveOcoOrders(),
+            NextTradeId = GetNextTradeId()
+        };
+
+        await _stateManager.SaveState(state);
+    }
+}
+```
+
+**Преимущества:**
+
+1. **Устойчивость к сбоям:**
+   - Перезапуск сервера → позиции не потеряны
+   - Обновление кода → можно продолжить без потерь
+   - Crash → всё восстановится
+
+2. **Защита капитала:**
+   - Стопы продолжают работать (OCO на бирже)
+   - Equity tracking не сбрасывается
+   - Дневные лимиты сохраняются
+
+3. **Аудит:**
+   - История состояний в файле
+   - Можно отследить что было во время crash
+   - Легко восстановить вручную
+
+**Важные моменты:**
+
+⚠️ **State file - критически важен:**
+- Делайте backup регулярно
+- Не удаляйте вручную при открытых позициях
+- Храните в безопасном месте
+
+⚠️ **Reconciliation обязателен:**
+- ВСЕГДА сверяйте с биржей после загрузки
+- Не доверяйте слепо saved state
+- Биржа - source of truth
+
+⚠️ **OCO ордера на бирже:**
+- Даже если бот упал, OCO продолжает работать
+- При восстановлении бот найдёт активные OCO
+- Если OCO не найден - позиция могла закрыться
+
+**Удаление state file:**
+
+```csharp
+// Когда нет открытых позиций
+if (_currentPosition == 0)
+{
+    _stateManager.DeleteState();
+    Console.WriteLine("🗑️ State cleared - no open positions");
+}
+```
+
+**FAQ:**
+
+**Q: Что если state file повреждён?**
+A: Бот начнёт с чистого листа. Проверьте баланс на бирже вручную, закройте позиции если нужно.
+
+**Q: Можно ли редактировать state file вручную?**
+A: Можно, но КРАЙНЕ опасно. Лучше закрыть все позиции и начать заново.
+
+**Q: Где хранить state file в production?**
+A: В той же директории что и бот, с регулярными backups в облако.
+
+**Q: Нужно ли сохранять state в paper trading?**
+A: Можно, но не критично. В paper trading нет реальных позиций на бирже.
+
+**Q: Что делать если reconciliation показал mismatch?**
+A:
+1. Проверьте trade history на Binance
+2. Если позиция закрылась по стопу/профиту - обновите equity
+3. Если несоответствие непонятное - закройте позицию вручную
+
+---
+
 ## Режим 7: Download Data (Загрузка данных)
 
 ### Что это?
