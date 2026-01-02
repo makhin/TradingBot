@@ -44,15 +44,29 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
     }
 
     /// <summary>
-    /// Create ensemble with default strategies
+    /// Create ensemble with default strategies using weights from settings
     /// </summary>
     public static StrategyEnsemble CreateDefault(EnsembleSettings? settings = null)
     {
-        var ensemble = new StrategyEnsemble(settings);
+        var effectiveSettings = settings ?? new EnsembleSettings();
+        var ensemble = new StrategyEnsemble(effectiveSettings);
 
-        ensemble.AddStrategy(new AdxTrendStrategy(), 0.4m);
-        ensemble.AddStrategy(new MaStrategy(), 0.3m);
-        ensemble.AddStrategy(new RsiStrategy(), 0.3m);
+        // Create strategies and get their weights from settings
+        var adxStrategy = new AdxTrendStrategy();
+        var maStrategy = new MaStrategy();
+        var rsiStrategy = new RsiStrategy();
+
+        // Get weights from settings, fallback to hardcoded defaults if not found
+        var adxWeight = effectiveSettings.StrategyWeights.TryGetValue(adxStrategy.Name, out var adxW)
+            ? adxW : 0.5m;
+        var maWeight = effectiveSettings.StrategyWeights.TryGetValue(maStrategy.Name, out var maW)
+            ? maW : 0.25m;
+        var rsiWeight = effectiveSettings.StrategyWeights.TryGetValue(rsiStrategy.Name, out var rsiW)
+            ? rsiW : 0.25m;
+
+        ensemble.AddStrategy(adxStrategy, adxWeight);
+        ensemble.AddStrategy(maStrategy, maWeight);
+        ensemble.AddStrategy(rsiStrategy, rsiWeight);
 
         return ensemble;
     }
@@ -298,13 +312,14 @@ public record EnsembleSettings
     public bool UseConfidenceWeighting { get; init; } = true;
 
     /// <summary>
-    /// Default strategy weights
+    /// Strategy weights by name. Used by CreateDefault() to set initial weights.
+    /// Weights must sum to <= 1.0 but don't need to sum exactly to 1.0.
     /// </summary>
     public Dictionary<string, decimal> StrategyWeights { get; init; } = new()
     {
-        ["ADX Trend Following + Volume"] = 0.4m,
-        ["MA Crossover"] = 0.3m,
-        ["RSI Mean Reversion"] = 0.3m
+        ["ADX Trend Following + Volume"] = 0.5m,
+        ["MA Crossover"] = 0.25m,
+        ["RSI Mean Reversion"] = 0.25m
     };
 }
 

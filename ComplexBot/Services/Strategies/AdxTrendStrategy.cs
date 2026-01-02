@@ -68,6 +68,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
     private int _adxFallingStreak;
     private decimal? _previousAdx;
     private bool _breakevenMoved;
+    private int _barsSinceEntry;
 
     public AdxTrendStrategy(StrategySettings? settings = null) : base(settings)
     {
@@ -181,7 +182,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
             _highestSinceEntry = candle.High;
             _trailingStop = longStop;
             _initialStop = longStop;
-            Settings.BarsSinceEntry = 0;
+            _barsSinceEntry = 0;
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
@@ -203,7 +204,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
             _lowestSinceEntry = candle.Low;
             _trailingStop = shortStop;
             _initialStop = shortStop;
-            Settings.BarsSinceEntry = 0;
+            _barsSinceEntry = 0;
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
@@ -226,7 +227,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         if (!_entryPrice.HasValue)
             return null;
 
-        Settings.BarsSinceEntry++;
+        _barsSinceEntry++;
         decimal atr = _atr.Value!.Value;
         decimal adx = _adx.Value!.Value;
         bool isLong = position > 0;
@@ -295,7 +296,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
             }
         }
 
-        if (Settings.MaxBarsInTrade > 0 && Settings.BarsSinceEntry >= Settings.MaxBarsInTrade)
+        if (Settings.MaxBarsInTrade > 0 && _barsSinceEntry >= Settings.MaxBarsInTrade)
         {
             ResetPosition();
             return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
@@ -327,7 +328,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         _initialStop = null;
         _highestSinceEntry = null;
         _lowestSinceEntry = null;
-        Settings.BarsSinceEntry = 0;
+        _barsSinceEntry = 0;
         _breakevenMoved = false;
     }
 
@@ -396,8 +397,7 @@ public record StrategySettings
     public int AdxSlopeLookback { get; init; } = 5;
     public int AdxFallingExitBars { get; init; } = 0;
     public int MaxBarsInTrade { get; init; } = 0;
-    public int BarsSinceEntry { get; set; } = 0;
-    
+
     // EMA settings (research: 20/50 optimal for medium-term)
     public int FastEmaPeriod { get; init; } = 20;
     public int SlowEmaPeriod { get; init; } = 50;
