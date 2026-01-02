@@ -98,13 +98,28 @@ public class HistoricalDataLoader
     }
 
     /// <summary>
+    /// Parse DateTime from string - supports both Unix timestamp (ms) and ISO format
+    /// </summary>
+    private DateTime ParseDateTime(string value)
+    {
+        // Try Unix timestamp (milliseconds)
+        if (long.TryParse(value, out long timestamp))
+        {
+            return DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime;
+        }
+
+        // Try ISO format
+        return DateTime.Parse(value);
+    }
+
+    /// <summary>
     /// Load candles from CSV file
     /// </summary>
     public async Task<List<Candle>> LoadFromCsvAsync(string filePath)
     {
         var candles = new List<Candle>();
         using var reader = new StreamReader(filePath);
-        
+
         // Skip header
         await reader.ReadLineAsync();
         
@@ -116,14 +131,18 @@ public class HistoricalDataLoader
             var parts = line.Split(',');
             if (parts.Length < 7) continue;
 
+            // Parse dates - support both Unix timestamp (ms) and ISO format
+            DateTime openTime = ParseDateTime(parts[0]);
+            DateTime closeTime = ParseDateTime(parts[6]);
+
             candles.Add(new Candle(
-                DateTime.Parse(parts[0]),
+                openTime,
                 decimal.Parse(parts[1]),
                 decimal.Parse(parts[2]),
                 decimal.Parse(parts[3]),
                 decimal.Parse(parts[4]),
                 decimal.Parse(parts[5]),
-                DateTime.Parse(parts[6])
+                closeTime
             ));
         }
 
