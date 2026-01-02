@@ -814,16 +814,18 @@ class Program
         var strategySettings = GetStrategySettings();
         var backtestSettings = new BacktestSettings { InitialCapital = 10000m };
 
+        var (strategyName, strategyFactory) = SelectStrategyWithFactory(strategySettings);
+
         var analyzer = new WalkForwardAnalyzer();
-        
+
         WalkForwardResult result = null!;
         await AnsiConsole.Status()
-            .StartAsync("Running walk-forward analysis...", async ctx =>
+            .StartAsync($"Running walk-forward analysis for {strategyName}...", async ctx =>
             {
                 result = analyzer.Analyze(
                     candles,
                     symbol,
-                    () => new AdxTrendStrategy(strategySettings),
+                    strategyFactory,
                     riskSettings,
                     backtestSettings
                 );
@@ -842,8 +844,11 @@ class Program
         var strategySettings = GetStrategySettings();
         var backtestSettings = new BacktestSettings { InitialCapital = 10000m };
 
+        // Select strategy
+        var strategy = SelectStrategy(strategySettings);
+        AnsiConsole.MarkupLine($"\n[yellow]Running Monte Carlo for: {strategy.Name}[/]");
+
         // First run backtest
-        var strategy = new AdxTrendStrategy(strategySettings);
         var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
         var backtestResult = engine.Run(candles, symbol);
 
@@ -1196,6 +1201,36 @@ class Program
             "MA Crossover" => new MaStrategy(),
             "Strategy Ensemble (All Combined)" => StrategyEnsemble.CreateDefault(ensembleSettings),
             _ => new AdxTrendStrategy(adxSettings)
+        };
+    }
+
+    /// <summary>
+    /// Selects strategy and returns both name and factory function for Walk-Forward analysis
+    /// </summary>
+    static (string name, Func<IStrategy> factory) SelectStrategyWithFactory(StrategySettings? adxSettings = null)
+    {
+        var config = _configService.GetConfiguration();
+        var ensembleSettings = config.Ensemble.ToEnsembleSettings();
+        var maSettings = config.MaStrategy.ToMaStrategySettings();
+        var rsiSettings = config.RsiStrategy.ToRsiStrategySettings();
+
+        var strategyChoice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Select [green]strategy[/] for analysis:")
+                .AddChoices(
+                    "ADX Trend Following",
+                    "RSI Mean Reversion",
+                    "MA Crossover",
+                    "Strategy Ensemble (All Combined)")
+        );
+
+        return strategyChoice switch
+        {
+            "ADX Trend Following" => ("ADX", () => new AdxTrendStrategy(adxSettings)),
+            "RSI Mean Reversion" => ("RSI", () => new RsiStrategy(rsiSettings)),
+            "MA Crossover" => ("MA", () => new MaStrategy(maSettings)),
+            "Strategy Ensemble (All Combined)" => ("Ensemble", () => StrategyEnsemble.CreateDefault(ensembleSettings)),
+            _ => ("ADX", () => new AdxTrendStrategy(adxSettings))
         };
     }
 
