@@ -237,6 +237,39 @@ class Program
             });
 
         DisplayOptimizationResults(result);
+        PromptSaveAdxSettings(result);
+    }
+
+    static void PromptSaveAdxSettings(OptimizationResult result)
+    {
+        if (result.BestRobustParameters == null && result.BestInSampleParameters == null)
+            return;
+
+        var best = result.BestRobustParameters ?? result.BestInSampleParameters;
+        if (best == null) return;
+
+        var useRobust = result.BestRobustParameters != null;
+        AnsiConsole.MarkupLine(useRobust
+            ? "[green]Using best ROBUST parameters (validated on out-of-sample data)[/]"
+            : "[yellow]Warning: No robust parameters found, using best in-sample parameters[/]");
+
+        if (!AnsiConsole.Confirm("Save best ADX parameters to appsettings.user.json?", defaultValue: true))
+            return;
+
+        var strategySettings = new StrategyConfigSettings
+        {
+            AdxPeriod = best.AdxPeriod,
+            AdxThreshold = best.AdxThreshold,
+            AdxExitThreshold = best.AdxExitThreshold,
+            FastEmaPeriod = best.FastEmaPeriod,
+            SlowEmaPeriod = best.SlowEmaPeriod,
+            AtrStopMultiplier = best.AtrStopMultiplier,
+            VolumeThreshold = best.VolumeThreshold,
+            RequireVolumeConfirmation = best.RequireVolumeConfirmation
+        };
+
+        _configService.UpdateSection("Strategy", strategySettings);
+        AnsiConsole.MarkupLine("[green]✓ ADX settings saved to appsettings.user.json[/]");
     }
 
     static int[] ParseIntRange(string input) => 
@@ -352,6 +385,68 @@ class Program
         var backtestResult = engine.Run(candles, symbol);
 
         DisplayFullEnsembleResults(result, backtestResult);
+        PromptSaveFullEnsembleSettings(bestSettings);
+    }
+
+    static void PromptSaveFullEnsembleSettings(FullEnsembleSettings settings)
+    {
+        if (!AnsiConsole.Confirm("Save optimized parameters to appsettings.user.json?", defaultValue: true))
+            return;
+
+        // Save ADX strategy settings
+        var strategySettings = new StrategyConfigSettings
+        {
+            AdxPeriod = settings.AdxPeriod,
+            AdxThreshold = settings.AdxThreshold,
+            AdxExitThreshold = settings.AdxExitThreshold,
+            FastEmaPeriod = settings.AdxFastEmaPeriod,
+            SlowEmaPeriod = settings.AdxSlowEmaPeriod,
+            AtrStopMultiplier = settings.AdxAtrStopMultiplier,
+            VolumeThreshold = settings.AdxVolumeThreshold,
+            RequireVolumeConfirmation = settings.AdxVolumeThreshold > 1.0m
+        };
+        _configService.UpdateSection("Strategy", strategySettings);
+
+        // Save MA strategy settings
+        var maSettings = new MaStrategyConfigSettings
+        {
+            FastMaPeriod = settings.MaFastPeriod,
+            SlowMaPeriod = settings.MaSlowPeriod,
+            AtrStopMultiplier = settings.MaAtrStopMultiplier,
+            TakeProfitMultiplier = settings.MaTakeProfitMultiplier,
+            VolumeThreshold = settings.MaVolumeThreshold,
+            RequireVolumeConfirmation = settings.MaVolumeThreshold > 1.0m
+        };
+        _configService.UpdateSection("MaStrategy", maSettings);
+
+        // Save RSI strategy settings
+        var rsiSettings = new RsiStrategyConfigSettings
+        {
+            RsiPeriod = settings.RsiPeriod,
+            OversoldLevel = settings.RsiOversoldLevel,
+            OverboughtLevel = settings.RsiOverboughtLevel,
+            AtrStopMultiplier = settings.RsiAtrStopMultiplier,
+            TakeProfitMultiplier = settings.RsiTakeProfitMultiplier,
+            UseTrendFilter = settings.RsiUseTrendFilter
+        };
+        _configService.UpdateSection("RsiStrategy", rsiSettings);
+
+        // Save ensemble weights
+        var ensembleSettings = new EnsembleConfigSettings
+        {
+            Enabled = true,
+            MinimumAgreement = settings.MinimumAgreement,
+            UseConfidenceWeighting = settings.UseConfidenceWeighting,
+            StrategyWeights = new Dictionary<string, decimal>
+            {
+                ["ADX Trend Following + Volume"] = settings.AdxWeight,
+                ["MA Crossover"] = settings.MaWeight,
+                ["RSI Mean Reversion"] = settings.RsiWeight
+            }
+        };
+        _configService.UpdateSection("Ensemble", ensembleSettings);
+
+        AnsiConsole.MarkupLine("[green]✓ All settings saved to appsettings.user.json[/]");
     }
 
     static void DisplayFullEnsembleResults(
