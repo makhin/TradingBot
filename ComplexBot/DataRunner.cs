@@ -2,6 +2,7 @@ using Binance.Net.Enums;
 using Spectre.Console;
 using System.Linq;
 using ComplexBot.Models;
+using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Trading;
 
 namespace ComplexBot;

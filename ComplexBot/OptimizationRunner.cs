@@ -4,6 +4,7 @@ using ComplexBot.Configuration;
 using ComplexBot.Models;
 using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Backtesting;
+using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
 
 namespace ComplexBot;
@@ -220,7 +221,7 @@ class OptimizationRunner
         var geneticSettings = config.GeneticOptimizer.ToGeneticOptimizerSettings();
         var optimizer = new EnsembleStrategyOptimizer(optimizerConfig, riskSettings, backtestSettings, optimizeFor);
 
-        var result = await RunGeneticOptimization(
+        var result = await RunGeneticOptimization<EnsembleOptimizationSettings>(
             "Optimizing ensemble...",
             progress => optimizer.Optimize(candles, symbol, geneticSettings, progress),
             p => $"Optimizing ensemble... Gen {p.CurrentGeneration}/{p.TotalGenerations}");
@@ -260,7 +261,7 @@ class OptimizationRunner
         AnsiConsole.MarkupLine($"[grey]Population: {geneticSettings.PopulationSize}, Generations: {geneticSettings.Generations}[/]");
         AnsiConsole.MarkupLine("[grey]This may take a while...[/]\n");
 
-        var result = await RunGeneticOptimization(
+        var result = await RunGeneticOptimization<FullEnsembleSettings>(
             "Optimizing full ensemble...",
             progress => optimizer.Optimize(candles, symbol, geneticSettings, progress),
             p => $"Optimizing full ensemble... Gen {p.CurrentGeneration}/{p.TotalGenerations} (Best: {p.BestFitness:F2})");
@@ -344,7 +345,7 @@ class OptimizationRunner
         var fitness = ToFitnessFunction(optimizeFor);
         var optimizer = new MaStrategyOptimizer(optimizerConfig, riskSettings, backtestSettings, fitness);
 
-        var result = await RunGeneticOptimization(
+        var result = await RunGeneticOptimization<MaStrategySettings>(
             "Optimizing MA...",
             progress => optimizer.Optimize(candles, symbol, geneticSettings, progress),
             p => $"Optimizing MA... Gen {p.CurrentGeneration}/{p.TotalGenerations}");
@@ -371,7 +372,7 @@ class OptimizationRunner
         var fitness = ToFitnessFunction(optimizeFor);
         var optimizer = new RsiStrategyOptimizer(optimizerConfig, riskSettings, backtestSettings, fitness);
 
-        var result = await RunGeneticOptimization(
+        var result = await RunGeneticOptimization<RsiStrategySettings>(
             "Optimizing RSI...",
             progress => optimizer.Optimize(candles, symbol, geneticSettings, progress),
             p => $"Optimizing RSI... Gen {p.CurrentGeneration}/{p.TotalGenerations}");
@@ -429,6 +430,7 @@ class OptimizationRunner
         string taskTitle,
         Func<IProgress<GeneticProgress<TSettings>>, GeneticOptimizationResult<TSettings>> optimize,
         Func<GeneticProgress<TSettings>, string> descriptionFormatter)
+        where TSettings : class
     {
         GeneticOptimizationResult<TSettings> result = null!;
 

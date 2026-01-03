@@ -2,6 +2,7 @@ using Binance.Net.Enums;
 using Spectre.Console;
 using ComplexBot.Models;
 using ComplexBot.Configuration;
+using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Notifications;
 using ComplexBot.Services.Strategies;

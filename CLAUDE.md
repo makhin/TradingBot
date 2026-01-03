@@ -105,6 +105,22 @@ The backtesting system ([ComplexBot/Services/Backtesting/](ComplexBot/Services/B
 - **ParameterOptimizer** - Grid search across parameter combinations
 - **GeneticOptimizer** - Evolutionary optimization for large search spaces
 
+**Walk-Forward Analysis Configuration:**
+The analyzer is configurable via `WalkForwardSettings`:
+- `InSampleRatio` (default 0.7) - Portion of data for optimization/training (70%)
+- `OutOfSampleRatio` (default 0.2) - Portion for validation/testing (20%)
+- `StepRatio` (default 0.1) - How much to advance between periods (10%)
+- `MinWfeThreshold` (default 50%) - Minimum WFE to consider strategy robust
+- `MinConsistencyThreshold` (default 60%) - Minimum % of profitable OOS periods
+- `MinSharpeThreshold` (default 0.5) - Minimum acceptable Sharpe ratio
+
+**Example:** With 1000 candles and default settings:
+- IS window: 700 candles, OOS window: 200 candles
+- Step: 100 candles → generates ~2 periods
+- To get more periods: reduce `StepRatio` (e.g., 0.05 = 50 candles/step → ~4 periods)
+
+Users can customize these via interactive prompts when running Walk-Forward Analysis. The system calculates and displays the estimated number of periods before execution.
+
 **Optimization targets:**
 - `RiskAdjusted` - Sharpe * (1 - drawdown/100)
 - `SharpeRatio` - Return per unit of volatility

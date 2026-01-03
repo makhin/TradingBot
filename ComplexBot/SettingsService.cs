@@ -2,6 +2,7 @@ using Spectre.Console;
 using ComplexBot.Configuration;
 using ComplexBot.Models;
 using ComplexBot.Services.RiskManagement;
+using ComplexBot.Services.Strategies;
 
 namespace ComplexBot;
 

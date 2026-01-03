@@ -3,6 +3,7 @@ using System.Linq;
 using ComplexBot.Models;
 using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Backtesting;
+using ComplexBot.Services.Strategies;
 
 namespace ComplexBot;
 
