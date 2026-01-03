@@ -97,6 +97,35 @@ This separation allows easy JSON serialization while keeping domain logic clean.
 - `LiveTrading` - Symbol, interval, paper trading mode
 - `Optimization` - Parameter ranges for grid/genetic search
 
+**Environment Variables (.env file):**
+The application loads configuration from a `.env` file using DotNetEnv. This allows you to keep sensitive credentials outside of `appsettings.json`.
+
+Create a `.env` file in the `ComplexBot/` directory with the following format:
+```bash
+# Binance Testnet Credentials (for development/testing)
+BINANCE_TESTNET_KEY=your-testnet-api-key
+BINANCE_TESTNET_SECRET=your-testnet-secret
+
+# Binance Mainnet Credentials (for live trading)
+BINANCE_MAINNET_KEY=your-mainnet-api-key
+BINANCE_MAINNET_SECRET=your-mainnet-secret
+
+# Trading Configuration
+TRADING_BinanceApi__UseTestnet=true
+
+# Telegram Notifications (Optional)
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+TELEGRAM_CHAT_ID=your-chat-id
+```
+
+**How it works:**
+1. [ConfigurationService.cs](ComplexBot/Configuration/ConfigurationService.cs) loads the `.env` file at startup
+2. Based on `TRADING_BinanceApi__UseTestnet`, it selects testnet or mainnet credentials
+3. Environment variables override `appsettings.json` values
+4. Supports both formats: `BINANCE_TESTNET_KEY` (preferred) and `BINANCE_API_KEY` (fallback)
+
+**Security:** Always add `.env` to `.gitignore` to prevent committing secrets to version control.
+
 ### Backtesting Engine
 The backtesting system ([ComplexBot/Services/Backtesting/](ComplexBot/Services/Backtesting/)) supports:
 - **BacktestEngine** - Core simulation loop with position tracking
@@ -150,6 +179,35 @@ Live trading data flow:
 4. Paper mode simulates fills without API calls
 
 ## Important Patterns and Conventions
+
+### User Input with SpectreHelpers
+**IMPORTANT**: Always use [SpectreHelpers](ComplexBot/Utils/SpectreHelpers.cs) for numeric user input to prevent locale-specific formatting issues.
+
+**Problem**: Russian (and other) locales use commas as decimal separators (e.g., `10000,5`), which Spectre.Console interprets as color codes, causing crashes like:
+```
+System.InvalidOperationException: Could not find color or style '10000,0'
+```
+
+**Solution**: Use `SpectreHelpers.AskDecimal()` and `SpectreHelpers.AskInt()` instead of `AnsiConsole.Ask()` for numbers.
+
+**Example:**
+```csharp
+using ComplexBot.Utils;
+
+// ❌ BAD - Will crash with Russian locale
+var capital = AnsiConsole.Ask("Initial capital [green](USDT)[/]:", 10000m);
+
+// ✅ GOOD - Locale-safe with validation
+var capital = SpectreHelpers.AskDecimal("Initial capital [green](USDT)[/]", 10000m, min: 1m, max: 1000000m);
+var simulations = SpectreHelpers.AskInt("Number of simulations", 1000, min: 100, max: 10000);
+```
+
+**Features:**
+- Uses `InvariantCulture` for formatting to avoid locale issues
+- Escapes brackets `[[...]]` to prevent Spectre.Console markup conflicts
+- Supports both comma and dot as decimal separators in input
+- Optional min/max validation
+- Returns validated numeric values
 
 ### Strategy Selection in Runners
 Recent refactoring (commits #16-17) added strategy selection to all analysis modes. When working with runners:

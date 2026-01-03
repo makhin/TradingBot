@@ -3,6 +3,7 @@ using ComplexBot.Configuration;
 using ComplexBot.Models;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 
@@ -30,13 +31,13 @@ class SettingsService
 
         var updated = new RiskManagementSettings
         {
-            RiskPerTradePercent = AnsiConsole.Ask($"Risk per trade [green](%)[/] [[{current.RiskPerTradePercent}]]:", current.RiskPerTradePercent),
-            MaxPortfolioHeatPercent = AnsiConsole.Ask($"Max portfolio heat [green](%)[/] [[{current.MaxPortfolioHeatPercent}]]:", current.MaxPortfolioHeatPercent),
-            MaxDrawdownPercent = AnsiConsole.Ask($"Max drawdown circuit breaker [green](%)[/] [[{current.MaxDrawdownPercent}]]:", current.MaxDrawdownPercent),
-            MaxDailyDrawdownPercent = AnsiConsole.Ask($"Max daily drawdown [green](%)[/] [[{current.MaxDailyDrawdownPercent}]]:", current.MaxDailyDrawdownPercent),
-            AtrStopMultiplier = AnsiConsole.Ask($"ATR stop multiplier [[{current.AtrStopMultiplier}]]:", current.AtrStopMultiplier),
-            TakeProfitMultiplier = AnsiConsole.Ask($"Take profit ratio (reward:risk) [[{current.TakeProfitMultiplier}]]:", current.TakeProfitMultiplier),
-            MinimumEquityUsd = AnsiConsole.Ask($"Minimum equity USD [[{current.MinimumEquityUsd}]]:", current.MinimumEquityUsd)
+            RiskPerTradePercent = SpectreHelpers.AskDecimal("Risk per trade [green](%)[/]", current.RiskPerTradePercent, min: 0.1m, max: 10m),
+            MaxPortfolioHeatPercent = SpectreHelpers.AskDecimal("Max portfolio heat [green](%)[/]", current.MaxPortfolioHeatPercent, min: 1m, max: 100m),
+            MaxDrawdownPercent = SpectreHelpers.AskDecimal("Max drawdown circuit breaker [green](%)[/]", current.MaxDrawdownPercent, min: 5m, max: 100m),
+            MaxDailyDrawdownPercent = SpectreHelpers.AskDecimal("Max daily drawdown [green](%)[/]", current.MaxDailyDrawdownPercent, min: 1m, max: 20m),
+            AtrStopMultiplier = SpectreHelpers.AskDecimal("ATR stop multiplier", current.AtrStopMultiplier, min: 0.5m, max: 10m),
+            TakeProfitMultiplier = SpectreHelpers.AskDecimal("Take profit ratio (reward:risk)", current.TakeProfitMultiplier, min: 0.5m, max: 10m),
+            MinimumEquityUsd = SpectreHelpers.AskDecimal("Minimum equity USD", current.MinimumEquityUsd, min: 1m, max: 1000000m)
         };
 
         if (AnsiConsole.Confirm("Save these settings?", defaultValue: true))
@@ -62,18 +63,18 @@ class SettingsService
 
         var updated = new StrategyConfigSettings
         {
-            AdxPeriod = AnsiConsole.Ask($"ADX period [[{current.AdxPeriod}]]:", current.AdxPeriod),
-            AdxThreshold = AnsiConsole.Ask($"ADX entry threshold [[{current.AdxThreshold}]]:", current.AdxThreshold),
-            AdxExitThreshold = AnsiConsole.Ask($"ADX exit threshold [[{current.AdxExitThreshold}]]:", current.AdxExitThreshold),
+            AdxPeriod = SpectreHelpers.AskInt("ADX period", current.AdxPeriod, min: 5, max: 50),
+            AdxThreshold = SpectreHelpers.AskDecimal("ADX entry threshold", current.AdxThreshold, min: 10m, max: 50m),
+            AdxExitThreshold = SpectreHelpers.AskDecimal("ADX exit threshold", current.AdxExitThreshold, min: 5m, max: 40m),
             RequireAdxRising = AnsiConsole.Confirm("Require ADX rising?", current.RequireAdxRising),
-            AdxSlopeLookback = AnsiConsole.Ask($"ADX slope lookback (bars) [[{current.AdxSlopeLookback}]]:", current.AdxSlopeLookback),
-            FastEmaPeriod = AnsiConsole.Ask($"Fast EMA period [[{current.FastEmaPeriod}]]:", current.FastEmaPeriod),
-            SlowEmaPeriod = AnsiConsole.Ask($"Slow EMA period [[{current.SlowEmaPeriod}]]:", current.SlowEmaPeriod),
-            AtrPeriod = AnsiConsole.Ask($"ATR period [[{current.AtrPeriod}]]:", current.AtrPeriod),
-            MinAtrPercent = AnsiConsole.Ask($"Min ATR % of price [[{current.MinAtrPercent}]]:", current.MinAtrPercent),
-            MaxAtrPercent = AnsiConsole.Ask($"Max ATR % of price [[{current.MaxAtrPercent}]]:", current.MaxAtrPercent),
+            AdxSlopeLookback = SpectreHelpers.AskInt("ADX slope lookback (bars)", current.AdxSlopeLookback, min: 1, max: 20),
+            FastEmaPeriod = SpectreHelpers.AskInt("Fast EMA period", current.FastEmaPeriod, min: 5, max: 50),
+            SlowEmaPeriod = SpectreHelpers.AskInt("Slow EMA period", current.SlowEmaPeriod, min: 20, max: 200),
+            AtrPeriod = SpectreHelpers.AskInt("ATR period", current.AtrPeriod, min: 5, max: 50),
+            MinAtrPercent = SpectreHelpers.AskDecimal("Min ATR % of price", current.MinAtrPercent, min: 0m, max: 50m),
+            MaxAtrPercent = SpectreHelpers.AskDecimal("Max ATR % of price", current.MaxAtrPercent, min: 0m, max: 200m),
             RequireVolumeConfirmation = AnsiConsole.Confirm("Require volume confirmation?", current.RequireVolumeConfirmation),
-            VolumeThreshold = AnsiConsole.Ask($"Volume spike threshold (x avg) [[{current.VolumeThreshold}]]:", current.VolumeThreshold),
+            VolumeThreshold = SpectreHelpers.AskDecimal("Volume spike threshold (x avg)", current.VolumeThreshold, min: 0.5m, max: 10m),
             RequireObvConfirmation = AnsiConsole.Confirm("Require OBV confirmation?", current.RequireObvConfirmation)
         };
 

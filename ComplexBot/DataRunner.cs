@@ -4,6 +4,7 @@ using System.Linq;
 using ComplexBot.Models;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Trading;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 
@@ -51,7 +52,7 @@ class DataRunner
                     .AddChoices("1h", "4h", "1d")
             );
 
-            var months = AnsiConsole.Ask("History months:", 12);
+            var months = SpectreHelpers.AskInt("History months", 12, min: 1, max: 60);
             var loader = new HistoricalDataLoader();
             var candles = new List<Candle>();
 

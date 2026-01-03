@@ -6,6 +6,7 @@ using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Notifications;
 using ComplexBot.Services.Strategies;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 
@@ -69,7 +70,7 @@ class LiveTradingRunner
 
         var riskSettings = _settingsService.GetRiskSettings();
         var strategySettings = _settingsService.GetStrategySettings();
-        var initialCapital = AnsiConsole.Ask($"Initial capital [green](USDT)[/] [{config.LiveTrading.InitialCapital}]:", config.LiveTrading.InitialCapital);
+        var initialCapital = SpectreHelpers.AskDecimal($"Initial capital [green](USDT)[/]", config.LiveTrading.InitialCapital, min: 1m);
 
         TelegramNotifier? telegram = null;
         if (config.Telegram.Enabled && !string.IsNullOrWhiteSpace(config.Telegram.BotToken))

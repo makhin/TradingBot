@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Spectre.Console;
+using DotNetEnv;
+using ComplexBot.Utils;
 
 namespace ComplexBot.Configuration;
 
@@ -14,8 +16,68 @@ public class ConfigurationService
 
     public ConfigurationService()
     {
+        LoadEnvironmentVariables();
         _configuration = BuildConfiguration();
         _currentConfig = LoadConfiguration();
+    }
+
+    private static void LoadEnvironmentVariables()
+    {
+        // Load .env file if it exists
+        var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+        if (File.Exists(envPath))
+        {
+            Env.Load(envPath);
+
+            // Determine if using testnet or mainnet
+            var useTestnetStr = Environment.GetEnvironmentVariable("TRADING_BinanceApi__UseTestnet");
+            var useTestnet = string.IsNullOrEmpty(useTestnetStr) ||
+                             useTestnetStr.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+            // Map environment variables to nested configuration structure
+            // Support both BINANCE_API_KEY format and BINANCE_TESTNET_KEY/BINANCE_MAINNET_KEY format
+            string? apiKey;
+            string? apiSecret;
+
+            if (useTestnet)
+            {
+                apiKey = Environment.GetEnvironmentVariable("BINANCE_TESTNET_KEY") ??
+                         Environment.GetEnvironmentVariable("BINANCE_API_KEY");
+                apiSecret = Environment.GetEnvironmentVariable("BINANCE_TESTNET_SECRET") ??
+                            Environment.GetEnvironmentVariable("BINANCE_API_SECRET");
+            }
+            else
+            {
+                apiKey = Environment.GetEnvironmentVariable("BINANCE_MAINNET_KEY") ??
+                         Environment.GetEnvironmentVariable("BINANCE_API_KEY");
+                apiSecret = Environment.GetEnvironmentVariable("BINANCE_MAINNET_SECRET") ??
+                            Environment.GetEnvironmentVariable("BINANCE_API_SECRET");
+            }
+
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                Environment.SetEnvironmentVariable("BinanceApi__ApiKey", apiKey);
+            }
+
+            if (!string.IsNullOrEmpty(apiSecret))
+            {
+                Environment.SetEnvironmentVariable("BinanceApi__ApiSecret", apiSecret);
+            }
+
+            // Map Telegram settings if present
+            var telegramToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN");
+            var telegramChatId = Environment.GetEnvironmentVariable("TELEGRAM_CHAT_ID");
+
+            if (!string.IsNullOrEmpty(telegramToken))
+            {
+                Environment.SetEnvironmentVariable("Telegram__BotToken", telegramToken);
+            }
+
+            if (!string.IsNullOrEmpty(telegramChatId))
+            {
+                Environment.SetEnvironmentVariable("Telegram__ChatId", telegramChatId);
+            }
+        }
     }
 
     private static IConfiguration BuildConfiguration()
@@ -23,7 +85,8 @@ public class ConfigurationService
         var builder = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile(DefaultConfigFile, optional: false, reloadOnChange: true)
-            .AddJsonFile(UserConfigFile, optional: true, reloadOnChange: true);
+            .AddJsonFile(UserConfigFile, optional: true, reloadOnChange: true)
+            .AddEnvironmentVariables(); // Environment variables override JSON settings
 
         return builder.Build();
     }
@@ -129,13 +192,13 @@ public class ConfigurationService
 
         var updated = new RiskManagementSettings
         {
-            RiskPerTradePercent = AnsiConsole.Ask($"Risk per trade [green](%)[/] [{current.RiskPerTradePercent}]:", current.RiskPerTradePercent),
-            MaxPortfolioHeatPercent = AnsiConsole.Ask($"Max portfolio heat [green](%)[/] [{current.MaxPortfolioHeatPercent}]:", current.MaxPortfolioHeatPercent),
-            MaxDrawdownPercent = AnsiConsole.Ask($"Max drawdown circuit breaker [green](%)[/] [{current.MaxDrawdownPercent}]:", current.MaxDrawdownPercent),
-            MaxDailyDrawdownPercent = AnsiConsole.Ask($"Max daily drawdown [green](%)[/] [{current.MaxDailyDrawdownPercent}]:", current.MaxDailyDrawdownPercent),
-            AtrStopMultiplier = AnsiConsole.Ask($"ATR stop multiplier [{current.AtrStopMultiplier}]:", current.AtrStopMultiplier),
-            TakeProfitMultiplier = AnsiConsole.Ask($"Take profit ratio (reward:risk) [{current.TakeProfitMultiplier}]:", current.TakeProfitMultiplier),
-            MinimumEquityUsd = AnsiConsole.Ask($"Minimum equity USD [{current.MinimumEquityUsd}]:", current.MinimumEquityUsd)
+            RiskPerTradePercent = SpectreHelpers.AskDecimal("Risk per trade [green](%)[/]", current.RiskPerTradePercent, min: 0.1m, max: 10m),
+            MaxPortfolioHeatPercent = SpectreHelpers.AskDecimal("Max portfolio heat [green](%)[/]", current.MaxPortfolioHeatPercent, min: 1m, max: 100m),
+            MaxDrawdownPercent = SpectreHelpers.AskDecimal("Max drawdown circuit breaker [green](%)[/]", current.MaxDrawdownPercent, min: 5m, max: 100m),
+            MaxDailyDrawdownPercent = SpectreHelpers.AskDecimal("Max daily drawdown [green](%)[/]", current.MaxDailyDrawdownPercent, min: 1m, max: 20m),
+            AtrStopMultiplier = SpectreHelpers.AskDecimal("ATR stop multiplier", current.AtrStopMultiplier, min: 0.5m, max: 10m),
+            TakeProfitMultiplier = SpectreHelpers.AskDecimal("Take profit ratio (reward:risk)", current.TakeProfitMultiplier, min: 0.5m, max: 10m),
+            MinimumEquityUsd = SpectreHelpers.AskDecimal("Minimum equity USD", current.MinimumEquityUsd, min: 1m, max: 1000000m)
         };
 
         UpdateSection("RiskManagement", updated);
@@ -157,18 +220,18 @@ public class ConfigurationService
 
         var updated = new StrategyConfigSettings
         {
-            AdxPeriod = AnsiConsole.Ask($"ADX period [{current.AdxPeriod}]:", current.AdxPeriod),
-            AdxThreshold = AnsiConsole.Ask($"ADX entry threshold [{current.AdxThreshold}]:", current.AdxThreshold),
-            AdxExitThreshold = AnsiConsole.Ask($"ADX exit threshold [{current.AdxExitThreshold}]:", current.AdxExitThreshold),
+            AdxPeriod = SpectreHelpers.AskInt("ADX period", current.AdxPeriod, min: 5, max: 50),
+            AdxThreshold = SpectreHelpers.AskDecimal("ADX entry threshold", current.AdxThreshold, min: 10m, max: 50m),
+            AdxExitThreshold = SpectreHelpers.AskDecimal("ADX exit threshold", current.AdxExitThreshold, min: 5m, max: 40m),
             RequireAdxRising = AnsiConsole.Confirm("Require ADX rising?", current.RequireAdxRising),
-            AdxSlopeLookback = AnsiConsole.Ask($"ADX slope lookback (bars) [{current.AdxSlopeLookback}]:", current.AdxSlopeLookback),
-            FastEmaPeriod = AnsiConsole.Ask($"Fast EMA period [{current.FastEmaPeriod}]:", current.FastEmaPeriod),
-            SlowEmaPeriod = AnsiConsole.Ask($"Slow EMA period [{current.SlowEmaPeriod}]:", current.SlowEmaPeriod),
-            AtrPeriod = AnsiConsole.Ask($"ATR period [{current.AtrPeriod}]:", current.AtrPeriod),
-            MinAtrPercent = AnsiConsole.Ask($"Min ATR % of price [{current.MinAtrPercent}]:", current.MinAtrPercent),
-            MaxAtrPercent = AnsiConsole.Ask($"Max ATR % of price [{current.MaxAtrPercent}]:", current.MaxAtrPercent),
+            AdxSlopeLookback = SpectreHelpers.AskInt("ADX slope lookback (bars)", current.AdxSlopeLookback, min: 1, max: 20),
+            FastEmaPeriod = SpectreHelpers.AskInt("Fast EMA period", current.FastEmaPeriod, min: 5, max: 50),
+            SlowEmaPeriod = SpectreHelpers.AskInt("Slow EMA period", current.SlowEmaPeriod, min: 20, max: 200),
+            AtrPeriod = SpectreHelpers.AskInt("ATR period", current.AtrPeriod, min: 5, max: 50),
+            MinAtrPercent = SpectreHelpers.AskDecimal("Min ATR % of price", current.MinAtrPercent, min: 0m, max: 50m),
+            MaxAtrPercent = SpectreHelpers.AskDecimal("Max ATR % of price", current.MaxAtrPercent, min: 0m, max: 200m),
             RequireVolumeConfirmation = AnsiConsole.Confirm("Require volume confirmation?", current.RequireVolumeConfirmation),
-            VolumeThreshold = AnsiConsole.Ask($"Volume spike threshold (x avg) [{current.VolumeThreshold}]:", current.VolumeThreshold),
+            VolumeThreshold = SpectreHelpers.AskDecimal("Volume spike threshold (x avg)", current.VolumeThreshold, min: 0.5m, max: 10m),
             RequireObvConfirmation = AnsiConsole.Confirm("Require OBV confirmation?", current.RequireObvConfirmation)
         };
 

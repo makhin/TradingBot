@@ -2,6 +2,7 @@ using Spectre.Console;
 using ComplexBot.Models;
 using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Backtesting;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 
@@ -66,16 +67,16 @@ class AnalysisRunner
         AnsiConsole.MarkupLine("[grey]Press Enter to keep default value shown in brackets[/]");
         AnsiConsole.MarkupLine($"[grey]Total candles available: {totalCandles}[/]\n");
 
-        var inSampleRatio = PromptDecimal("In-Sample ratio (0.0-1.0)", 0.7m, 0.3m, 0.9m);
-        var outOfSampleRatio = PromptDecimal("Out-Of-Sample ratio (0.0-1.0)", 0.2m, 0.1m, 0.5m);
-        var stepRatio = PromptDecimal("Step ratio (0.0-1.0)", 0.1m, 0.01m, 0.5m);
+        var inSampleRatio = SpectreHelpers.AskDecimal("In-Sample ratio (0.0-1.0)", 0.7m, min: 0.3m, max: 0.9m);
+        var outOfSampleRatio = SpectreHelpers.AskDecimal("Out-Of-Sample ratio (0.0-1.0)", 0.2m, min: 0.1m, max: 0.5m);
+        var stepRatio = SpectreHelpers.AskDecimal("Step ratio (0.0-1.0)", 0.1m, min: 0.01m, max: 0.5m);
 
         // Validate that IS + OOS doesn't exceed 1.0
         while (inSampleRatio + outOfSampleRatio > 1.0m)
         {
             AnsiConsole.MarkupLine("[red]Error: In-Sample + Out-Of-Sample cannot exceed 1.0[/]");
-            inSampleRatio = PromptDecimal("In-Sample ratio (0.0-1.0)", 0.7m, 0.3m, 0.9m);
-            outOfSampleRatio = PromptDecimal("Out-Of-Sample ratio (0.0-1.0)", 0.2m, 0.1m, 0.5m);
+            inSampleRatio = SpectreHelpers.AskDecimal("In-Sample ratio (0.0-1.0)", 0.7m, min: 0.3m, max: 0.9m);
+            outOfSampleRatio = SpectreHelpers.AskDecimal("Out-Of-Sample ratio (0.0-1.0)", 0.2m, min: 0.1m, max: 0.5m);
         }
 
         // Calculate estimated number of periods
@@ -95,9 +96,9 @@ class AnalysisRunner
         AnsiConsole.MarkupLine($"[grey]Step size: {stepSize} candles[/]\n");
 
         AnsiConsole.MarkupLine("[yellow]Robustness Thresholds[/]");
-        var minWfe = PromptDecimal("Min WFE % for robust strategy", 50m, 0m, 100m);
-        var minConsistency = PromptDecimal("Min consistency % (profitable OOS periods)", 60m, 0m, 100m);
-        var minSharpe = PromptDecimal("Min Sharpe ratio", 0.5m, 0m, 5m);
+        var minWfe = SpectreHelpers.AskDecimal("Min WFE % for robust strategy", 50m, min: 0m, max: 100m);
+        var minConsistency = SpectreHelpers.AskDecimal("Min consistency % (profitable OOS periods)", 60m, min: 0m, max: 100m);
+        var minSharpe = SpectreHelpers.AskDecimal("Min Sharpe ratio", 0.5m, min: 0m, max: 5m);
 
         return new WalkForwardSettings
         {
@@ -110,30 +111,6 @@ class AnalysisRunner
         };
     }
 
-    private decimal PromptDecimal(string prompt, decimal defaultValue, decimal min, decimal max)
-    {
-        while (true)
-        {
-            // Use [[ ]] to escape brackets in Spectre.Console markup
-            var formattedDefault = defaultValue.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-            var input = AnsiConsole.Ask($"{prompt} [[{formattedDefault}]]:", defaultValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
-
-            if (string.IsNullOrWhiteSpace(input))
-                return defaultValue;
-
-            if (decimal.TryParse(input.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var value))
-            {
-                if (value >= min && value <= max)
-                    return value;
-
-                AnsiConsole.MarkupLine($"[red]Value must be between {min} and {max}[/]");
-            }
-            else
-            {
-                AnsiConsole.MarkupLine("[red]Invalid number format[/]");
-            }
-        }
-    }
 
     public async Task RunMonteCarlo()
     {
@@ -150,12 +127,12 @@ class AnalysisRunner
         var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
         var backtestResult = engine.Run(candles, symbol);
 
-        int simulations = AnsiConsole.Ask("Number of simulations:", 1000);
+        var simulations = SpectreHelpers.AskInt("Number of simulations", 1000, min: 100, max: 10000);
         var simulator = new MonteCarloSimulator(simulations);
 
         MonteCarloResult result = null!;
         await AnsiConsole.Status()
-            .StartAsync($"Running {simulations} Monte Carlo simulations...", async ctx =>
+            .StartAsync("Running " + simulations + " Monte Carlo simulations...", async ctx =>
             {
                 result = simulator.Simulate(backtestResult);
                 await Task.CompletedTask;

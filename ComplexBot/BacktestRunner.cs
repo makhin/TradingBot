@@ -3,6 +3,7 @@ using ComplexBot.Models;
 using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Strategies;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 
@@ -34,7 +35,7 @@ class BacktestRunner
         var strategySettings = _settingsService.GetStrategySettings();
         var backtestSettings = new BacktestSettings
         {
-            InitialCapital = AnsiConsole.Ask("Initial capital [green](USDT)[/]:", 10000m),
+            InitialCapital = SpectreHelpers.AskDecimal("Initial capital [green](USDT)[/]", 10000m, min: 1m),
             CommissionPercent = 0.1m
         };
 
