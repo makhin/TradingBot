@@ -21,8 +21,11 @@ class SettingsService
         var config = _configService.GetConfiguration();
         var current = config.RiskManagement;
 
-        // In non-interactive mode, always use saved settings
-        if (!AnsiConsole.Profile.Capabilities.Interactive)
+        // In non-interactive mode (when TRADING_MODE is set), always use saved settings
+        var tradingModeEnv = Environment.GetEnvironmentVariable("TRADING_MODE");
+        var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
+
+        if (!isInteractive)
             return current.ToRiskSettings();
 
         var useDefaults = AnsiConsole.Confirm("Use saved risk settings?", defaultValue: true);
@@ -57,8 +60,11 @@ class SettingsService
         var config = _configService.GetConfiguration();
         var current = config.Strategy;
 
-        // In non-interactive mode, always use saved settings
-        if (!AnsiConsole.Profile.Capabilities.Interactive)
+        // In non-interactive mode (when TRADING_MODE is set), always use saved settings
+        var tradingModeEnv = Environment.GetEnvironmentVariable("TRADING_MODE");
+        var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
+
+        if (!isInteractive)
             return current.ToStrategySettings();
 
         var useDefaults = AnsiConsole.Confirm("Use saved strategy settings?", defaultValue: true);

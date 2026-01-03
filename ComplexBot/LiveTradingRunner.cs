@@ -24,7 +24,9 @@ class LiveTradingRunner
     public async Task RunLiveTrading(bool paperTrade)
     {
         // Check if running in interactive mode
-        var isInteractive = AnsiConsole.Profile.Capabilities.Interactive;
+        // If TRADING_MODE is set, we're in non-interactive (automated) mode
+        var tradingModeEnv = Environment.GetEnvironmentVariable("TRADING_MODE");
+        var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
 
         if (!paperTrade)
         {
