@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Spectre.Console;
 using DotNetEnv;
 using ComplexBot.Utils;
+using Serilog;
 
 namespace ComplexBot.Configuration;
 
@@ -68,14 +69,27 @@ public class ConfigurationService
             var telegramToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN");
             var telegramChatId = Environment.GetEnvironmentVariable("TELEGRAM_CHAT_ID");
 
+            Log.Debug("Telegram env vars - BotToken: {HasToken}, ChatId: {ChatId}",
+                !string.IsNullOrEmpty(telegramToken) ? "SET" : "NOT SET",
+                telegramChatId ?? "NOT SET");
+
             if (!string.IsNullOrEmpty(telegramToken))
             {
                 Environment.SetEnvironmentVariable("Telegram__BotToken", telegramToken);
+                Log.Debug("Set Telegram__BotToken from environment");
             }
 
             if (!string.IsNullOrEmpty(telegramChatId))
             {
                 Environment.SetEnvironmentVariable("Telegram__ChatId", telegramChatId);
+                Log.Debug("Set Telegram__ChatId from environment: {ChatId}", telegramChatId);
+            }
+
+            // Always enable Telegram if both token and chat ID are provided
+            if (!string.IsNullOrEmpty(telegramToken) && !string.IsNullOrEmpty(telegramChatId))
+            {
+                Environment.SetEnvironmentVariable("Telegram__Enabled", "true");
+                Log.Information("Telegram auto-enabled from .env file");
             }
         }
     }

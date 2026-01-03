@@ -144,6 +144,11 @@ class LiveTradingRunner
         Log.Information("Settings loaded - Risk per trade: {RiskPercent}%, ADX threshold: {AdxThreshold}",
             riskSettings.RiskPerTradePercent, strategySettings.AdxThreshold);
 
+        Log.Debug("Telegram config - Enabled: {Enabled}, BotToken: {HasToken}, ChatId: {ChatId}",
+            config.Telegram.Enabled,
+            !string.IsNullOrWhiteSpace(config.Telegram.BotToken) ? "SET" : "NOT SET",
+            config.Telegram.ChatId);
+
         TelegramNotifier? telegram = null;
         if (config.Telegram.Enabled && !string.IsNullOrWhiteSpace(config.Telegram.BotToken))
         {
@@ -158,7 +163,10 @@ class LiveTradingRunner
         }
         else
         {
-            Log.Debug("Telegram notifications disabled");
+            Log.Warning("Telegram notifications disabled - Enabled: {Enabled}, HasToken: {HasToken}, ChatId: {ChatId}",
+                config.Telegram.Enabled,
+                !string.IsNullOrWhiteSpace(config.Telegram.BotToken),
+                config.Telegram.ChatId);
         }
 
         var liveSettings = new LiveTraderSettings
