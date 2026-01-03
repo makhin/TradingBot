@@ -192,9 +192,51 @@ docker compose ps
 
 ### Просмотр логов
 
+#### Docker логи (stdout/stderr)
+
 ```bash
+# Все сервисы
 docker compose logs -f
+
+# Только live trading
+docker compose logs -f tradingbot-live
+
+# Последние 100 строк
+docker compose logs --tail=100 tradingbot-live
 ```
+
+#### Файловые логи приложения (Serilog)
+
+Приложение записывает детальные логи в файлы с ротацией по дням:
+
+```bash
+# Просмотр сегодняшних логов
+tail -f data/logs/tradingbot-$(date +%Y%m%d).log
+
+# Поиск ошибок
+grep -i error data/logs/tradingbot-*.log
+
+# Просмотр с фильтрацией по уровню
+grep "\[ERR\]" data/logs/tradingbot-*.log  # Только ошибки
+grep "\[WRN\]" data/logs/tradingbot-*.log  # Предупреждения
+grep "\[INF\]" data/logs/tradingbot-*.log  # Информационные
+grep "\[DBG\]" data/logs/tradingbot-*.log  # Отладочные
+```
+
+**Уровни логирования:**
+- `[DBG]` - DEBUG: Детальная отладочная информация (пишется только в файлы)
+- `[INF]` - INFO: Информационные сообщения (консоль и файлы)
+- `[WRN]` - WARNING: Предупреждения (консоль и файлы)
+- `[ERR]` - ERROR: Ошибки (консоль и файлы)
+- `[FTL]` - FATAL: Критические ошибки (консоль и файлы)
+
+**Настройки ротации:**
+- Новый файл создается каждый день
+- Хранятся последние 30 файлов
+- Максимальный размер файла: 100MB
+- При достижении лимита создается новый файл с суффиксом
+
+**Расположение:** `./data/logs/tradingbot-YYYYMMDD.log`
 
 ### Перезапуск контейнера
 

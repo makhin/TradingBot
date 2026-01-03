@@ -28,8 +28,8 @@ services:
     volumes:
       # Historical data cache
       - ./data/HistoricalData:/app/HistoricalData
-      # Logs
-      - ./data/logs:/app/logs
+      # Application logs (Serilog output)
+      - ./data/logs:/app/data/logs
       # Mount .env file for configuration
       - ./.env:/app/.env:ro
 
@@ -72,7 +72,8 @@ services:
 
     volumes:
       - ./data/HistoricalData:/app/HistoricalData
-      - ./data/logs:/app/logs
+      # Application logs (Serilog output)
+      - ./data/logs:/app/data/logs
       - ./.env:/app/.env:ro
 
     deploy:
