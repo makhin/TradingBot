@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  tradingbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tradingbot
+    restart: unless-stopped
+
+    # Interactive mode for menu-based operation
+    stdin_open: true
+    tty: true
+
+    # Environment variables (override in .env file or docker-compose.override.yml)
+    environment:
+      - TZ=${TZ:-UTC}
+      # Binance API credentials
+      - BINANCE_TESTNET_KEY=${BINANCE_TESTNET_KEY:-}
+      - BINANCE_TESTNET_SECRET=${BINANCE_TESTNET_SECRET:-}
+      - BINANCE_MAINNET_KEY=${BINANCE_MAINNET_KEY:-}
+      - BINANCE_MAINNET_SECRET=${BINANCE_MAINNET_SECRET:-}
+      # Trading configuration
+      - TRADING_BinanceApi__UseTestnet=${TRADING_BinanceApi__UseTestnet:-true}
+      # Telegram notifications (optional)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+
+    # Persistent volumes
+    volumes:
+      # Historical data cache
+      - ./data/HistoricalData:/app/HistoricalData
+      # Logs
+      - ./data/logs:/app/logs
+      # Custom appsettings (optional override)
+      - ./appsettings.docker.json:/app/appsettings.json:ro
+
+    # Resource limits for Raspberry Pi 4 (4GB model)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Live trading service (runs continuously)
+  tradingbot-live:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tradingbot-live
+    restart: unless-stopped
+    profiles:
+      - live
+
+    environment:
+      - TZ=${TZ:-UTC}
+      - BINANCE_TESTNET_KEY=${BINANCE_TESTNET_KEY:-}
+      - BINANCE_TESTNET_SECRET=${BINANCE_TESTNET_SECRET:-}
+      - BINANCE_MAINNET_KEY=${BINANCE_MAINNET_KEY:-}
+      - BINANCE_MAINNET_SECRET=${BINANCE_MAINNET_SECRET:-}
+      - TRADING_BinanceApi__UseTestnet=${TRADING_BinanceApi__UseTestnet:-true}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      # Auto-start live trading mode
+      - TRADING_MODE=live
+
+    volumes:
+      - ./data/HistoricalData:/app/HistoricalData
+      - ./data/logs:/app/logs
+      - ./appsettings.docker.json:/app/appsettings.json:ro
+
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
