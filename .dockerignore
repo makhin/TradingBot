@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE and editors
+.vs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Build outputs
+**/bin
+**/obj
+**/out
+**/publish
+
+# Test projects (not needed in production image)
+ComplexBot.Tests
+ComplexBot.Integration
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Environment and secrets
+.env
+.env.*
+*.env
+appsettings.*.json
+!appsettings.json
+
+# Docker files (avoid recursive copy)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Data directories
+data
+HistoricalData
+logs
+
+# Misc
+*.log
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store

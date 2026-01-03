@@ -1,0 +1,75 @@
+{
+  "BinanceApi": {
+    "ApiKey": "",
+    "ApiSecret": "",
+    "UseTestnet": true
+  },
+
+  "Telegram": {
+    "Enabled": true,
+    "BotToken": "",
+    "ChatId": 0
+  },
+
+  "RiskManagement": {
+    "RiskPerTradePercent": 1.0,
+    "MaxPortfolioHeatPercent": 10.0,
+    "MaxDrawdownPercent": 15.0,
+    "MaxDailyDrawdownPercent": 3.0,
+    "AtrStopMultiplier": 2.5,
+    "TakeProfitMultiplier": 1.5,
+    "MinimumEquityUsd": 100.0
+  },
+
+  "PortfolioRisk": {
+    "MaxTotalDrawdownPercent": 25.0,
+    "MaxCorrelatedRiskPercent": 10.0,
+    "MaxConcurrentPositions": 3,
+    "CorrelationGroups": {
+      "BTC_CORRELATED": [ "BTCUSDT", "ETHUSDT" ]
+    }
+  },
+
+  "Strategy": {
+    "AdxPeriod": 14,
+    "AdxThreshold": 25.0,
+    "AdxExitThreshold": 18.0,
+    "RequireFreshTrend": false,
+    "RequireAdxRising": false,
+    "AdxSlopeLookback": 5,
+    "AdxFallingExitBars": 0,
+    "MaxBarsInTrade": 0,
+    "FastEmaPeriod": 20,
+    "SlowEmaPeriod": 50,
+    "AtrPeriod": 14,
+    "AtrStopMultiplier": 2.5,
+    "TakeProfitMultiplier": 1.5,
+    "MinAtrPercent": 0.0,
+    "MaxAtrPercent": 100.0,
+    "VolumePeriod": 20,
+    "VolumeThreshold": 1.5,
+    "RequireVolumeConfirmation": false,
+    "ObvPeriod": 20,
+    "RequireObvConfirmation": false,
+    "PartialExitRMultiple": 1.0,
+    "PartialExitFraction": 0.5
+  },
+
+  "Backtesting": {
+    "InitialCapital": 10000.0,
+    "CommissionPercent": 0.1,
+    "SlippagePercent": 0.05
+  },
+
+  "LiveTrading": {
+    "Symbol": "BTCUSDT",
+    "Interval": "FourHour",
+    "InitialCapital": 10000.0,
+    "UseTestnet": true,
+    "PaperTrade": true,
+    "WarmupCandles": 100,
+    "TradingMode": "Spot",
+    "FeeRate": 0.001,
+    "SlippageBps": 2.0
+  }
+}
