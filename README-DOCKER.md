@@ -102,15 +102,54 @@ docker compose build
 
 ```bash
 docker compose run --rm tradingbot
-```docker
+```
+
+### Автоматические режимы (без меню)
+
+Вы можете запустить бота в определённом режиме без интерактивного меню, используя переменную `TRADING_MODE`:
+
+```bash
+# Paper trading (тестовая торговля на testnet)
+docker compose run --rm -e TRADING_MODE=live tradingbot
+
+# Бэктестинг
+docker compose run --rm -e TRADING_MODE=backtest tradingbot
+
+# Оптимизация параметров
+docker compose run --rm -e TRADING_MODE=optimize tradingbot
+
+# Walk-Forward анализ
+docker compose run --rm -e TRADING_MODE=walkforward tradingbot
+
+# Monte Carlo симуляция
+docker compose run --rm -e TRADING_MODE=montecarlo tradingbot
+
+# Загрузка исторических данных
+docker compose run --rm -e TRADING_MODE=download tradingbot
+```
+
+**Доступные значения TRADING_MODE:**
+- `live` - Paper trading (бумажная торговля на testnet)
+- `live-real` - Реальная торговля (требует `CONFIRM_LIVE_TRADING=yes`)
+- `backtest` - Бэктестинг стратегии
+- `optimize` - Оптимизация параметров
+- `walkforward` - Walk-Forward анализ
+- `montecarlo` - Monte Carlo симуляция
+- `download` - Загрузка исторических данных
 
 ### Фоновый режим (live trading)
 
-Для автоматической торговли в фоне:
+Для автоматической торговли в фоне (использует настройки из `appsettings.json`):
 
 ```bash
 docker compose --profile live up -d tradingbot-live
 ```
+
+**Важно:** Убедитесь, что в `ComplexBot/appsettings.json` настроены параметры в секции `LiveTrading`:
+- `Symbol` - торговая пара (например, "BTCUSDT")
+- `Interval` - интервал свечей ("FourHour", "OneHour", "OneDay")
+- `InitialCapital` - начальный капитал
+- `TradingMode` - режим торговли ("Spot" или "Futures")
 
 Проверка логов:
 
@@ -123,6 +162,25 @@ docker compose logs -f tradingbot-live
 ```bash
 docker compose --profile live down
 ```
+
+### Режим реальной торговли (осторожно!)
+
+Для запуска с реальными деньгами нужно:
+
+1. Установить переменную окружения в `.env`:
+   ```bash
+   TRADING_BinanceApi__UseTestnet=false
+   ```
+
+2. Добавить подтверждение для неинтерактивного режима:
+   ```bash
+   CONFIRM_LIVE_TRADING=yes
+   ```
+
+3. Использовать `TRADING_MODE=live-real` в docker-compose или запустить:
+   ```bash
+   docker compose run --rm -e TRADING_MODE=live-real -e CONFIRM_LIVE_TRADING=yes tradingbot
+   ```
 
 ## Команды управления
 

@@ -23,13 +23,30 @@ class LiveTradingRunner
 
     public async Task RunLiveTrading(bool paperTrade)
     {
+        // Check if running in interactive mode
+        var isInteractive = AnsiConsole.Profile.Capabilities.Interactive;
+
         if (!paperTrade)
         {
-            var confirm = AnsiConsole.Prompt(
-                new ConfirmationPrompt("[red]⚠️ REAL MONEY MODE - Are you absolutely sure?[/]")
-                { DefaultValue = false }
-            );
-            if (!confirm) return;
+            if (isInteractive)
+            {
+                var confirm = AnsiConsole.Prompt(
+                    new ConfirmationPrompt("[red]⚠️ REAL MONEY MODE - Are you absolutely sure?[/]")
+                    { DefaultValue = false }
+                );
+                if (!confirm) return;
+            }
+            else
+            {
+                // Non-interactive mode - check environment variable for confirmation
+                var confirmEnv = Environment.GetEnvironmentVariable("CONFIRM_LIVE_TRADING");
+                if (confirmEnv != "yes")
+                {
+                    AnsiConsole.MarkupLine("[red]✗ REAL MONEY MODE requires CONFIRM_LIVE_TRADING=yes environment variable[/]");
+                    return;
+                }
+                AnsiConsole.MarkupLine("[yellow]⚠️ REAL MONEY MODE - Confirmed via environment variable[/]");
+            }
         }
 
         AnsiConsole.MarkupLine($"\n[yellow]═══ {(paperTrade ? "PAPER" : "LIVE")} TRADING MODE ═══[/]\n");
@@ -56,21 +73,44 @@ class LiveTradingRunner
 
         AnsiConsole.MarkupLine($"[grey]Using {(useTestnet ? "Testnet" : "Live")} API keys from configuration[/]\n");
 
-        var symbol = AnsiConsole.Ask("Symbol:", config.LiveTrading.Symbol);
-        var interval = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title($"Interval (current: [green]{config.LiveTrading.Interval}[/]):")
-                .AddChoices("1h", "4h", "1d")
-        );
-        var tradingMode = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title($"Trading mode (current: [green]{config.LiveTrading.TradingMode}[/]):")
-                .AddChoices("Spot (no margin)", "Futures/Margin")
-        );
+        string symbol;
+        string interval;
+        string tradingMode;
+        decimal initialCapital;
+
+        if (isInteractive)
+        {
+            // Interactive mode - ask user
+            symbol = AnsiConsole.Ask("Symbol:", config.LiveTrading.Symbol);
+            interval = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title($"Interval (current: [green]{config.LiveTrading.Interval}[/]):")
+                    .AddChoices("1h", "4h", "1d")
+            );
+            tradingMode = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title($"Trading mode (current: [green]{config.LiveTrading.TradingMode}[/]):")
+                    .AddChoices("Spot (no margin)", "Futures/Margin")
+            );
+            initialCapital = SpectreHelpers.AskDecimal($"Initial capital [green](USDT)[/]", config.LiveTrading.InitialCapital, min: 1m);
+        }
+        else
+        {
+            // Non-interactive mode - use config values
+            symbol = config.LiveTrading.Symbol;
+            interval = config.LiveTrading.Interval;
+            tradingMode = config.LiveTrading.TradingMode == "Spot" ? "Spot (no margin)" : "Futures/Margin";
+            initialCapital = config.LiveTrading.InitialCapital;
+
+            AnsiConsole.MarkupLine("[grey]Auto-configured from settings:[/]");
+            AnsiConsole.MarkupLine($"  Symbol: [green]{symbol}[/]");
+            AnsiConsole.MarkupLine($"  Interval: [green]{interval}[/]");
+            AnsiConsole.MarkupLine($"  Trading Mode: [green]{tradingMode}[/]");
+            AnsiConsole.MarkupLine($"  Initial Capital: [green]{initialCapital} USDT[/]\n");
+        }
 
         var riskSettings = _settingsService.GetRiskSettings();
         var strategySettings = _settingsService.GetStrategySettings();
-        var initialCapital = SpectreHelpers.AskDecimal($"Initial capital [green](USDT)[/]", config.LiveTrading.InitialCapital, min: 1m);
 
         TelegramNotifier? telegram = null;
         if (config.Telegram.Enabled && !string.IsNullOrWhiteSpace(config.Telegram.BotToken))
@@ -78,7 +118,7 @@ class LiveTradingRunner
             telegram = new TelegramNotifier(config.Telegram.BotToken, config.Telegram.ChatId);
             AnsiConsole.MarkupLine("[green]✓[/] Telegram notifications enabled (from config)\n");
         }
-        else if (AnsiConsole.Confirm("Enable Telegram notifications?", defaultValue: false))
+        else if (isInteractive && AnsiConsole.Confirm("Enable Telegram notifications?", defaultValue: false))
         {
             AnsiConsole.MarkupLine("[yellow]Please configure Telegram via:[/] Configuration Settings → Telegram Notifications");
         }

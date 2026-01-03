@@ -215,6 +215,32 @@ Recent refactoring (commits #16-17) added strategy selection to all analysis mod
 - Prompt user for strategy choice in interactive menus
 - Pass strategy settings from configuration, not hardcoded defaults
 
+### Non-Interactive Mode for Docker
+The application supports running in non-interactive mode (e.g., in Docker containers) via the `TRADING_MODE` environment variable.
+
+**How it works:**
+1. [Program.cs](ComplexBot/Program.cs:32-59) checks for `TRADING_MODE` environment variable
+2. If set, skips interactive menu and auto-starts the specified mode
+3. Runners check `AnsiConsole.Profile.Capabilities.Interactive` to determine if terminal is interactive
+4. In non-interactive mode, configuration values from `appsettings.json` are used automatically
+
+**Available TRADING_MODE values:**
+- `live` - Paper trading (testnet)
+- `live-real` - Real trading (requires `CONFIRM_LIVE_TRADING=yes`)
+- `backtest` - Backtesting
+- `optimize` - Parameter optimization
+- `walkforward` - Walk-forward analysis
+- `montecarlo` - Monte Carlo simulation
+- `download` - Download historical data
+
+**Example:**
+```bash
+docker compose run --rm -e TRADING_MODE=live tradingbot
+```
+
+**When adding new interactive prompts:**
+Always check `AnsiConsole.Profile.Capabilities.Interactive` before showing prompts. In non-interactive mode, use configuration values or environment variables instead.
+
 ### Test Data Generation
 Unit tests use helper methods to generate synthetic candles:
 ```csharp
