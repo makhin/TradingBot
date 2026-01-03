@@ -98,7 +98,8 @@ class LiveTradingRunner
         {
             // Non-interactive mode - use config values
             symbol = config.LiveTrading.Symbol;
-            interval = config.LiveTrading.Interval;
+            // Convert enum name (e.g., "FourHour") to short format (e.g., "4h")
+            interval = ConvertIntervalToShortFormat(config.LiveTrading.Interval);
             tradingMode = config.LiveTrading.TradingMode == "Spot" ? "Spot (no margin)" : "Futures/Margin";
             initialCapital = config.LiveTrading.InitialCapital;
 
@@ -179,5 +180,24 @@ class LiveTradingRunner
             AnsiConsole.Write(new Rule("[yellow]Signals Generated[/]"));
             AnsiConsole.Write(signalTable);
         }
+    }
+
+    private static string ConvertIntervalToShortFormat(string interval)
+    {
+        // Convert from enum name format (e.g., "FourHour") to short format (e.g., "4h")
+        return interval.ToLower() switch
+        {
+            "oneminute" => "1m",
+            "fiveminutes" => "5m",
+            "fifteenminutes" => "15m",
+            "thirtyminutes" => "30m",
+            "onehour" => "1h",
+            "fourhour" => "4h",
+            "oneday" => "1d",
+            "oneweek" => "1w",
+            // If already in short format, return as is
+            "1m" or "5m" or "15m" or "30m" or "1h" or "4h" or "1d" or "1w" => interval,
+            _ => "1d" // Default to 1 day
+        };
     }
 }
