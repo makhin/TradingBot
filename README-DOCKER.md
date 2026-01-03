@@ -52,15 +52,7 @@ git clone https://github.com/your-repo/TradingBot.git
 cd TradingBot
 ```
 
-### 2. Создайте файл конфигурации
-
-```bash
-cp appsettings.docker.json.example appsettings.docker.json
-```
-
-Отредактируйте `appsettings.docker.json` под свои нужды.
-
-### 3. Создайте файл `.env` с API ключами
+### 2. Создайте файл `.env` с API ключами
 
 ```bash
 cat > .env << 'EOF'
@@ -86,7 +78,9 @@ EOF
 
 **Замените значения на свои API ключи!**
 
-### 4. Создайте директории для данных
+**Важно:** Файл `.env` автоматически монтируется в Docker контейнер и загружается `ConfigurationService` при старте приложения. Файл `appsettings.docker.json` больше не требуется.
+
+### 3. Создайте директории для данных
 
 ```bash
 mkdir -p data/HistoricalData data/logs
@@ -108,7 +102,7 @@ docker compose build
 
 ```bash
 docker compose run --rm tradingbot
-```
+```docker
 
 ### Фоновый режим (live trading)
 
