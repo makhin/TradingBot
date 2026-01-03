@@ -21,6 +21,10 @@ class SettingsService
         var config = _configService.GetConfiguration();
         var current = config.RiskManagement;
 
+        // In non-interactive mode, always use saved settings
+        if (!AnsiConsole.Profile.Capabilities.Interactive)
+            return current.ToRiskSettings();
+
         var useDefaults = AnsiConsole.Confirm("Use saved risk settings?", defaultValue: true);
 
         if (useDefaults)
@@ -52,6 +56,10 @@ class SettingsService
     {
         var config = _configService.GetConfiguration();
         var current = config.Strategy;
+
+        // In non-interactive mode, always use saved settings
+        if (!AnsiConsole.Profile.Capabilities.Interactive)
+            return current.ToStrategySettings();
 
         var useDefaults = AnsiConsole.Confirm("Use saved strategy settings?", defaultValue: true);
 
