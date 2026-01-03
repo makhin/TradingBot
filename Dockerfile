@@ -6,11 +6,8 @@ FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG TARGETARCH
 WORKDIR /src
 
-# Copy solution and project files first (better layer caching)
-COPY TradingBot.sln ./
+# Copy project file first (better layer caching)
 COPY ComplexBot/ComplexBot.csproj ComplexBot/
-COPY ComplexBot.Tests/ComplexBot.Tests.csproj ComplexBot.Tests/
-COPY ComplexBot.Integration/ComplexBot.Integration.csproj ComplexBot.Integration/
 
 # Restore dependencies
 RUN dotnet restore ComplexBot/ComplexBot.csproj -a $TARGETARCH
