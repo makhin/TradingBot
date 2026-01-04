@@ -1,4 +1,5 @@
 using ComplexBot.Models;
+using ComplexBot.Services.Trading;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -15,6 +16,12 @@ public abstract class StrategyBase<TSettings> : IStrategy
     public virtual decimal? CurrentAtr => null;
 
     protected TSettings Settings { get; }
+
+    /// <summary>
+    /// Gets the current state of the strategy for multi-timeframe filtering.
+    /// Default implementation returns empty state - derived strategies should override.
+    /// </summary>
+    public virtual StrategyState GetCurrentState() => StrategyState.Empty;
 
     public TradeSignal? Analyze(Candle candle, decimal? currentPosition, string symbol)
     {

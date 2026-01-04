@@ -32,6 +32,15 @@ class LiveTradingRunner
         var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
         Log.Debug("Interactive mode: {IsInteractive}, TRADING_MODE env: {TradingMode}", isInteractive, tradingModeEnv ?? "not set");
 
+        // Check if multi-pair trading is enabled
+        var config = _configService.GetConfiguration();
+        if (config.MultiPairLiveTrading?.Enabled == true)
+        {
+            Log.Information("Multi-pair trading enabled - routing to multi-pair mode");
+            await RunMultiPairTrading(paperTrade, isInteractive);
+            return;
+        }
+
         if (!paperTrade)
         {
             Log.Warning("REAL MONEY MODE requested - checking confirmation");
@@ -248,6 +257,284 @@ class LiveTradingRunner
         }
 
         Log.Information("=== RunLiveTrading Completed ===");
+    }
+
+    private async Task RunMultiPairTrading(bool paperTrade, bool isInteractive)
+    {
+        Log.Information("=== RunMultiPairTrading Started === PaperTrade: {PaperTrade}", paperTrade);
+
+        var config = _configService.GetConfiguration();
+        var multiPairSettings = config.MultiPairLiveTrading!;
+
+        AnsiConsole.MarkupLine($"\n[yellow]═══ MULTI-PAIR {(paperTrade ? "PAPER" : "LIVE")} TRADING ═══[/]\n");
+
+        // Display trading pairs configuration
+        DisplayTradingPairs(multiPairSettings);
+
+        // Confirmation for real money trading
+        if (!paperTrade)
+        {
+            Log.Warning("REAL MONEY MODE requested for multi-pair trading");
+            if (isInteractive)
+            {
+                var confirm = AnsiConsole.Prompt(
+                    new ConfirmationPrompt("[red]⚠️ REAL MONEY MODE - Trade multiple pairs with real money?[/]")
+                    { DefaultValue = false }
+                );
+                if (!confirm)
+                {
+                    Log.Information("User declined real money multi-pair trading");
+                    return;
+                }
+            }
+            else
+            {
+                var confirmEnv = Environment.GetEnvironmentVariable("CONFIRM_LIVE_TRADING");
+                if (confirmEnv != "yes")
+                {
+                    Log.Error("REAL MONEY MODE denied - CONFIRM_LIVE_TRADING not set");
+                    AnsiConsole.MarkupLine("[red]✗ Multi-pair REAL MONEY MODE requires CONFIRM_LIVE_TRADING=yes[/]");
+                    return;
+                }
+            }
+        }
+
+        // Validate API keys
+        var apiKey = config.BinanceApi.ApiKey;
+        var apiSecret = config.BinanceApi.ApiSecret;
+        var useTestnet = config.BinanceApi.UseTestnet;
+
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(apiSecret))
+        {
+            Log.Error("API keys not configured");
+            AnsiConsole.MarkupLine("[red]✗ API keys not configured![/]");
+            return;
+        }
+
+        Log.Information("Multi-pair configuration - Pairs: {Count}, Capital: {Capital} USDT, Mode: {AllocationMode}",
+            multiPairSettings.TradingPairs.Count, multiPairSettings.TotalCapital, multiPairSettings.AllocationMode);
+
+        // Setup shared managers
+        var riskSettings = _settingsService.GetRiskSettings();
+        var portfolioRiskSettings = config.PortfolioRisk.ToPortfolioRiskSettings();
+
+        // Setup Telegram notifications
+        TelegramNotifier? telegram = null;
+        if (config.Telegram.Enabled && !string.IsNullOrWhiteSpace(config.Telegram.BotToken))
+        {
+            telegram = new TelegramNotifier(config.Telegram.BotToken, config.Telegram.ChatId);
+            AnsiConsole.MarkupLine("[green]✓[/] Telegram notifications enabled\n");
+        }
+
+        // Calculate capital allocation per symbol
+        var primaryPairs = multiPairSettings.TradingPairs.Where(p => p.Role == "Primary").ToList();
+        var capitalPerSymbol = multiPairSettings.AllocationMode == "Equal"
+            ? multiPairSettings.TotalCapital / primaryPairs.Count
+            : 0m; // Will be calculated individually for Weighted mode
+
+        // Create multi-pair trader with factory
+        using var multiTrader = new MultiPairLiveTrader<BinanceLiveTrader>(
+            multiPairSettings,
+            portfolioRiskSettings,
+            config.PortfolioRisk.CorrelationGroups,
+            pairConfig => TraderFactory.CreateBinanceTrader(
+                pairConfig,
+                apiKey,
+                apiSecret,
+                riskSettings,
+                useTestnet,
+                paperTrade,
+                capitalPerSymbol > 0 ? capitalPerSymbol : CalculateWeightedAllocation(pairConfig, multiPairSettings),
+                null, // PortfolioRiskManager - handled by MultiPairLiveTrader
+                null, // SharedEquityManager - handled by MultiPairLiveTrader
+                telegram,
+                config
+            ),
+            telegram
+        );
+
+        // Setup monitoring dashboard
+        var signalTable = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Time")
+            .AddColumn("Symbol")
+            .AddColumn("Signal")
+            .AddColumn("Price")
+            .AddColumn("Reason");
+
+        multiTrader.OnLog += (symbol, msg) => Log.Information("{Symbol}: {Message}", symbol, msg);
+
+        multiTrader.OnSignal += signal =>
+        {
+            Log.Information("SIGNAL: {Symbol} {Type} at {Price:F2}", signal.Symbol, signal.Type, signal.Price);
+            signalTable.AddRow(
+                DateTime.UtcNow.ToString("HH:mm:ss"),
+                signal.Symbol,
+                signal.Type.ToString(),
+                $"{signal.Price:F2}",
+                signal.Reason ?? ""
+            );
+        };
+
+        multiTrader.OnTrade += trade =>
+        {
+            Log.Information("TRADE: {Symbol} {Direction} - PnL: {PnL:F2}",
+                trade.Symbol, trade.Direction, trade.PnL ?? 0);
+        };
+
+        multiTrader.OnPortfolioUpdate += snapshot =>
+        {
+            Log.Debug("Portfolio update - Equity: {Equity:F2}, Drawdown: {DD:F2}%",
+                snapshot.TotalEquity, snapshot.DrawdownPercent);
+        };
+
+        AnsiConsole.MarkupLine("\n[green]Starting multi-pair trading... Press Ctrl+C to stop[/]\n");
+        Log.Information("Starting MultiPairLiveTrader with {Count} symbols", multiPairSettings.TradingPairs.Count);
+
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (s, e) =>
+        {
+            Log.Warning("Ctrl+C detected - shutting down multi-pair trading");
+            e.Cancel = true;
+            cts.Cancel();
+        };
+
+        try
+        {
+            await multiTrader.StartAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Information("Multi-pair trading cancelled by user");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error during multi-pair trading");
+            throw;
+        }
+
+        Log.Information("Stopping multi-pair trader");
+        await multiTrader.StopAsync();
+
+        // Display final summary
+        var finalSnapshot = multiTrader.GetPortfolioSnapshot();
+        DisplayFinalSummary(finalSnapshot, signalTable);
+
+        Log.Information("=== RunMultiPairTrading Completed ===");
+    }
+
+    private void DisplayTradingPairs(MultiPairLiveTradingSettings settings)
+    {
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Symbol")
+            .AddColumn("Interval")
+            .AddColumn("Strategy")
+            .AddColumn("Role")
+            .AddColumn("Allocation");
+
+        var primaryPairs = settings.TradingPairs.Where(p => p.Role == "Primary").ToList();
+
+        foreach (var pair in settings.TradingPairs)
+        {
+            var weight = pair.Role == "Primary"
+                ? (settings.AllocationMode == "Equal"
+                    ? 100m / primaryPairs.Count
+                    : pair.WeightPercent ?? (100m / primaryPairs.Count))
+                : 0m;
+
+            var allocation = pair.Role == "Primary"
+                ? $"{weight:F1}% ({settings.TotalCapital * weight / 100:N0} USDT)"
+                : "-";
+
+            var roleDisplay = pair.Role == "Filter"
+                ? $"Filter ({pair.FilterMode})"
+                : pair.Role;
+
+            table.AddRow(
+                $"[cyan]{pair.Symbol}[/]",
+                pair.Interval,
+                pair.Strategy,
+                roleDisplay,
+                allocation
+            );
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.MarkupLine($"\n[grey]Total Capital: {settings.TotalCapital:N2} USDT[/]");
+        AnsiConsole.MarkupLine($"[grey]Allocation Mode: {settings.AllocationMode}[/]");
+        AnsiConsole.MarkupLine($"[grey]Portfolio Risk Management: {(settings.UsePortfolioRiskManager ? "Enabled" : "Disabled")}[/]\n");
+    }
+
+    private decimal CalculateWeightedAllocation(TradingPairConfig config, MultiPairLiveTradingSettings settings)
+    {
+        if (config.Role != "Primary") return 0m;
+
+        var primaryPairs = settings.TradingPairs.Where(p => p.Role == "Primary").ToList();
+        var weight = config.WeightPercent ?? (100m / primaryPairs.Count);
+        return settings.TotalCapital * weight / 100m;
+    }
+
+    private void DisplayFinalSummary(PortfolioSnapshot snapshot, Table signalTable)
+    {
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[yellow]Multi-Pair Trading Summary[/]"));
+        AnsiConsole.WriteLine();
+
+        var summaryTable = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Metric")
+            .AddColumn("Value");
+
+        summaryTable.AddRow("Total Equity", $"{snapshot.TotalEquity:N2} USDT");
+        summaryTable.AddRow("Peak Equity", $"{snapshot.PeakEquity:N2} USDT");
+        summaryTable.AddRow("Drawdown", $"[{(snapshot.DrawdownPercent > 10 ? "red" : "green")}]{snapshot.DrawdownPercent:F2}%[/]");
+        summaryTable.AddRow("Available Capital", $"{snapshot.AvailableCapital:N2} USDT");
+        summaryTable.AddRow("Active Symbols", snapshot.SymbolDetails.Count.ToString());
+
+        AnsiConsole.Write(summaryTable);
+        AnsiConsole.WriteLine();
+
+        // Per-symbol breakdown
+        if (snapshot.SymbolDetails.Any())
+        {
+            var symbolTable = new Table()
+                .Border(TableBorder.Rounded)
+                .AddColumn("Symbol")
+                .AddColumn("Allocated")
+                .AddColumn("Current")
+                .AddColumn("Unrealized P&L")
+                .AddColumn("Realized P&L");
+
+            foreach (var (symbol, info) in snapshot.SymbolDetails.OrderBy(x => x.Key))
+            {
+                var unrealizedColor = info.UnrealizedPnL >= 0 ? "green" : "red";
+                var realizedColor = info.RealizedPnL >= 0 ? "green" : "red";
+
+                symbolTable.AddRow(
+                    $"[cyan]{symbol}[/]",
+                    $"{info.AllocatedCapital:N2}",
+                    $"{info.CurrentEquity:N2}",
+                    $"[{unrealizedColor}]{info.UnrealizedPnL:+0.00;-0.00}[/]",
+                    $"[{realizedColor}]{info.RealizedPnL:+0.00;-0.00}[/]"
+                );
+            }
+
+            AnsiConsole.Write(symbolTable);
+            AnsiConsole.WriteLine();
+        }
+
+        // Signals generated
+        if (signalTable.Rows.Count > 0)
+        {
+            AnsiConsole.Write(new Rule("[yellow]Signals Generated[/]"));
+            AnsiConsole.Write(signalTable);
+            Log.Information("Total signals: {Count}", signalTable.Rows.Count);
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[grey]No signals generated during session[/]");
+        }
     }
 
     private static string ConvertIntervalToShortFormat(string interval)

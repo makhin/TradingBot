@@ -1,6 +1,7 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Indicators;
 using ComplexBot.Services.Filters;
+using ComplexBot.Services.Trading;
 using System.Linq;
 
 namespace ComplexBot.Services.Strategies;
@@ -22,6 +23,12 @@ public interface IStrategy
     /// Used by RiskManager to adjust position size.
     /// </summary>
     decimal? CurrentAtr { get; }
+
+    /// <summary>
+    /// Gets the current state of the strategy for multi-timeframe filtering.
+    /// Returns indicator values and market conditions that filters can use.
+    /// </summary>
+    StrategyState GetCurrentState();
 }
 
 /// <summary>
@@ -76,6 +83,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
     private decimal? _previousAdx;
     private bool _breakevenMoved;
     private int _barsSinceEntry;
+    private SignalType? _lastSignal;
 
     public AdxTrendStrategy(StrategySettings? settings = null) : base(settings)
     {
@@ -104,6 +112,56 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 
         var adxValue = _adx.Value.Value;
         return Math.Min(1m, 0.5m + (adxValue - 25) / 60m);
+    }
+
+    /// <summary>
+    /// Gets current strategy state for multi-timeframe filtering.
+    /// Exposes ADX value, trend status, and EMA alignment.
+    /// </summary>
+    public override StrategyState GetCurrentState()
+    {
+        var customValues = new Dictionary<string, decimal>();
+
+        // Add EMA trend direction (positive = fast above slow, negative = fast below slow)
+        if (_currentFastEma.HasValue && _currentSlowEma.HasValue)
+        {
+            var emaDiff = _currentFastEma.Value - _currentSlowEma.Value;
+            var emaTrend = emaDiff / _currentSlowEma.Value * 100m; // Percentage difference
+            customValues["EmaTrend"] = emaTrend;
+        }
+
+        // Add MACD histogram if available
+        if (_macd.Histogram.HasValue)
+        {
+            customValues["MacdHistogram"] = _macd.Histogram.Value;
+        }
+
+        // Add ADX rising/falling indicator
+        customValues["AdxRising"] = _adxRising ? 1m : 0m;
+
+        // Determine overbought/oversold based on ADX extreme values
+        // ADX > 50 = very strong trend (potentially overextended)
+        // ADX < 15 = very weak trend (ranging, not overbought/oversold in traditional sense)
+        var isOverbought = false;
+        var isOversold = false;
+
+        // For ADX strategy, we consider "overbought" as overly strong trend
+        // and "oversold" as overly weak trend
+        if (_adx.Value.HasValue)
+        {
+            var adxValue = _adx.Value.Value;
+            isOverbought = adxValue > 50m; // Extremely strong trend
+            isOversold = adxValue < 15m;   // No trend
+        }
+
+        return new StrategyState(
+            LastSignal: _lastSignal,
+            IndicatorValue: _adx.Value, // Primary indicator is ADX
+            IsOverbought: isOverbought,
+            IsOversold: isOversold,
+            IsTrending: _adx.Value.HasValue && _adx.Value.Value >= Settings.AdxThreshold,
+            CustomValues: customValues
+        );
     }
 
     protected override void UpdateIndicators(Candle candle)
@@ -185,6 +243,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
+            _lastSignal = SignalType.Buy;
 
             return new TradeSignal(
                 symbol,
@@ -207,6 +266,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
+            _lastSignal = SignalType.Sell;
 
             return new TradeSignal(
                 symbol,

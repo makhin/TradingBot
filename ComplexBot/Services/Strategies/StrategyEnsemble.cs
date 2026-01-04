@@ -1,4 +1,5 @@
 using ComplexBot.Models;
+using ComplexBot.Services.Trading;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -31,6 +32,67 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
             return 0.5m;
 
         return confidenceStrategies.Average(s => ((IHasConfidence)s.Strategy).GetConfidence());
+    }
+
+    /// <summary>
+    /// Gets combined state from all member strategies.
+    /// Aggregates indicator values and trend signals from the ensemble.
+    /// </summary>
+    public StrategyState GetCurrentState()
+    {
+        if (_strategies.Count == 0)
+            return StrategyState.Empty;
+
+        // Aggregate states from all member strategies
+        var states = _strategies.Select(s => s.Strategy.GetCurrentState()).ToList();
+
+        // Count bullish vs bearish last signals
+        var bullishCount = states.Count(s => s.LastSignal == SignalType.Buy);
+        var bearishCount = states.Count(s => s.LastSignal == SignalType.Sell);
+        var lastSignal = bullishCount > bearishCount ? SignalType.Buy :
+                        bearishCount > bullishCount ? SignalType.Sell :
+                        (SignalType?)null;
+
+        // Average indicator value (if available)
+        var indicatorValues = states.Where(s => s.IndicatorValue.HasValue).Select(s => s.IndicatorValue!.Value).ToList();
+        var avgIndicator = indicatorValues.Any() ? indicatorValues.Average() : (decimal?)null;
+
+        // Aggregate overbought/oversold
+        var isOverbought = states.Count(s => s.IsOverbought) > states.Count / 2;
+        var isOversold = states.Count(s => s.IsOversold) > states.Count / 2;
+        var isTrending = states.Count(s => s.IsTrending) > states.Count / 2;
+
+        // Combine custom values from all strategies
+        var combinedCustomValues = new Dictionary<string, decimal>();
+        foreach (var state in states)
+        {
+            foreach (var kvp in state.CustomValues)
+            {
+                if (!combinedCustomValues.ContainsKey(kvp.Key))
+                {
+                    combinedCustomValues[kvp.Key] = kvp.Value;
+                }
+                else
+                {
+                    // Average if multiple strategies provide same key
+                    combinedCustomValues[kvp.Key] = (combinedCustomValues[kvp.Key] + kvp.Value) / 2m;
+                }
+            }
+        }
+
+        // Add ensemble-specific info
+        combinedCustomValues["EnsembleAgreement"] = GetConfidence();
+        combinedCustomValues["BullishVotes"] = bullishCount;
+        combinedCustomValues["BearishVotes"] = bearishCount;
+
+        return new StrategyState(
+            LastSignal: lastSignal,
+            IndicatorValue: avgIndicator,
+            IsOverbought: isOverbought,
+            IsOversold: isOversold,
+            IsTrending: isTrending,
+            CustomValues: combinedCustomValues
+        );
     }
 
     private readonly EnsembleSettings _settings;
