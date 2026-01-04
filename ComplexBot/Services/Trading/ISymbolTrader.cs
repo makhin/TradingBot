@@ -16,6 +16,7 @@ public interface ISymbolTrader : IDisposable
     decimal? EntryPrice { get; }
     decimal CurrentEquity { get; }
     bool IsRunning { get; }
+    StrategyState GetStrategyState();
 
     // Lifecycle
     Task StartAsync(CancellationToken cancellationToken = default);

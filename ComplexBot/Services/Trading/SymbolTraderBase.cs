@@ -46,6 +46,7 @@ public abstract class SymbolTraderBase<TSettings> : ISymbolTrader
     public decimal? EntryPrice => _entryPrice;
     public abstract decimal CurrentEquity { get; }
     public bool IsRunning => _isRunning;
+    public StrategyState GetStrategyState() => Strategy.GetCurrentState();
 
     protected SymbolTraderBase(
         IStrategy strategy,

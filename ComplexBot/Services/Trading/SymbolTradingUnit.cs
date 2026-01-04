@@ -14,6 +14,7 @@ public class SymbolTradingUnit : IDisposable
     private readonly List<FilterTraderPair> _filters = new();
     private readonly string _symbol;
     private bool _disposed;
+    private Task? _startTask;
 
     public string Symbol => _symbol;
     public ISymbolTrader PrimaryTrader => _primaryTrader;
@@ -65,20 +66,29 @@ public class SymbolTradingUnit : IDisposable
     /// <summary>
     /// Starts all traders (primary and filters).
     /// </summary>
-    public async Task StartAsync(CancellationToken cancellationToken = default)
+    public Task StartAsync(CancellationToken cancellationToken = default)
     {
         Log($"Starting trading unit for {_symbol} with {_filters.Count} filter(s)");
 
-        // Start primary trader
-        await _primaryTrader.StartAsync(cancellationToken);
+        var startTasks = new List<Task>
+        {
+            Task.Run(() => _primaryTrader.StartAsync(cancellationToken), cancellationToken)
+        };
 
         // Start all filter traders
         foreach (var filterPair in _filters)
         {
-            await filterPair.Trader.StartAsync(cancellationToken);
+            startTasks.Add(Task.Run(() => filterPair.Trader.StartAsync(cancellationToken), cancellationToken));
         }
 
-        Log($"Trading unit started for {_symbol}");
+        _startTask = Task.WhenAll(startTasks);
+        _startTask.ContinueWith(
+            task => Log($"Trading unit for {_symbol} encountered startup error: {task.Exception?.GetBaseException().Message}"),
+            TaskContinuationOptions.OnlyOnFaulted);
+
+        Log($"Trading unit startup initiated for {_symbol}");
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -118,7 +128,20 @@ public class SymbolTradingUnit : IDisposable
         foreach (var filterPair in _filters)
         {
             var filterState = GetFilterState(filterPair.Trader);
-            var result = filterPair.Filter.Evaluate(signal, filterState);
+            FilterResult result;
+
+            if (!IsFilterStateReady(filterState))
+            {
+                result = new FilterResult(
+                    Approved: true,
+                    Reason: "Filter state not ready; skipping filter evaluation",
+                    ConfidenceAdjustment: 1.0m);
+            }
+            else
+            {
+                result = filterPair.Filter.Evaluate(signal, filterState);
+            }
+
             filterResults.Add((filterPair.Filter, result));
 
             Log($"Filter '{filterPair.Filter.Name}' ({filterPair.Filter.Mode}): {result.Reason} - " +
@@ -230,20 +253,20 @@ public class SymbolTradingUnit : IDisposable
 
     /// <summary>
     /// Gets the current state of a filter trader's strategy.
-    /// Requires the trader to expose its strategy (would need extension to ISymbolTrader).
-    /// For now, this is a simplified version - full implementation requires architectural changes.
     /// </summary>
     private StrategyState GetFilterState(ISymbolTrader filterTrader)
     {
-        // NOTE: This is a placeholder implementation.
-        // Full implementation requires either:
-        // 1. Adding IStrategy GetStrategy() to ISymbolTrader interface
-        // 2. Making SymbolTradingUnit generic over trader type
-        // 3. Using reflection (not recommended)
-        //
-        // For Phase 3, we return empty state. Phase 4 will address this
-        // when creating the full MultiPairLiveTrader architecture.
-        return StrategyState.Empty;
+        return filterTrader.GetStrategyState();
+    }
+
+    private static bool IsFilterStateReady(StrategyState filterState)
+    {
+        return filterState.IndicatorValue.HasValue
+            || filterState.LastSignal.HasValue
+            || filterState.IsOverbought
+            || filterState.IsOversold
+            || filterState.IsTrending
+            || filterState.CustomValues.Count > 0;
     }
 
     private void Log(string message)
