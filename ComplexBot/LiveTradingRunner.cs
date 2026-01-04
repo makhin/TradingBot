@@ -75,7 +75,6 @@ class LiveTradingRunner
         AnsiConsole.MarkupLine($"\n[yellow]═══ {(paperTrade ? "PAPER" : "LIVE")} TRADING MODE ═══[/]\n");
 
         Log.Debug("Loading configuration");
-        var config = _configService.GetConfiguration();
         var apiKey = config.BinanceApi.ApiKey;
         var apiSecret = config.BinanceApi.ApiSecret;
         var useTestnet = config.BinanceApi.UseTestnet;
