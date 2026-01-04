@@ -2,6 +2,7 @@ using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Notifications;
+using Serilog;
 
 namespace ComplexBot.Services.Trading;
 
@@ -18,6 +19,7 @@ public abstract class SymbolTraderBase<TSettings> : ISymbolTrader
     protected readonly IStrategy Strategy;
     protected readonly RiskManager RiskManager;
     protected readonly TelegramNotifier? Telegram;
+    protected readonly StatusReporter StatusReporter;
 
     // Portfolio integration (optional - for multi-pair trading)
     protected readonly PortfolioRiskManager? PortfolioRiskManager;
@@ -62,6 +64,10 @@ public abstract class SymbolTraderBase<TSettings> : ISymbolTrader
         PortfolioRiskManager = portfolioRiskManager;
         SharedEquityManager = sharedEquityManager;
         RiskManager = new RiskManager(riskSettings, GetInitialCapital());
+        
+        // Initialize status reporter with default 60-second reporting interval
+        // Can be overridden in derived classes if needed
+        StatusReporter = new StatusReporter(GetSymbolForReporter(), reportIntervalSeconds: 60);
     }
 
     // Abstract methods - exchange-specific implementation required
@@ -113,6 +119,20 @@ public abstract class SymbolTraderBase<TSettings> : ISymbolTrader
             Log($"Signal: {signal.Type} at {signal.Price:F2} - {signal.Reason}");
             OnSignal?.Invoke(signal);
             await ProcessSignalAsync(signal, candle);
+            
+            // Report signal generation to console and logs
+            StatusReporter.ReportSignalGenerated(signal.Type.ToString(), candle.Close, _currentPosition, CurrentEquity);
+        }
+        else
+        {
+            // Report periodic status while waiting for signals
+            StatusReporter.CheckAndReport(candle.Close, _currentPosition, CurrentEquity, _entryPrice, _stopLoss, _takeProfit);
+            
+            // Log waiting status for monitoring (sparse logging)
+            if (CandleBuffer.Count % 10 == 0)
+            {
+                StatusReporter.ReportWaitingForSignal(candle.Close, CurrentEquity);
+            }
         }
     }
 
@@ -210,12 +230,28 @@ public abstract class SymbolTraderBase<TSettings> : ISymbolTrader
     }
 
     /// <summary>
+    /// Gets symbol for status reporter - can be overridden if Settings doesn't directly expose symbol.
+    /// </summary>
+    protected virtual string GetSymbolForReporter()
+    {
+        return Symbol;
+    }
+
+    /// <summary>
     /// Records a completed trade to the shared equity manager (for multi-pair tracking).
     /// </summary>
     protected void RecordTrade(decimal realizedPnL, Trade trade)
     {
         SharedEquityManager?.RecordTradePnL(Symbol, realizedPnL);
         OnTrade?.Invoke(trade);
+        
+        // Report trade execution to console and logs
+        if (trade.ExitPrice.HasValue)
+        {
+            var tradeType = trade.ExitPrice.Value > trade.EntryPrice ? "Profit" : (trade.ExitPrice.Value < trade.EntryPrice ? "Loss" : "Breakeven");
+            StatusReporter.ReportTradeExecution(trade.Direction.ToString(), trade.EntryPrice, trade.ExitPrice.Value, 
+                trade.Quantity, realizedPnL, tradeType);
+        }
     }
 }
 
