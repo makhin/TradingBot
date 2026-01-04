@@ -1,4 +1,5 @@
 using ComplexBot.Models;
+using ComplexBot.Services.RiskManagement;
 
 namespace ComplexBot.Services.Trading;
 
@@ -17,6 +18,7 @@ public interface ISymbolTrader : IDisposable
     decimal CurrentEquity { get; }
     bool IsRunning { get; }
     StrategyState GetStrategyState();
+    RiskManager GetRiskManager();
 
     // Lifecycle
     Task StartAsync(CancellationToken cancellationToken = default);

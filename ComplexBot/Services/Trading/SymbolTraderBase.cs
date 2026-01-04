@@ -49,6 +49,7 @@ public abstract class SymbolTraderBase<TSettings> : ISymbolTrader
     public abstract decimal CurrentEquity { get; }
     public bool IsRunning => _isRunning;
     public StrategyState GetStrategyState() => Strategy.GetCurrentState();
+    public RiskManager GetRiskManager() => RiskManager;
 
     protected SymbolTraderBase(
         IStrategy strategy,
@@ -76,6 +77,7 @@ public abstract class SymbolTraderBase<TSettings> : ISymbolTrader
     protected abstract Task<decimal> GetAccountBalanceAsync(string asset = "USDT");
     protected abstract Task SubscribeToKlineUpdatesAsync(CancellationToken ct);
     protected abstract Task WarmupIndicatorsAsync();
+    protected virtual bool CanExecuteTrades => true;
 
     // Template method for lifecycle - can be overridden if needed
     public virtual async Task StartAsync(CancellationToken cancellationToken = default)
@@ -118,7 +120,14 @@ public abstract class SymbolTraderBase<TSettings> : ISymbolTrader
         {
             Log($"Signal: {signal.Type} at {signal.Price:F2} - {signal.Reason}");
             OnSignal?.Invoke(signal);
-            await ProcessSignalAsync(signal, candle);
+            if (CanExecuteTrades)
+            {
+                await ProcessSignalAsync(signal, candle);
+            }
+            else
+            {
+                Log("Trade execution disabled; signal ignored.");
+            }
             
             // Report signal generation to console and logs
             StatusReporter.ReportSignalGenerated(signal.Type.ToString(), candle.Close, _currentPosition, CurrentEquity);

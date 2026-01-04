@@ -336,7 +336,7 @@ class LiveTradingRunner
             multiPairSettings,
             portfolioRiskSettings,
             config.PortfolioRisk.CorrelationGroups,
-            pairConfig => TraderFactory.CreateBinanceTrader(
+            (pairConfig, portfolioRiskManager, sharedEquityManager) => TraderFactory.CreateBinanceTrader(
                 pairConfig,
                 apiKey,
                 apiSecret,
@@ -344,8 +344,8 @@ class LiveTradingRunner
                 useTestnet,
                 paperTrade,
                 capitalPerSymbol > 0 ? capitalPerSymbol : CalculateWeightedAllocation(pairConfig, multiPairSettings),
-                null, // PortfolioRiskManager - handled by MultiPairLiveTrader
-                null, // SharedEquityManager - handled by MultiPairLiveTrader
+                portfolioRiskManager,
+                sharedEquityManager,
                 telegram,
                 config
             ),

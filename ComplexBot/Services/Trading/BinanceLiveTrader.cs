@@ -32,6 +32,7 @@ public class BinanceLiveTrader : SymbolTraderBase<LiveTraderSettings>
     public override string Symbol => Settings.Symbol;
     public override string Exchange => "Binance";
     public override decimal CurrentEquity => Settings.PaperTrade ? _paperEquity : GetAccountBalanceAsync().Result;
+    protected override bool CanExecuteTrades => Settings.EnableTradeExecution;
 
     public BinanceLiveTrader(
         string apiKey,

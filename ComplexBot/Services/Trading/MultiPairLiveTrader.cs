@@ -18,7 +18,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
     private readonly PortfolioRiskManager _portfolioRiskManager;
     private readonly MultiPairLiveTradingSettings _settings;
     private readonly TelegramNotifier? _telegram;
-    private readonly Func<TradingPairConfig, TTrader> _traderFactory;
+    private readonly Func<TradingPairConfig, PortfolioRiskManager?, SharedEquityManager?, TTrader> _traderFactory;
     private bool _disposed;
 
     // Events (aggregated from all traders)
@@ -31,7 +31,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
         MultiPairLiveTradingSettings settings,
         PortfolioRiskSettings portfolioRiskSettings,
         Dictionary<string, string[]>? correlationGroups,
-        Func<TradingPairConfig, TTrader> traderFactory,
+        Func<TradingPairConfig, PortfolioRiskManager?, SharedEquityManager?, TTrader> traderFactory,
         TelegramNotifier? telegram = null)
     {
         _settings = settings;
@@ -81,14 +81,20 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
             }
 
             // Create primary trader
-            var primaryTrader = _traderFactory(primaryConfig);
+            var portfolioManager = _settings.UsePortfolioRiskManager ? _portfolioRiskManager : null;
+            var primaryTrader = _traderFactory(primaryConfig, portfolioManager, _equityManager);
             var tradingUnit = new SymbolTradingUnit(symbol, primaryTrader);
+
+            if (portfolioManager != null)
+            {
+                portfolioManager.RegisterSymbol(symbol, primaryTrader.GetRiskManager());
+            }
 
             // Add filter traders for multi-timeframe
             var filterConfigs = configs.Where(c => c.Role == "Filter").ToList();
             foreach (var filterConfig in filterConfigs)
             {
-                var filterTrader = _traderFactory(filterConfig);
+                var filterTrader = _traderFactory(filterConfig, null, null);
                 var filter = CreateSignalFilter(filterConfig);
 
                 if (filter != null)
@@ -147,8 +153,14 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
         _equityManager.AllocateCapital(config.Symbol, allocation);
 
         // Create trader via factory
-        var trader = _traderFactory(config);
+        var portfolioManager = _settings.UsePortfolioRiskManager ? _portfolioRiskManager : null;
+        var trader = _traderFactory(config, portfolioManager, _equityManager);
         var tradingUnit = new SymbolTradingUnit(config.Symbol, trader);
+
+        if (portfolioManager != null && config.Role == "Primary")
+        {
+            portfolioManager.RegisterSymbol(config.Symbol, trader.GetRiskManager());
+        }
 
         // Wire events
         WireTradingUnitEvents(config.Symbol, tradingUnit);
@@ -193,6 +205,10 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
         tradingUnit.OnEquityUpdate += equity =>
         {
             _equityManager.UpdateSymbolEquity(symbol, equity);
+            if (_settings.UsePortfolioRiskManager)
+            {
+                _portfolioRiskManager.UpdateEquity(symbol, equity);
+            }
         };
     }
 

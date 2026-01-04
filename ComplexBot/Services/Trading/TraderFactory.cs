@@ -41,6 +41,7 @@ public static class TraderFactory
             InitialCapital = initialCapital,
             UseTestnet = useTestnet,
             PaperTrade = paperTrade,
+            EnableTradeExecution = config.Role == "Primary",
             WarmupCandles = 100,
             TradingMode = TradingMode.Spot,
             FeeRate = 0.001m,
