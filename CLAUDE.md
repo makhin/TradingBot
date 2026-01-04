@@ -387,3 +387,76 @@ dotnet run
 - Check `HistoricalData/` folder for cached data issues
 - Verify indicator warmup periods match test expectations
 - Integration tests require internet + valid testnet credentials
+
+## Code Organization Guidelines
+
+### Always Create Separate Files for Classes
+**IMPORTANT**: Every class, interface, enum, and record should be in its own dedicated file. Never put multiple types in a single file.
+
+**Benefits:**
+- ✅ Easier to find and maintain code
+- ✅ Better IDE navigation and refactoring
+- ✅ Clearer namespace organization
+- ✅ Reduced merge conflicts in version control
+- ✅ Follows .NET naming conventions
+
+**File naming conventions:**
+- `ClassName.cs` - For classes, records, interfaces
+- `EnumName.cs` - For enumerations
+- `IInterfaceName.cs` - For interfaces (optional, but preferred for prominence)
+
+**Example structure:**
+```
+ComplexBot/Models/
+├── Records/
+│   ├── Trade.cs            # One record per file
+│   ├── Candle.cs
+│   ├── TradeSignal.cs
+│   └── ...
+├── Enums/
+│   ├── TradeDirection.cs   # One enum per file
+│   ├── SignalType.cs
+│   └── ...
+
+ComplexBot/Services/Indicators/
+├── MovingAverages/
+│   ├── Ema.cs              # One indicator class per file
+│   ├── Sma.cs
+│   └── ...
+├── Momentum/
+│   ├── Macd.cs
+│   ├── Rsi.cs
+│   └── ...
+└── ...
+
+ComplexBot/Configuration/
+├── External/
+│   ├── BinanceApiSettings.cs    # One settings class per file
+│   └── TelegramSettings.cs
+├── Strategy/
+│   ├── StrategyConfigSettings.cs
+│   ├── MaStrategyConfigSettings.cs
+│   └── ...
+└── ...
+```
+
+**When refactoring monolithic files:**
+1. Identify all distinct types (classes, records, enums, interfaces)
+2. Create a dedicated file for each type in an appropriate subdirectory
+3. Use logical folder names that group related types
+4. Create a forwarding/aggregation file in the parent directory if needed for backward compatibility
+5. Use global using statements in the aggregation file to maintain backward compatibility:
+   ```csharp
+   // Global imports for backward compatibility
+   global using ComplexBot.Models.Enums;
+   global using ComplexBot.Models.Records;
+   global using TradeDirection = ComplexBot.Models.Enums.TradeDirection;
+   global using Candle = ComplexBot.Models.Records.Candle;
+   ```
+
+**Valid exceptions** (where multiple types can coexist in one file):
+- Closely related enum + flags enum in same file (rare)
+- Abstract base + single concrete implementation (only if tightly coupled)
+- Interface + minimal default implementation (only if trivial)
+
+**Default rule**: When in doubt, create a separate file. One class per file is the standard.
