@@ -40,6 +40,7 @@ class OptimizationRunner
                     "ADX Trend Following (Full Grid Search)",
                     "MA Crossover (Genetic)",
                     "RSI Mean Reversion (Genetic)",
+                    "Multi-Timeframe Optimization (Primary + Filters)",
                     "RSI Mean Reversion (Quick Test)",
                     "MA Crossover (Quick Test)",
                     "Strategy Ensemble (Weights Only)",
@@ -60,6 +61,12 @@ class OptimizationRunner
         {
             var optimizeFor = PromptOptimizationTarget();
             await RunFullEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            return;
+        }
+
+        if (strategyChoice == "Multi-Timeframe Optimization (Primary + Filters)")
+        {
+            await RunMultiTimeframeOptimization(candles, symbol, riskSettings, backtestSettings);
             return;
         }
 
@@ -384,6 +391,146 @@ class OptimizationRunner
 
         _resultsRenderer.DisplayRsiOptimizationResults(result, backtestResult);
         PromptSaveRsiSettings(bestSettings);
+    }
+
+    private async Task RunMultiTimeframeOptimization(
+        List<Candle> candles,
+        string symbol,
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings)
+    {
+        var config = _configService.GetConfiguration();
+        var settings = config.MultiTimeframeOptimizer.ToSettings();
+
+        var primaryChoice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Primary strategy:")
+                .AddChoices(
+                    "ADX Trend Following",
+                    "MA Crossover",
+                    "RSI Mean Reversion",
+                    "Strategy Ensemble")
+        );
+
+        Func<IStrategy> primaryStrategyFactory = primaryChoice switch
+        {
+            "MA Crossover" => () => new MaStrategy(config.MaStrategy.ToMaStrategySettings()),
+            "RSI Mean Reversion" => () => new RsiStrategy(config.RsiStrategy.ToRsiStrategySettings()),
+            "Strategy Ensemble" => () => StrategyEnsemble.CreateDefault(config.Ensemble.ToEnsembleSettings()),
+            _ => () => new AdxTrendStrategy(config.Strategy.ToStrategySettings())
+        };
+
+        var baseAdxSettings = config.Strategy.ToStrategySettings();
+        var baseRsiSettings = config.RsiStrategy.ToRsiStrategySettings();
+
+        Func<decimal, IStrategy> adxFilterFactory = minAdx =>
+        {
+            var adjusted = baseAdxSettings with { AdxThreshold = minAdx };
+            return new AdxTrendStrategy(adjusted);
+        };
+
+        Func<decimal, decimal, IStrategy> rsiFilterFactory = (overbought, oversold) =>
+        {
+            var adjusted = baseRsiSettings with { OverboughtLevel = overbought, OversoldLevel = oversold };
+            return new RsiStrategy(adjusted);
+        };
+
+        var optimizer = new MultiTimeframeOptimizer();
+
+        AnsiConsole.MarkupLine("\n[yellow]Running multi-timeframe optimization...[/]");
+        var results = await optimizer.OptimizeAsync(
+            symbol,
+            candles,
+            primaryStrategyFactory,
+            adxFilterFactory,
+            rsiFilterFactory,
+            settings,
+            riskSettings,
+            backtestSettings);
+
+        DisplayMultiTimeframeOptimizationResults(results, settings);
+    }
+
+    private void DisplayMultiTimeframeOptimizationResults(
+        List<MultiTimeframeOptimizationResult> results,
+        MultiTimeframeOptimizationSettings settings)
+    {
+        if (results.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[red]No multi-timeframe results generated.[/]");
+            return;
+        }
+
+        var ordered = results
+            .OrderByDescending(r => r.Score)
+            .ToList();
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[yellow]Multi-Timeframe Optimization Results[/]").RuleStyle("grey"));
+
+        var summaryTable = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Metric")
+            .AddColumn("Value");
+
+        summaryTable.AddRow("Total configurations", results.Count.ToString());
+        summaryTable.AddRow("Optimize for", settings.OptimizeFor.ToString());
+        summaryTable.AddRow("Baseline included", results.Any(r => r.IsBaseline) ? "Yes" : "No");
+
+        AnsiConsole.Write(summaryTable);
+
+        var resultsTable = new Table()
+            .Border(TableBorder.Simple)
+            .AddColumn("#")
+            .AddColumn("Filter")
+            .AddColumn("Interval")
+            .AddColumn("Mode")
+            .AddColumn("Params")
+            .AddColumn("Sharpe")
+            .AddColumn("DD%")
+            .AddColumn("Return")
+            .AddColumn("Signals")
+            .AddColumn("Score");
+
+        int rank = 1;
+        foreach (var result in ordered.Take(10))
+        {
+            var metrics = result.Backtest.Result.Metrics;
+            var filterName = result.IsBaseline ? "Baseline" : result.FilterStrategy ?? "Unknown";
+            var interval = result.FilterInterval ?? "-";
+            var mode = result.FilterMode?.ToString() ?? "-";
+            var parameters = FormatFilterParameters(result.FilterParameters);
+            var signals = $"{result.Backtest.ApprovedSignals}/{result.Backtest.TotalSignals}";
+
+            resultsTable.AddRow(
+                rank++.ToString(),
+                filterName,
+                interval,
+                mode,
+                parameters,
+                $"{metrics.SharpeRatio:F2}",
+                $"{metrics.MaxDrawdownPercent:F1}",
+                $"{metrics.TotalReturn:F1}%",
+                signals,
+                $"{result.Score:F2}"
+            );
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(resultsTable);
+
+        var best = ordered.First();
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[green]Best configuration: {best.Configuration}[/]");
+        _resultsRenderer.DisplayBacktestResults(best.Backtest.Result);
+    }
+
+    private static string FormatFilterParameters(Dictionary<string, decimal> parameters)
+    {
+        if (parameters.Count == 0)
+            return "-";
+
+        return string.Join(" ", parameters.Select(kvp => $"{kvp.Key}:{kvp.Value:F1}"));
     }
 
     private void PromptSaveEnsembleSettings(EnsembleOptimizationSettings settings)

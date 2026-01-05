@@ -13,6 +13,7 @@ global using RsiOptimizerConfigSettings = ComplexBot.Configuration.Optimization.
 global using GeneticOptimizerConfigSettings = ComplexBot.Configuration.Optimization.GeneticOptimizerConfigSettings;
 global using BacktestingSettings = ComplexBot.Configuration.Optimization.BacktestingSettings;
 global using OptimizationSettings = ComplexBot.Configuration.Optimization.OptimizationSettings;
+global using MultiTimeframeOptimizerSettings = ComplexBot.Configuration.Optimization.MultiTimeframeOptimizerSettings;
 global using LiveTradingSettings = ComplexBot.Configuration.Trading.LiveTradingSettings;
 global using MultiPairLiveTradingSettings = ComplexBot.Configuration.Trading.MultiPairLiveTradingSettings;
 global using TradingPairConfig = ComplexBot.Configuration.Trading.TradingPairConfig;
@@ -36,5 +37,6 @@ public class BotConfiguration
     public LiveTradingSettings LiveTrading { get; set; } = new();
     public MultiPairLiveTradingSettings MultiPairLiveTrading { get; set; } = new();
     public OptimizationSettings Optimization { get; set; } = new();
+    public MultiTimeframeOptimizerSettings MultiTimeframeOptimizer { get; set; } = new();
     public GeneticOptimizerConfigSettings GeneticOptimizer { get; set; } = new();
 }
