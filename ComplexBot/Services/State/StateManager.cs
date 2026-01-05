@@ -8,40 +8,6 @@ public class StateManager
 {
     private readonly string _statePath;
 
-    public record BotState
-    {
-        public DateTime LastUpdate { get; init; }
-        public decimal CurrentEquity { get; init; }
-        public decimal PeakEquity { get; init; }
-        public decimal DayStartEquity { get; init; }
-        public DateTime CurrentTradingDay { get; init; }
-        public List<SavedPosition> OpenPositions { get; init; } = new();
-        public List<SavedOcoOrder> ActiveOcoOrders { get; init; } = new();
-        public int NextTradeId { get; init; }
-    }
-
-    public record SavedPosition
-    {
-        public string Symbol { get; init; } = "";
-        public SignalType Direction { get; init; }
-        public decimal EntryPrice { get; init; }
-        public decimal Quantity { get; init; }
-        public decimal RemainingQuantity { get; init; }
-        public decimal StopLoss { get; init; }
-        public decimal TakeProfit { get; init; }
-        public decimal RiskAmount { get; init; }
-        public DateTime EntryTime { get; init; }
-        public int TradeId { get; init; }
-        public decimal CurrentPrice { get; init; }
-        public bool BreakevenMoved { get; init; }
-    }
-
-    public record SavedOcoOrder
-    {
-        public string Symbol { get; init; } = "";
-        public long OrderListId { get; init; }
-    }
-
     public StateManager(string statePath = "bot_state.json")
     {
         _statePath = statePath;
@@ -183,15 +149,4 @@ public class StateManager
     }
 
     public bool StateExists() => File.Exists(_statePath);
-}
-
-public record StateReconciliationResult
-{
-    public List<StateManager.SavedPosition> PositionsConfirmed { get; init; } = new();
-    public List<(StateManager.SavedPosition Expected, decimal Actual)> PositionsMismatch { get; init; } = new();
-    public List<StateManager.SavedOcoOrder> OcoOrdersActive { get; init; } = new();
-    public List<StateManager.SavedOcoOrder> OcoOrdersMissing { get; init; } = new();
-
-    public bool HasMismatches => PositionsMismatch.Count > 0 || OcoOrdersMissing.Count > 0;
-    public bool IsFullyReconciled => !HasMismatches;
 }
