@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a .NET 8 cryptocurrency trading bot for Binance implementing multiple trend-following strategies with comprehensive backtesting, optimization, and risk management. The primary strategy is ADX Trend Following with Volume Confirmation, targeting Sharpe Ratio 1.5-1.9 and Max Drawdown <20%.
+This is a .NET 8 cryptocurrency trading bot for Binance implementing multiple trend-following strategies with comprehensive backtesting, optimization, and risk management. It supports single-pair and multi-pair live trading with shared capital, multi-timeframe filters, and multi-timeframe optimization. The primary strategy is ADX Trend Following with Volume Confirmation, targeting Sharpe Ratio 1.5-1.9 and Max Drawdown <20%.
 
 ## Build and Run Commands
 
@@ -41,9 +41,9 @@ The application uses a **dispatcher-runner pattern** where `Program.cs` instanti
 
 **Key runners (in `ComplexBot/`):**
 - `BacktestRunner` - Executes backtests on historical data
-- `OptimizationRunner` - Parameter optimization (grid search, genetic algorithms)
+- `OptimizationRunner` - Parameter optimization (grid search, genetic algorithms, multi-timeframe filters)
 - `AnalysisRunner` - Walk-forward analysis and Monte Carlo simulation
-- `LiveTradingRunner` - Paper/live trading on Binance
+- `LiveTradingRunner` - Paper/live trading on Binance (single-pair or multi-pair)
 - `DataRunner` - Downloads historical data from Binance
 
 **Entry flow:**
@@ -80,6 +80,19 @@ public abstract class StrategyBase<TSettings> : IStrategy
 4. Register in `StrategyFactory.CreateStrategy()`
 5. Add configuration mapping in `BotConfiguration.cs`
 
+**Strategy state for filters:**
+- `IStrategy.GetCurrentState()` returns a `StrategyState` snapshot for multi-timeframe filters.
+- `PrimaryIndicatorValue` provides a quick indicator value for logging/inspection.
+
+### Multi-Pair and Multi-Timeframe Trading
+Core components for shared-capital and filter-driven trading:
+- `ISymbolTrader` and `SymbolTraderBase<TSettings>`: exchange-agnostic single-symbol traders.
+- `MultiPairLiveTrader<T>`: orchestrates multiple symbol traders with shared equity.
+- `SymbolTradingUnit`: per-symbol coordinator for primary trader plus filter strategies/traders.
+- `ISignalFilter` + `SignalFilterEvaluator`: filter modes (Confirm/Veto/Score) and confidence adjustments.
+- `SharedEquityManager` + `PortfolioRiskManager`: shared capital tracking and portfolio-level limits.
+- `TraderFactory`: creates strategies/traders from `TradingPairConfig`.
+
 ### Configuration System
 Uses a layered configuration approach:
 1. **BotConfiguration** ([ComplexBot/Configuration/BotConfiguration.cs](ComplexBot/Configuration/BotConfiguration.cs)) - Top-level config loaded from `appsettings.json`
@@ -96,6 +109,9 @@ This separation allows easy JSON serialization while keeping domain logic clean.
 - `Backtesting` - Initial capital, commissions, slippage
 - `LiveTrading` - Symbol, interval, paper trading mode
 - `Optimization` - Parameter ranges for grid/genetic search
+- `MultiPairLiveTrading` - Shared-capital multi-pair settings and per-pair roles/filters
+- `PortfolioRisk` - Correlation groups and portfolio limits
+- `MultiTimeframeOptimizer` - Filter optimization parameters and intervals
 
 **Environment Variables (.env file):**
 The application loads configuration from a `.env` file using DotNetEnv. This allows you to keep sensitive credentials outside of `appsettings.json`.
@@ -133,6 +149,8 @@ The backtesting system ([ComplexBot/Services/Backtesting/](ComplexBot/Services/B
 - **MonteCarloSimulator** - Risk analysis via trade sequence randomization
 - **ParameterOptimizer** - Grid search across parameter combinations
 - **GeneticOptimizer** - Evolutionary optimization for large search spaces
+- **MultiTimeframeBacktester** - Backtesting with per-interval filters
+- **MultiTimeframeOptimizer** - Grid search over filter parameters/intervals
 
 **Walk-Forward Analysis Configuration:**
 The analyzer is configurable via `WalkForwardSettings`:
@@ -178,6 +196,12 @@ Live trading data flow:
 3. Executes trades via REST API (market orders + OCO for stop/target)
 4. Paper mode simulates fills without API calls
 
+Multi-pair live trading data flow:
+1. `LiveTradingRunner` routes to multi-pair mode when `MultiPairLiveTrading.Enabled` is true
+2. `MultiPairLiveTrader` creates a `SymbolTradingUnit` per symbol and wires portfolio/shared equity managers
+3. Filter strategies/traders update on their own intervals; `SignalFilterEvaluator` gates primary signals
+4. Only `StrategyRole.Primary` pairs execute trades and receive capital allocation
+
 ## Important Patterns and Conventions
 
 ### User Input with SpectreHelpers
@@ -217,6 +241,9 @@ Recent refactoring (commits #16-17) added strategy selection to all analysis mod
 
 ### Non-Interactive Mode for Docker
 The application supports running in non-interactive mode (e.g., in Docker containers) via the `TRADING_MODE` environment variable.
+
+For live trading in non-interactive mode (single or multi-pair), set:
+- `CONFIRM_LIVE_TRADING=yes` to acknowledge real-money trading.
 
 **How it works:**
 1. [Program.cs](ComplexBot/Program.cs:32-59) checks for `TRADING_MODE` environment variable
@@ -387,3 +414,76 @@ dotnet run
 - Check `HistoricalData/` folder for cached data issues
 - Verify indicator warmup periods match test expectations
 - Integration tests require internet + valid testnet credentials
+
+## Code Organization Guidelines
+
+### Always Create Separate Files for Classes
+**IMPORTANT**: Every class, interface, enum, and record should be in its own dedicated file. Never put multiple types in a single file.
+
+**Benefits:**
+- ✅ Easier to find and maintain code
+- ✅ Better IDE navigation and refactoring
+- ✅ Clearer namespace organization
+- ✅ Reduced merge conflicts in version control
+- ✅ Follows .NET naming conventions
+
+**File naming conventions:**
+- `ClassName.cs` - For classes, records, interfaces
+- `EnumName.cs` - For enumerations
+- `IInterfaceName.cs` - For interfaces (optional, but preferred for prominence)
+
+**Example structure:**
+```
+ComplexBot/Models/
+├── Records/
+│   ├── Trade.cs            # One record per file
+│   ├── Candle.cs
+│   ├── TradeSignal.cs
+│   └── ...
+├── Enums/
+│   ├── TradeDirection.cs   # One enum per file
+│   ├── SignalType.cs
+│   └── ...
+
+ComplexBot/Services/Indicators/
+├── MovingAverages/
+│   ├── Ema.cs              # One indicator class per file
+│   ├── Sma.cs
+│   └── ...
+├── Momentum/
+│   ├── Macd.cs
+│   ├── Rsi.cs
+│   └── ...
+└── ...
+
+ComplexBot/Configuration/
+├── External/
+│   ├── BinanceApiSettings.cs    # One settings class per file
+│   └── TelegramSettings.cs
+├── Strategy/
+│   ├── StrategyConfigSettings.cs
+│   ├── MaStrategyConfigSettings.cs
+│   └── ...
+└── ...
+```
+
+**When refactoring monolithic files:**
+1. Identify all distinct types (classes, records, enums, interfaces)
+2. Create a dedicated file for each type in an appropriate subdirectory
+3. Use logical folder names that group related types
+4. Create a forwarding/aggregation file in the parent directory if needed for backward compatibility
+5. Use global using statements in the aggregation file to maintain backward compatibility:
+   ```csharp
+   // Global imports for backward compatibility
+   global using ComplexBot.Models.Enums;
+   global using ComplexBot.Models.Records;
+   global using TradeDirection = ComplexBot.Models.Enums.TradeDirection;
+   global using Candle = ComplexBot.Models.Records.Candle;
+   ```
+
+**Valid exceptions** (where multiple types can coexist in one file):
+- Closely related enum + flags enum in same file (rare)
+- Abstract base + single concrete implementation (only if tightly coupled)
+- Interface + minimal default implementation (only if trivial)
+
+**Default rule**: When in doubt, create a separate file. One class per file is the standard.

@@ -1,41 +1,10 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Indicators;
 using ComplexBot.Services.Filters;
+using ComplexBot.Services.Trading;
 using System.Linq;
 
 namespace ComplexBot.Services.Strategies;
-
-public interface IStrategy
-{
-    string Name { get; }
-    TradeSignal? Analyze(Candle candle, decimal? currentPosition, string symbol);
-    void Reset();
-
-    /// <summary>
-    /// Current stop loss level (trailing stop if applicable).
-    /// Used by BacktestEngine to sync with PositionState.
-    /// </summary>
-    decimal? CurrentStopLoss { get; }
-
-    /// <summary>
-    /// Current ATR value for volatility-based position sizing.
-    /// Used by RiskManager to adjust position size.
-    /// </summary>
-    decimal? CurrentAtr { get; }
-}
-
-/// <summary>
-/// Interface for strategies that provide confidence level for their signals.
-/// Used by StrategyEnsemble for weighted voting.
-/// </summary>
-public interface IHasConfidence
-{
-    /// <summary>
-    /// Returns confidence level for current signal (0.0-1.0).
-    /// Higher values indicate stronger conviction in the signal.
-    /// </summary>
-    decimal GetConfidence();
-}
 
 /// <summary>
 /// ADX Trend Following Strategy (Simplified Trend-Following)
@@ -76,6 +45,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
     private decimal? _previousAdx;
     private bool _breakevenMoved;
     private int _barsSinceEntry;
+    private SignalType? _lastSignal;
 
     public AdxTrendStrategy(StrategySettings? settings = null) : base(settings)
     {
@@ -104,6 +74,56 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 
         var adxValue = _adx.Value.Value;
         return Math.Min(1m, 0.5m + (adxValue - 25) / 60m);
+    }
+
+    /// <summary>
+    /// Gets current strategy state for multi-timeframe filtering.
+    /// Exposes ADX value, trend status, and EMA alignment.
+    /// </summary>
+    public override StrategyState GetCurrentState()
+    {
+        var customValues = new Dictionary<string, decimal>();
+
+        // Add EMA trend direction (positive = fast above slow, negative = fast below slow)
+        if (_currentFastEma.HasValue && _currentSlowEma.HasValue)
+        {
+            var emaDiff = _currentFastEma.Value - _currentSlowEma.Value;
+            var emaTrend = emaDiff / _currentSlowEma.Value * 100m; // Percentage difference
+            customValues["EmaTrend"] = emaTrend;
+        }
+
+        // Add MACD histogram if available
+        if (_macd.Histogram.HasValue)
+        {
+            customValues["MacdHistogram"] = _macd.Histogram.Value;
+        }
+
+        // Add ADX rising/falling indicator
+        customValues["AdxRising"] = _adxRising ? 1m : 0m;
+
+        // Determine overbought/oversold based on ADX extreme values
+        // ADX > 50 = very strong trend (potentially overextended)
+        // ADX < 15 = very weak trend (ranging, not overbought/oversold in traditional sense)
+        var isOverbought = false;
+        var isOversold = false;
+
+        // For ADX strategy, we consider "overbought" as overly strong trend
+        // and "oversold" as overly weak trend
+        if (_adx.Value.HasValue)
+        {
+            var adxValue = _adx.Value.Value;
+            isOverbought = adxValue > 50m; // Extremely strong trend
+            isOversold = adxValue < 15m;   // No trend
+        }
+
+        return new StrategyState(
+            LastSignal: _lastSignal,
+            IndicatorValue: _adx.Value, // Primary indicator is ADX
+            IsOverbought: isOverbought,
+            IsOversold: isOversold,
+            IsTrending: _adx.Value.HasValue && _adx.Value.Value >= Settings.AdxThreshold,
+            CustomValues: customValues
+        );
     }
 
     protected override void UpdateIndicators(Candle candle)
@@ -185,6 +205,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
+            _lastSignal = SignalType.Buy;
 
             return new TradeSignal(
                 symbol,
@@ -207,6 +228,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
+            _lastSignal = SignalType.Sell;
 
             return new TradeSignal(
                 symbol,
@@ -385,41 +407,4 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 
         _previousAdx = currentAdx;
     }
-}
-
-public record StrategySettings
-{
-    // ADX settings
-    public int AdxPeriod { get; init; } = 14;
-    public decimal AdxThreshold { get; init; } = 25m;  // Entry: ADX > 25
-    public decimal AdxExitThreshold { get; init; } = 18m;  // Exit: ADX < 18
-    public bool RequireFreshTrend { get; init; } = false;
-    public bool RequireAdxRising { get; init; } = false;
-    public int AdxSlopeLookback { get; init; } = 5;
-    public int AdxFallingExitBars { get; init; } = 0;
-    public int MaxBarsInTrade { get; init; } = 0;
-
-    // EMA settings (research: 20/50 optimal for medium-term)
-    public int FastEmaPeriod { get; init; } = 20;
-    public int SlowEmaPeriod { get; init; } = 50;
-    
-    // ATR settings
-    public int AtrPeriod { get; init; } = 14;
-    public decimal AtrStopMultiplier { get; init; } = 2.5m;  // 2.5x ATR for medium-term
-    public decimal TakeProfitMultiplier { get; init; } = 1.5m;  // 1.5:1 reward:risk
-    public decimal MinAtrPercent { get; init; } = 0m;
-    public decimal MaxAtrPercent { get; init; } = 100m;
-    
-    // Volume confirmation (research: 1.5-2x average volume confirms breakouts)
-    public int VolumePeriod { get; init; } = 20;
-    public decimal VolumeThreshold { get; init; } = 1.5m;  // 1.5x average volume
-    public bool RequireVolumeConfirmation { get; init; } = true;
-    
-    // OBV settings
-    public int ObvPeriod { get; init; } = 20;
-    public bool RequireObvConfirmation { get; init; } = true;
-
-    // Partial exit settings
-    public decimal PartialExitRMultiple { get; init; } = 1m;
-    public decimal PartialExitFraction { get; init; } = 0.5m;
 }

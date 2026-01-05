@@ -177,14 +177,21 @@ public static class KlineIntervalExtensions
 {
     public static KlineInterval Parse(string interval) => interval.ToLower() switch
     {
-        "1m" => KlineInterval.OneMinute,
-        "5m" => KlineInterval.FiveMinutes,
-        "15m" => KlineInterval.FifteenMinutes,
-        "30m" => KlineInterval.ThirtyMinutes,
-        "1h" => KlineInterval.OneHour,
-        "4h" => KlineInterval.FourHour,
-        "1d" => KlineInterval.OneDay,
-        "1w" => KlineInterval.OneWeek,
+        "1m" or "oneminute" => KlineInterval.OneMinute,
+        "3m" or "threeminutes" => KlineInterval.ThreeMinutes,
+        "5m" or "fiveminutes" => KlineInterval.FiveMinutes,
+        "15m" or "fifteenminutes" => KlineInterval.FifteenMinutes,
+        "30m" or "thirtyminutes" => KlineInterval.ThirtyMinutes,
+        "1h" or "onehour" => KlineInterval.OneHour,
+        "2h" or "twohour" => KlineInterval.TwoHour,
+        "4h" or "fourhour" => KlineInterval.FourHour,
+        "6h" or "sixhour" => KlineInterval.SixHour,
+        "8h" or "eighthour" => KlineInterval.EightHour,
+        "12h" or "twelvehour" => KlineInterval.TwelveHour,
+        "1d" or "oneday" => KlineInterval.OneDay,
+        "3d" or "threeday" => KlineInterval.ThreeDay,
+        "1w" or "oneweek" => KlineInterval.OneWeek,
+        "1mo" or "onemonth" => KlineInterval.OneMonth,
         _ => KlineInterval.OneDay
     };
 }

@@ -1,4 +1,5 @@
 using ComplexBot.Models;
+using ComplexBot.Models.Records;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Strategies;
