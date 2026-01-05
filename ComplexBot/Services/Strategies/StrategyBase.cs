@@ -1,5 +1,4 @@
 using ComplexBot.Models;
-using ComplexBot.Services.Trading;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -14,6 +13,7 @@ public abstract class StrategyBase<TSettings> : IStrategy
     public abstract string Name { get; }
     public virtual decimal? CurrentStopLoss => null;
     public virtual decimal? CurrentAtr => null;
+    public virtual decimal? PrimaryIndicatorValue => GetCurrentState().IndicatorValue;
 
     protected TSettings Settings { get; }
 

@@ -33,7 +33,7 @@ class DataRunner
             var file = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
                     .Title("Select file:")
-                    .AddChoices(files.Select(Path.GetFileName).Where(f => f != null)!)
+                    .AddChoices(files.Select(Path.GetFileName).OfType<string>())
             );
 
             var loader = new HistoricalDataLoader();

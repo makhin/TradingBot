@@ -1,11 +1,6 @@
 using ComplexBot.Models;
-
 namespace ComplexBot.Services.Strategies;
 
-/// <summary>
-/// Base interface for all trading strategies.
-/// Strategies analyze candles and generate trading signals.
-/// </summary>
 public interface IStrategy
 {
     string Name { get; }
@@ -23,6 +18,11 @@ public interface IStrategy
     /// Used by RiskManager to adjust position size.
     /// </summary>
     decimal? CurrentAtr { get; }
+
+    /// <summary>
+    /// Primary indicator value (e.g., RSI, ADX) for quick inspection/logging.
+    /// </summary>
+    decimal? PrimaryIndicatorValue { get; }
 
     /// <summary>
     /// Gets the current state of the strategy for multi-timeframe filtering.

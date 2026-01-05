@@ -53,14 +53,17 @@ public class StatusReporter
         statusMessage.AppendLine($"[cyan]Price:[/] [green]{currentPrice:F4}[/] USDT");
         statusMessage.AppendLine($"[cyan]Equity:[/] [green]{equity:F2}[/] USDT");
         
-        if (isInPosition)
+        if (isInPosition && currentPosition.HasValue)
         {
             var unrealizedPnL = CalculateUnrealizedPnL(currentPrice, entryPrice, currentPosition.Value);
-            var pnlPercent = entryPrice.HasValue ? (unrealizedPnL / (entryPrice.Value * Math.Abs(currentPosition.Value))) * 100 : 0;
+            var pnlPercent = entryPrice.HasValue ? (unrealizedPnL / ((entryPrice!.Value) * Math.Abs(currentPosition.Value))) * 100 : 0;
             var pnlColor = unrealizedPnL >= 0 ? "green" : "red";
             
             statusMessage.AppendLine($"[cyan]Position:[/] [{pnlColor}]{currentPosition:F4}[/] contracts");
-            statusMessage.AppendLine($"[cyan]Entry:[/] {entryPrice:F4} | SL: {stopLoss:F4} | TP: {takeProfit:F4}");
+            var entryStr = entryPrice.HasValue ? entryPrice.Value.ToString("F4") : "N/A";
+            var slStr = stopLoss.HasValue ? stopLoss.Value.ToString("F4") : "N/A";
+            var tpStr = takeProfit.HasValue ? takeProfit.Value.ToString("F4") : "N/A";
+            statusMessage.AppendLine($"[cyan]Entry:[/] {entryStr} | SL: {slStr} | TP: {tpStr}");
             statusMessage.AppendLine($"[cyan]Unrealized P&L:[/] [{pnlColor}]{unrealizedPnL:F2} ({pnlPercent:F2}%)[/]");
         }
         else
@@ -79,9 +82,10 @@ public class StatusReporter
         AnsiConsole.MarkupLine(statusMessage.ToString());
         
         // Log to file
+        var posStr = isInPosition && currentPosition.HasValue ? currentPosition.Value.ToString("F4") : "NONE";
         var logMessage = $"Status Update @ {timestamp} | Price: {currentPrice:F4} | Equity: {equity:F2} USDT | " +
-                        $"Position: {(isInPosition ? currentPosition.Value.ToString("F4") : "NONE")}";
-        if (isInPosition && entryPrice.HasValue)
+                        $"Position: {posStr}";
+        if (isInPosition && entryPrice.HasValue && currentPosition.HasValue)
         {
             var unrealizedPnL = CalculateUnrealizedPnL(currentPrice, entryPrice, currentPosition.Value);
             logMessage += $" | Unrealized P&L: {unrealizedPnL:F2}";

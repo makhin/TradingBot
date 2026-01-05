@@ -17,6 +17,7 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
         .Select(a => a!.Value)
         .DefaultIfEmpty(0)
         .Average() is var avg && avg > 0 ? avg : null;
+    public decimal? PrimaryIndicatorValue => GetCurrentState().IndicatorValue;
 
     public decimal GetConfidence()
     {

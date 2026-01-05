@@ -1,5 +1,5 @@
+using Binance.Net.Enums;
 using ComplexBot.Models;
-using ComplexBot.Services.Trading.SignalFilters;
 using ComplexBot.Services.Strategies;
 
 namespace ComplexBot.Services.Trading;
@@ -12,14 +12,16 @@ namespace ComplexBot.Services.Trading;
 public class SymbolTradingUnit : IDisposable
 {
     private readonly ISymbolTrader _primaryTrader;
-    private readonly List<FilterTraderPair> _filters = new();
+    private readonly List<FilterTraderPair> _traderFilters = new();
+    private readonly List<FilterStrategyPair> _strategyFilters = new();
     private readonly string _symbol;
     private bool _disposed;
     private Task? _startTask;
 
     public string Symbol => _symbol;
     public ISymbolTrader PrimaryTrader => _primaryTrader;
-    public IReadOnlyList<FilterTraderPair> Filters => _filters.AsReadOnly();
+    public IReadOnlyList<FilterTraderPair> Filters => _traderFilters.AsReadOnly();
+    public IReadOnlyList<FilterStrategyPair> StrategyFilters => _strategyFilters.AsReadOnly();
 
     // Events - forward from primary trader
     public event Action<string>? OnLog;
@@ -58,10 +60,32 @@ public class SymbolTradingUnit : IDisposable
             throw new ArgumentException($"Filter trader symbol {filterTrader.Symbol} does not match unit symbol {_symbol}");
         }
 
-        _filters.Add(new FilterTraderPair(filterTrader, filter));
+        _traderFilters.Add(new FilterTraderPair(filterTrader, filter));
 
         // Forward filter logs with prefix
         filterTrader.OnLog += msg => OnLog?.Invoke($"[Filter:{filter.Name}] {msg}");
+    }
+
+    /// <summary>
+    /// Adds a filter strategy that is updated externally by interval.
+    /// </summary>
+    /// <param name="strategy">Filter strategy instance</param>
+    /// <param name="interval">Interval associated with the filter strategy</param>
+    /// <param name="filter">Filter that evaluates signals based on strategy state</param>
+    public void AddFilter(IStrategy strategy, KlineInterval interval, ISignalFilter filter)
+    {
+        _strategyFilters.Add(new FilterStrategyPair(strategy, interval, filter));
+    }
+
+    /// <summary>
+    /// Updates filter strategies with a candle for the specified interval.
+    /// </summary>
+    public void UpdateFilterStrategy(KlineInterval interval, Candle candle)
+    {
+        foreach (var filterPair in _strategyFilters.Where(f => f.Interval == interval))
+        {
+            filterPair.Strategy.Analyze(candle, 0, _symbol);
+        }
     }
 
     /// <summary>
@@ -69,7 +93,7 @@ public class SymbolTradingUnit : IDisposable
     /// </summary>
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
-        Log($"Starting trading unit for {_symbol} with {_filters.Count} filter(s)");
+        Log($"Starting trading unit for {_symbol} with {_traderFilters.Count + _strategyFilters.Count} filter(s)");
 
         var startTasks = new List<Task>
         {
@@ -77,7 +101,7 @@ public class SymbolTradingUnit : IDisposable
         };
 
         // Start all filter traders
-        foreach (var filterPair in _filters)
+        foreach (var filterPair in _traderFilters)
         {
             startTasks.Add(Task.Run(() => filterPair.Trader.StartAsync(cancellationToken), cancellationToken));
         }
@@ -100,7 +124,7 @@ public class SymbolTradingUnit : IDisposable
         Log($"Stopping trading unit for {_symbol}");
 
         // Stop filter traders first
-        foreach (var filterPair in _filters)
+        foreach (var filterPair in _traderFilters)
         {
             await filterPair.Trader.StopAsync();
         }
@@ -116,7 +140,7 @@ public class SymbolTradingUnit : IDisposable
     /// </summary>
     private void HandlePrimarySignal(TradeSignal signal)
     {
-        if (_filters.Count == 0)
+        if (_traderFilters.Count == 0 && _strategyFilters.Count == 0)
         {
             // No filters, pass through directly
             OnSignal?.Invoke(signal);
@@ -126,12 +150,12 @@ public class SymbolTradingUnit : IDisposable
         // Apply all filters
         var filterResults = new List<(ISignalFilter Filter, FilterResult Result)>();
 
-        foreach (var filterPair in _filters)
+        foreach (var filterPair in _traderFilters)
         {
-            var filterState = GetFilterState(filterPair.Trader);
+            var filterState = filterPair.Trader.GetStrategyState();
             FilterResult result;
 
-            if (!IsFilterStateReady(filterState))
+            if (!SignalFilterEvaluator.IsFilterStateReady(filterState))
             {
                 result = new FilterResult(
                     Approved: true,
@@ -149,125 +173,42 @@ public class SymbolTradingUnit : IDisposable
                 $"Approved={result.Approved}, Confidence={result.ConfidenceAdjustment:F2}");
         }
 
+        foreach (var filterPair in _strategyFilters)
+        {
+            var filterState = filterPair.Strategy.GetCurrentState();
+            FilterResult result;
+
+            if (!SignalFilterEvaluator.IsFilterStateReady(filterState))
+            {
+                result = new FilterResult(
+                    Approved: true,
+                    Reason: "Filter state not ready; skipping filter evaluation",
+                    ConfidenceAdjustment: 1.0m);
+            }
+            else
+            {
+                result = filterPair.Filter.Evaluate(signal, filterState);
+            }
+
+            filterResults.Add((filterPair.Filter, result));
+
+            Log($"Filter '{filterPair.Filter.Name}' ({filterPair.Filter.Mode}) [{filterPair.Interval}]: {result.Reason} - " +
+                $"Approved={result.Approved}, Confidence={result.ConfidenceAdjustment:F2}");
+        }
+
         // Combine filter results
-        var finalDecision = CombineFilterResults(signal, filterResults);
+        var finalDecision = SignalFilterEvaluator.CombineFilterResults(filterResults);
 
         if (finalDecision.Approved)
         {
             // Modify signal based on confidence adjustment
-            var adjustedSignal = ApplyConfidenceAdjustment(signal, finalDecision.ConfidenceAdjustment);
+            var adjustedSignal = SignalFilterEvaluator.ApplyConfidenceAdjustment(signal, finalDecision.ConfidenceAdjustment);
             OnSignal?.Invoke(adjustedSignal);
         }
         else
         {
             Log($"Signal rejected by filters: {finalDecision.Reason}");
         }
-    }
-
-    /// <summary>
-    /// Combines results from multiple filters to make final decision.
-    /// </summary>
-    private FilterResult CombineFilterResults(
-        TradeSignal signal,
-        List<(ISignalFilter Filter, FilterResult Result)> filterResults)
-    {
-        var confirmFilters = filterResults.Where(f => f.Filter.Mode == FilterMode.Confirm).ToList();
-        var vetoFilters = filterResults.Where(f => f.Filter.Mode == FilterMode.Veto).ToList();
-        var scoreFilters = filterResults.Where(f => f.Filter.Mode == FilterMode.Score).ToList();
-
-        // Check Confirm filters - ALL must approve
-        if (confirmFilters.Any())
-        {
-            var rejected = confirmFilters.FirstOrDefault(f => !f.Result.Approved);
-            if (rejected.Filter != null)
-            {
-                return new FilterResult(
-                    Approved: false,
-                    Reason: $"Confirm filter '{rejected.Filter.Name}' rejected: {rejected.Result.Reason}",
-                    ConfidenceAdjustment: rejected.Result.ConfidenceAdjustment
-                );
-            }
-        }
-
-        // Check Veto filters - ANY rejection blocks signal
-        if (vetoFilters.Any())
-        {
-            var rejected = vetoFilters.FirstOrDefault(f => !f.Result.Approved);
-            if (rejected.Filter != null)
-            {
-                return new FilterResult(
-                    Approved: false,
-                    Reason: $"Veto filter '{rejected.Filter.Name}' rejected: {rejected.Result.Reason}",
-                    ConfidenceAdjustment: rejected.Result.ConfidenceAdjustment
-                );
-            }
-        }
-
-        // Combine Score filters - multiply confidence adjustments
-        decimal combinedConfidence = 1.0m;
-        var scoreReasons = new List<string>();
-
-        foreach (var (filter, result) in scoreFilters)
-        {
-            if (result.ConfidenceAdjustment.HasValue)
-            {
-                combinedConfidence *= result.ConfidenceAdjustment.Value;
-                scoreReasons.Add($"{filter.Name}: {result.ConfidenceAdjustment:F2}x");
-            }
-        }
-
-        var reason = scoreReasons.Any()
-            ? $"Score filters applied: {string.Join(", ", scoreReasons)}"
-            : "All filters approved";
-
-        return new FilterResult(
-            Approved: true,
-            Reason: reason,
-            ConfidenceAdjustment: combinedConfidence
-        );
-    }
-
-    /// <summary>
-    /// Adjusts signal confidence based on filter results.
-    /// This could modify position sizing, stop loss distance, etc.
-    /// </summary>
-    private TradeSignal ApplyConfidenceAdjustment(TradeSignal original, decimal? confidenceAdjustment)
-    {
-        if (!confidenceAdjustment.HasValue || confidenceAdjustment.Value == 1.0m)
-        {
-            return original;
-        }
-
-        // For now, we'll store the confidence in the signal reason
-        // The trader can use this to adjust position size
-        var adjustedReason = $"{original.Reason} [Confidence: {confidenceAdjustment:F2}x]";
-
-        return new TradeSignal(
-            Symbol: original.Symbol,
-            Type: original.Type,
-            Price: original.Price,
-            StopLoss: original.StopLoss,
-            TakeProfit: original.TakeProfit,
-            Reason: adjustedReason
-        );
-    }
-
-    /// <summary>
-    /// Gets the current state of a filter trader's strategy.
-    /// </summary>
-    private StrategyState GetFilterState(ISymbolTrader filterTrader)
-    {
-        return filterTrader.GetStrategyState();
-    }
-
-    private static bool IsFilterStateReady(StrategyState filterState)
-    {
-        return filterState.IndicatorValue.HasValue
-            || filterState.LastSignal.HasValue
-            || filterState.IsOverbought
-            || filterState.IsOversold
-            || filterState.IsTrending
-            || filterState.CustomValues.Count > 0;
     }
 
     private void Log(string message)
@@ -280,7 +221,7 @@ public class SymbolTradingUnit : IDisposable
         if (_disposed) return;
 
         _primaryTrader?.Dispose();
-        foreach (var filterPair in _filters)
+        foreach (var filterPair in _traderFilters)
         {
             filterPair.Trader?.Dispose();
         }
@@ -288,10 +229,3 @@ public class SymbolTradingUnit : IDisposable
         _disposed = true;
     }
 }
-
-/// <summary>
-/// Pairs a filter trader with its filter logic.
-/// </summary>
-/// <param name="Trader">Trader on alternative timeframe</param>
-/// <param name="Filter">Filter that evaluates signals based on this trader's state</param>
-public record FilterTraderPair(ISymbolTrader Trader, ISignalFilter Filter);

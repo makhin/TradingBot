@@ -75,7 +75,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
             var configs = symbolGroup.ToList();
 
             // Find primary trader config
-            var primaryConfig = configs.FirstOrDefault(c => c.Role == TradingPairRole.Primary);
+            var primaryConfig = configs.FirstOrDefault(c => c.Role == StrategyRole.Primary);
             if (primaryConfig == null)
             {
                 Log(symbol, "WARNING: No primary strategy found, skipping symbol");
@@ -93,7 +93,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
             }
 
             // Add filter traders for multi-timeframe
-            var filterConfigs = configs.Where(c => c.Role == TradingPairRole.Filter).ToList();
+            var filterConfigs = configs.Where(c => c.Role == StrategyRole.Filter).ToList();
             foreach (var filterConfig in filterConfigs)
             {
                 var filterTrader = _traderFactory(filterConfig, null, null);
@@ -159,7 +159,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
         var trader = _traderFactory(config, portfolioManager, _equityManager);
         var tradingUnit = new SymbolTradingUnit(config.Symbol, trader);
 
-        if (portfolioManager != null && config.Role == TradingPairRole.Primary)
+        if (portfolioManager != null && config.Role == StrategyRole.Primary)
         {
             portfolioManager.RegisterSymbol(config.Symbol, trader.GetRiskManager());
         }
@@ -244,24 +244,24 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
     private decimal CalculateSymbolAllocation(TradingPairConfig config)
     {
         // Only allocate for Primary strategies, not Filters
-        if (config.Role != TradingPairRole.Primary)
+        if (config.Role != StrategyRole.Primary)
         {
             return 0m;
         }
 
         // Count only Primary strategies for allocation
         var primaryConfigs = _settings.TradingPairs
-            .Where(p => p.Role == TradingPairRole.Primary)
+            .Where(p => p.Role == StrategyRole.Primary)
             .ToList();
 
         return _settings.AllocationMode switch
         {
-            AllocationMode.Equal => _settings.TotalCapital / primaryConfigs.Count,
+            CapitalAllocationMode.Equal => _settings.TotalCapital / primaryConfigs.Count,
 
-            AllocationMode.Weighted => _settings.TotalCapital *
+            CapitalAllocationMode.Weighted => _settings.TotalCapital *
                 (config.WeightPercent ?? (100m / primaryConfigs.Count)) / 100m,
 
-            AllocationMode.Kelly => _settings.TotalCapital / primaryConfigs.Count, // TODO: ATR-based allocation
+            CapitalAllocationMode.Dynamic => _settings.TotalCapital / primaryConfigs.Count, // TODO: ATR-based allocation
 
             _ => _settings.TotalCapital / primaryConfigs.Count
         };
@@ -269,7 +269,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
 
     private ISignalFilter? CreateSignalFilter(TradingPairConfig config)
     {
-        if (config.Role != TradingPairRole.Filter || !config.FilterMode.HasValue)
+        if (config.Role != StrategyRole.Filter || !config.FilterMode.HasValue)
         {
             return null;
         }

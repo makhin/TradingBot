@@ -265,11 +265,66 @@ class LiveTradingRunner
 
         var config = _configService.GetConfiguration();
         var multiPairSettings = config.MultiPairLiveTrading!;
+        var activePairs = multiPairSettings.TradingPairs.ToList();
+
+        if (isInteractive)
+        {
+            var primarySymbols = activePairs
+                .Where(p => p.Role == StrategyRole.Primary)
+                .Select(p => p.Symbol)
+                .Distinct()
+                .ToList();
+
+            if (primarySymbols.Count == 0)
+            {
+                AnsiConsole.MarkupLine("[red]✗ No primary trading pairs configured.[/]");
+                return;
+            }
+
+            var selectedSymbols = primarySymbols;
+            if (primarySymbols.Count > 1)
+            {
+                var selection = AnsiConsole.Prompt(
+                    new MultiSelectionPrompt<string>()
+                        .Title("Select symbols to trade (primary strategies):")
+                        .InstructionsText("[grey](Press <space> to toggle, <enter> to accept)[/]")
+                        .AddChoices(primarySymbols)
+                );
+
+                if (selection.Count > 0)
+                {
+                    selectedSymbols = selection;
+                }
+            }
+
+            var hasFilters = activePairs.Any(p => p.Role == StrategyRole.Filter);
+            var includeFilters = hasFilters && AnsiConsole.Confirm("Enable filters for selected symbols?", true);
+
+            activePairs = activePairs
+                .Where(p => selectedSymbols.Contains(p.Symbol))
+                .Where(p => includeFilters || p.Role == StrategyRole.Primary)
+                .ToList();
+
+            if (activePairs.Count == 0)
+            {
+                AnsiConsole.MarkupLine("[red]✗ No trading pairs selected.[/]");
+                return;
+            }
+        }
+
+        var activeSettings = new MultiPairLiveTradingSettings
+        {
+            Enabled = multiPairSettings.Enabled,
+            TotalCapital = multiPairSettings.TotalCapital,
+            AllocationMode = multiPairSettings.AllocationMode,
+            UsePortfolioRiskManager = multiPairSettings.UsePortfolioRiskManager,
+            TradingPairs = activePairs
+        };
 
         AnsiConsole.MarkupLine($"\n[yellow]═══ MULTI-PAIR {(paperTrade ? "PAPER" : "LIVE")} TRADING ═══[/]\n");
 
         // Display trading pairs configuration
-        DisplayTradingPairs(multiPairSettings);
+        DisplayTradingPairs(activeSettings);
 
         // Confirmation for real money trading
         if (!paperTrade)
@@ -312,7 +367,7 @@ class LiveTradingRunner
         }
 
         Log.Information("Multi-pair configuration - Pairs: {Count}, Capital: {Capital} USDT, Mode: {AllocationMode}",
-            multiPairSettings.TradingPairs.Count, multiPairSettings.TotalCapital, multiPairSettings.AllocationMode);
+            activeSettings.TradingPairs.Count, activeSettings.TotalCapital, activeSettings.AllocationMode);
 
         // Setup shared managers
         var riskSettings = _settingsService.GetRiskSettings();
@@ -327,16 +382,22 @@ class LiveTradingRunner
         }
 
         // Calculate capital allocation per symbol
-        var primaryPairs = multiPairSettings.TradingPairs
-            .Where(p => p.Role == TradingPairRole.Primary)
+        var primaryPairs = activeSettings.TradingPairs
+            .Where(p => p.Role == StrategyRole.Primary)
             .ToList();
-        var capitalPerSymbol = multiPairSettings.AllocationMode == AllocationMode.Equal
-            ? multiPairSettings.TotalCapital / primaryPairs.Count
+        if (primaryPairs.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[red]✗ No primary trading pairs selected.[/]");
+            return;
+        }
+
+        var capitalPerSymbol = activeSettings.AllocationMode == CapitalAllocationMode.Equal
+            ? activeSettings.TotalCapital / primaryPairs.Count
             : 0m; // Will be calculated individually for Weighted mode
 
         // Create multi-pair trader with factory
         using var multiTrader = new MultiPairLiveTrader<BinanceLiveTrader>(
-            multiPairSettings,
+            activeSettings,
             portfolioRiskSettings,
             config.PortfolioRisk.CorrelationGroups,
             (pairConfig, portfolioRiskManager, sharedEquityManager) => TraderFactory.CreateBinanceTrader(
@@ -346,7 +407,7 @@ class LiveTradingRunner
                 riskSettings,
                 useTestnet,
                 paperTrade,
-                capitalPerSymbol > 0 ? capitalPerSymbol : CalculateWeightedAllocation(pairConfig, multiPairSettings),
+                capitalPerSymbol > 0 ? capitalPerSymbol : CalculateWeightedAllocation(pairConfig, activeSettings),
                 portfolioRiskManager,
                 sharedEquityManager,
                 telegram,
@@ -391,7 +452,7 @@ class LiveTradingRunner
         };
 
         AnsiConsole.MarkupLine("\n[green]Starting multi-pair trading... Press Ctrl+C to stop[/]\n");
-        Log.Information("Starting MultiPairLiveTrader with {Count} symbols", multiPairSettings.TradingPairs.Count);
+        Log.Information("Starting MultiPairLiveTrader with {Count} symbols", activeSettings.TradingPairs.Count);
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (s, e) =>
@@ -435,21 +496,21 @@ class LiveTradingRunner
             .AddColumn("Role")
             .AddColumn("Allocation");
 
-        var primaryPairs = settings.TradingPairs.Where(p => p.Role == TradingPairRole.Primary).ToList();
+        var primaryPairs = settings.TradingPairs.Where(p => p.Role == StrategyRole.Primary).ToList();
 
         foreach (var pair in settings.TradingPairs)
         {
-            var weight = pair.Role == TradingPairRole.Primary
-                ? (settings.AllocationMode == AllocationMode.Equal
+            var weight = pair.Role == StrategyRole.Primary
+                ? (settings.AllocationMode == CapitalAllocationMode.Equal
                     ? 100m / primaryPairs.Count
                     : pair.WeightPercent ?? (100m / primaryPairs.Count))
                 : 0m;
 
-            var allocation = pair.Role == TradingPairRole.Primary
+            var allocation = pair.Role == StrategyRole.Primary
                 ? $"{weight:F1}% ({settings.TotalCapital * weight / 100:N0} USDT)"
                 : "-";
 
-            var roleDisplay = pair.Role == TradingPairRole.Filter
+            var roleDisplay = pair.Role == StrategyRole.Filter
                 ? $"Filter ({pair.FilterMode})"
                 : pair.Role.ToString();
 
@@ -470,9 +531,9 @@ class LiveTradingRunner
 
     private decimal CalculateWeightedAllocation(TradingPairConfig config, MultiPairLiveTradingSettings settings)
     {
-        if (config.Role != TradingPairRole.Primary) return 0m;
+        if (config.Role != StrategyRole.Primary) return 0m;
 
-        var primaryPairs = settings.TradingPairs.Where(p => p.Role == TradingPairRole.Primary).ToList();
+        var primaryPairs = settings.TradingPairs.Where(p => p.Role == StrategyRole.Primary).ToList();
         var weight = config.WeightPercent ?? (100m / primaryPairs.Count);
         return settings.TotalCapital * weight / 100m;
     }

@@ -3,7 +3,7 @@ namespace ComplexBot.Configuration.Trading;
 /// <summary>
 /// Role of a symbol trader in multi-timeframe setup.
 /// </summary>
-public enum TradingPairRole
+public enum StrategyRole
 {
     /// <summary>
     /// Primary strategy that generates entry/exit signals.

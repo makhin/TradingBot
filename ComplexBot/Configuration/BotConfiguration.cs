@@ -17,6 +17,8 @@ global using MultiTimeframeOptimizerSettings = ComplexBot.Configuration.Optimiza
 global using LiveTradingSettings = ComplexBot.Configuration.Trading.LiveTradingSettings;
 global using MultiPairLiveTradingSettings = ComplexBot.Configuration.Trading.MultiPairLiveTradingSettings;
 global using TradingPairConfig = ComplexBot.Configuration.Trading.TradingPairConfig;
+global using StrategyRole = ComplexBot.Configuration.Trading.StrategyRole;
+global using CapitalAllocationMode = ComplexBot.Configuration.Trading.CapitalAllocationMode;
 
 namespace ComplexBot.Configuration;
 

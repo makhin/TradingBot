@@ -98,12 +98,16 @@ public class MultiTimeframeBacktester
             if (signal != null)
             {
                 totalSignals++;
-                var filterDecision = EvaluateFilters(signal, filters);
+                var filterDecision = SignalFilterEvaluator.Evaluate(
+                    signal,
+                    filters.Select(f => (f.Filter, f.Strategy.GetCurrentState())).ToList());
 
                 if (filterDecision.Approved)
                 {
                     approvedSignals++;
-                    var adjustedSignal = ApplyConfidenceAdjustment(signal, filterDecision.ConfidenceAdjustment);
+                    var adjustedSignal = SignalFilterEvaluator.ApplyConfidenceAdjustment(
+                        signal,
+                        filterDecision.ConfidenceAdjustment);
                     capital += ProcessSignal(adjustedSignal, candle, position, symbol, trades, primaryStrategy);
                 }
                 else
@@ -164,114 +168,6 @@ public class MultiTimeframeBacktester
 
             filterIndices[i] = index;
         }
-    }
-
-    private static FilterResult EvaluateFilters(
-        TradeSignal signal,
-        IReadOnlyList<MultiTimeframeFilterDefinition> filters)
-    {
-        if (filters.Count == 0)
-        {
-            return new FilterResult(true, "No filters", ConfidenceAdjustment: 1.0m);
-        }
-
-        var filterResults = new List<(ISignalFilter Filter, FilterResult Result)>();
-
-        foreach (var filterPair in filters)
-        {
-            var filterState = filterPair.Strategy.GetCurrentState();
-            FilterResult result;
-
-            if (!IsFilterStateReady(filterState))
-            {
-                result = new FilterResult(
-                    Approved: true,
-                    Reason: "Filter state not ready; skipping filter evaluation",
-                    ConfidenceAdjustment: 1.0m);
-            }
-            else
-            {
-                result = filterPair.Filter.Evaluate(signal, filterState);
-            }
-
-            filterResults.Add((filterPair.Filter, result));
-        }
-
-        return CombineFilterResults(filterResults);
-    }
-
-    private static FilterResult CombineFilterResults(
-        List<(ISignalFilter Filter, FilterResult Result)> filterResults)
-    {
-        var confirmFilters = filterResults.Where(f => f.Filter.Mode == FilterMode.Confirm).ToList();
-        var vetoFilters = filterResults.Where(f => f.Filter.Mode == FilterMode.Veto).ToList();
-        var scoreFilters = filterResults.Where(f => f.Filter.Mode == FilterMode.Score).ToList();
-
-        if (confirmFilters.Any())
-        {
-            var rejected = confirmFilters.FirstOrDefault(f => !f.Result.Approved);
-            if (rejected.Filter != null)
-            {
-                return new FilterResult(
-                    Approved: false,
-                    Reason: $"Confirm filter '{rejected.Filter.Name}' rejected: {rejected.Result.Reason}",
-                    ConfidenceAdjustment: rejected.Result.ConfidenceAdjustment
-                );
-            }
-        }
-
-        if (vetoFilters.Any())
-        {
-            var rejected = vetoFilters.FirstOrDefault(f => !f.Result.Approved);
-            if (rejected.Filter != null)
-            {
-                return new FilterResult(
-                    Approved: false,
-                    Reason: $"Veto filter '{rejected.Filter.Name}' rejected: {rejected.Result.Reason}",
-                    ConfidenceAdjustment: rejected.Result.ConfidenceAdjustment
-                );
-            }
-        }
-
-        decimal combinedConfidence = 1.0m;
-        foreach (var (_, result) in scoreFilters)
-        {
-            if (result.ConfidenceAdjustment.HasValue)
-            {
-                combinedConfidence *= result.ConfidenceAdjustment.Value;
-            }
-        }
-
-        return new FilterResult(true, "All filters approved", combinedConfidence);
-    }
-
-    private static TradeSignal ApplyConfidenceAdjustment(TradeSignal original, decimal? confidenceAdjustment)
-    {
-        if (!confidenceAdjustment.HasValue || confidenceAdjustment.Value == 1.0m)
-        {
-            return original;
-        }
-
-        var adjustedReason = $"{original.Reason} [Confidence: {confidenceAdjustment:F2}x]";
-
-        return new TradeSignal(
-            Symbol: original.Symbol,
-            Type: original.Type,
-            Price: original.Price,
-            StopLoss: original.StopLoss,
-            TakeProfit: original.TakeProfit,
-            Reason: adjustedReason
-        );
-    }
-
-    private static bool IsFilterStateReady(StrategyState filterState)
-    {
-        return filterState.IndicatorValue.HasValue
-            || filterState.LastSignal.HasValue
-            || filterState.IsOverbought
-            || filterState.IsOversold
-            || filterState.IsTrending
-            || filterState.CustomValues.Count > 0;
     }
 
     private decimal ProcessSignal(
