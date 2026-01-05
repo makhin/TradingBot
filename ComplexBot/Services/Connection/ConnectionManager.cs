@@ -175,10 +175,3 @@ public class ConnectionManager
         );
     }
 }
-
-public record ConnectionStats(
-    bool IsConnected,
-    int CurrentAttempt,
-    int MaxAttempts,
-    bool HasActiveSubscription
-);

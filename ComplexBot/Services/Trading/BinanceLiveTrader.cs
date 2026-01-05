@@ -26,6 +26,7 @@ public class BinanceLiveTrader : IDisposable
     
     private decimal _currentPosition;
     private decimal? _entryPrice;
+    private DateTime? _entryTime;
     private decimal? _stopLoss;
     private decimal? _takeProfit;
     private decimal _paperEquity;
@@ -89,8 +90,6 @@ public class BinanceLiveTrader : IDisposable
 
         return result.Data.Price;
     }
-
-    private record OrderResult(bool Success, decimal FilledQuantity, decimal AveragePrice, string? ErrorMessage);
 
     private async Task<OrderResult> PlaceLimitOrderWithTimeout(
         OrderSide side,
@@ -622,6 +621,7 @@ public class BinanceLiveTrader : IDisposable
             // Paper trade - just track position
             _currentPosition = direction == TradeDirection.Long ? quantity : -quantity;
             _entryPrice = price;
+            _entryTime = DateTime.UtcNow;
             _stopLoss = stopLoss;
             _takeProfit = takeProfit;
             _riskManager.AddPosition(
@@ -635,6 +635,17 @@ public class BinanceLiveTrader : IDisposable
 
             var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
             Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}{takeProfitText}");
+            OnTrade?.Invoke(new Trade(
+                _settings.Symbol,
+                _entryTime.Value,
+                null,
+                price,
+                null,
+                quantity,
+                direction,
+                stopLoss,
+                takeProfit,
+                null));
         }
         else
         {
@@ -668,6 +679,7 @@ public class BinanceLiveTrader : IDisposable
 
                 _currentPosition = direction == TradeDirection.Long ? actualQuantity : -actualQuantity;
                 _entryPrice = actualPrice;
+                _entryTime = DateTime.UtcNow;
                 _stopLoss = stopLoss;
                 _takeProfit = takeProfit;
 
@@ -682,6 +694,17 @@ public class BinanceLiveTrader : IDisposable
 
                 var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
                 Log($"Opened {direction} {actualQuantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}");
+                OnTrade?.Invoke(new Trade(
+                    _settings.Symbol,
+                    _entryTime.Value,
+                    null,
+                    actualPrice,
+                    null,
+                    actualQuantity,
+                    direction,
+                    stopLoss,
+                    takeProfit,
+                    null));
 
                 // 2. Сразу выставить OCO для защиты (если есть тейк-профит)
                 if (takeProfit.HasValue)
@@ -732,6 +755,7 @@ public class BinanceLiveTrader : IDisposable
             : (_entryPrice!.Value - currentPrice) * quantity;
         var tradingCosts = CalculateTradingCosts(_entryPrice!.Value, currentPrice, quantity);
         var netPnl = grossPnl - tradingCosts;
+        var exitPrice = currentPrice;
 
         if (_settings.PaperTrade)
         {
@@ -767,6 +791,7 @@ public class BinanceLiveTrader : IDisposable
                     : (_entryPrice!.Value - fillPrice) * quantity;
                 tradingCosts = CalculateTradingCosts(_entryPrice!.Value, fillPrice, quantity);
                 netPnl = grossPnl - tradingCosts;
+                exitPrice = fillPrice;
 
                 Log($"Closed {direction} {quantity:F5} @ {fillPrice:F2}, Gross PnL: {grossPnl:F2} USDT, Net PnL: {netPnl:F2} USDT (costs: {tradingCosts:F2}) - {reason}");
                 Log(slippageDesc);
@@ -798,9 +823,26 @@ public class BinanceLiveTrader : IDisposable
             await _telegram.SendTradeClose(_settings.Symbol, _entryPrice.Value, currentPrice, netPnl, rMultiple, reason);
         }
 
+        if (_entryPrice.HasValue)
+        {
+            var trade = new Trade(
+                _settings.Symbol,
+                _entryTime ?? DateTime.UtcNow,
+                DateTime.UtcNow,
+                _entryPrice.Value,
+                exitPrice,
+                quantity,
+                direction,
+                _stopLoss,
+                _takeProfit,
+                reason);
+            OnTrade?.Invoke(trade);
+        }
+
         // Reset position
         _currentPosition = 0;
         _entryPrice = null;
+        _entryTime = null;
         _stopLoss = null;
         _takeProfit = null;
         _riskManager.RemovePosition(_settings.Symbol);
@@ -938,14 +980,14 @@ public class BinanceLiveTrader : IDisposable
 
     // Graceful Shutdown Support Methods
 
-    public StateManager.BotState BuildCurrentState()
+    public BotState BuildCurrentState()
     {
         var equity = _settings.PaperTrade ? _paperEquity : GetAccountBalanceAsync().Result;
 
-        var openPositions = new List<StateManager.SavedPosition>();
+        var openPositions = new List<SavedPosition>();
         if (_currentPosition != 0 && _entryPrice.HasValue)
         {
-            openPositions.Add(new StateManager.SavedPosition
+            openPositions.Add(new SavedPosition
             {
                 Symbol = _settings.Symbol,
                 Direction = _currentPosition > 0 ? SignalType.Buy : SignalType.Sell,
@@ -964,17 +1006,17 @@ public class BinanceLiveTrader : IDisposable
             });
         }
 
-        var activeOcoOrders = new List<StateManager.SavedOcoOrder>();
+        var activeOcoOrders = new List<SavedOcoOrder>();
         if (_currentOcoOrderListId.HasValue)
         {
-            activeOcoOrders.Add(new StateManager.SavedOcoOrder
+            activeOcoOrders.Add(new SavedOcoOrder
             {
                 Symbol = _settings.Symbol,
                 OrderListId = _currentOcoOrderListId.Value
             });
         }
 
-        return new StateManager.BotState
+        return new BotState
         {
             LastUpdate = DateTime.UtcNow,
             CurrentEquity = equity,
@@ -987,13 +1029,13 @@ public class BinanceLiveTrader : IDisposable
         };
     }
 
-    public List<StateManager.SavedPosition> GetOpenPositions()
+    public List<SavedPosition> GetOpenPositions()
     {
-        var positions = new List<StateManager.SavedPosition>();
+        var positions = new List<SavedPosition>();
 
         if (_currentPosition != 0 && _entryPrice.HasValue)
         {
-            positions.Add(new StateManager.SavedPosition
+            positions.Add(new SavedPosition
             {
                 Symbol = _settings.Symbol,
                 Direction = _currentPosition > 0 ? SignalType.Buy : SignalType.Sell,
@@ -1035,23 +1077,4 @@ public class BinanceLiveTrader : IDisposable
         _restClient.Dispose();
         _socketClient.Dispose();
     }
-}
-
-public record LiveTraderSettings
-{
-    public string Symbol { get; init; } = "BTCUSDT";
-    public KlineInterval Interval { get; init; } = KlineInterval.FourHour;
-    public decimal InitialCapital { get; init; } = 10000m;
-    public bool UseTestnet { get; init; } = true;
-    public bool PaperTrade { get; init; } = true;  // Paper trade by default for safety
-    public int WarmupCandles { get; init; } = 100;
-    public TradingMode TradingMode { get; init; } = TradingMode.Spot;
-    public decimal FeeRate { get; init; } = 0.001m;
-    public decimal SlippageBps { get; init; } = 2m;
-}
-
-public enum TradingMode
-{
-    Spot,
-    Futures
 }

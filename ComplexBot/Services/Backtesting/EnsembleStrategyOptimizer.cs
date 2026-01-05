@@ -173,35 +173,3 @@ public class EnsembleStrategyOptimizer
 
     private T Pick<T>(T a, T b) => _random.NextDouble() > 0.5 ? a : b;
 }
-
-public record EnsembleOptimizationSettings
-{
-    public decimal AdxWeight { get; init; }
-    public decimal MaWeight { get; init; }
-    public decimal RsiWeight { get; init; }
-    public decimal MinimumAgreement { get; init; }
-    public bool UseConfidenceWeighting { get; init; }
-
-    public EnsembleSettings ToEnsembleSettings() => new()
-    {
-        MinimumAgreement = MinimumAgreement,
-        UseConfidenceWeighting = UseConfidenceWeighting,
-        StrategyWeights = new Dictionary<string, decimal>
-        {
-            ["ADX Trend Following + Volume"] = AdxWeight,
-            ["MA Crossover"] = MaWeight,
-            ["RSI Mean Reversion"] = RsiWeight
-        }
-    };
-}
-
-public record EnsembleOptimizerConfig
-{
-    public decimal WeightMin { get; init; } = 0.05m;
-    public decimal WeightMax { get; init; } = 1.0m;
-    public decimal MinimumAgreementMin { get; init; } = 0.4m;
-    public decimal MinimumAgreementMax { get; init; } = 0.8m;
-    public bool AllowConfidenceWeightingToggle { get; init; } = true;
-    public bool DefaultUseConfidenceWeighting { get; init; } = true;
-    public int MinTrades { get; init; } = 20;
-}
