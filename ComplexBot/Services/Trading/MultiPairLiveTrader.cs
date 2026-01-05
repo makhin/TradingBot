@@ -1,7 +1,9 @@
 using ComplexBot.Models;
+using ComplexBot.Models.Enums;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Notifications;
 using ComplexBot.Configuration;
+using ComplexBot.Configuration.Trading;
 
 namespace ComplexBot.Services.Trading;
 
@@ -73,7 +75,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
             var configs = symbolGroup.ToList();
 
             // Find primary trader config
-            var primaryConfig = configs.FirstOrDefault(c => c.Role == "Primary");
+            var primaryConfig = configs.FirstOrDefault(c => c.Role == TradingPairRole.Primary);
             if (primaryConfig == null)
             {
                 Log(symbol, "WARNING: No primary strategy found, skipping symbol");
@@ -91,7 +93,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
             }
 
             // Add filter traders for multi-timeframe
-            var filterConfigs = configs.Where(c => c.Role == "Filter").ToList();
+            var filterConfigs = configs.Where(c => c.Role == TradingPairRole.Filter).ToList();
             foreach (var filterConfig in filterConfigs)
             {
                 var filterTrader = _traderFactory(filterConfig, null, null);
@@ -157,7 +159,7 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
         var trader = _traderFactory(config, portfolioManager, _equityManager);
         var tradingUnit = new SymbolTradingUnit(config.Symbol, trader);
 
-        if (portfolioManager != null && config.Role == "Primary")
+        if (portfolioManager != null && config.Role == TradingPairRole.Primary)
         {
             portfolioManager.RegisterSymbol(config.Symbol, trader.GetRiskManager());
         }
@@ -192,14 +194,41 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
         tradingUnit.OnSignal += signal =>
         {
             OnSignal?.Invoke(signal);
-            // TODO: Add telegram notification for signals
+            
+            // Send Telegram notification for signals
+            if (_telegram != null)
+            {
+                var signalEmoji = signal.Type switch
+                {
+                    SignalType.Buy => "🟢",
+                    SignalType.Sell => "🔴",
+                    SignalType.Exit => "🟡",
+                    SignalType.PartialExit => "🟠",
+                    _ => "⚪"
+                };
+                
+                var message = $"{signalEmoji} [{symbol}] {signal.Type} @ {signal.Price:F4}\nReason: {signal.Reason}";
+                _ = _telegram.SendMessageAsync(message);
+            }
         };
 
         tradingUnit.OnTrade += trade =>
         {
             OnTrade?.Invoke(trade);
             _equityManager.RecordTradePnL(symbol, trade.PnL ?? 0m);
-            // TODO: Add telegram notification for trades
+            
+            // Send Telegram notification for trades
+            if (_telegram != null && trade.ExitPrice.HasValue)
+            {
+                var profitLoss = trade.PnL ?? 0m;
+                var pnlEmoji = profitLoss >= 0 ? "✅" : "❌";
+                var pnlPercent = trade.EntryPrice != 0 ? (profitLoss / (trade.EntryPrice * trade.Quantity)) * 100 : 0;
+                
+                var message = $"{pnlEmoji} [{symbol}] {trade.Direction} Closed\n" +
+                    $"Entry: {trade.EntryPrice:F4} | Exit: {trade.ExitPrice:F4}\n" +
+                    $"P&L: {profitLoss:F2} ({pnlPercent:F2}%)";
+                _ = _telegram.SendMessageAsync(message);
+            }
         };
 
         tradingUnit.OnEquityUpdate += equity =>
@@ -215,24 +244,24 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
     private decimal CalculateSymbolAllocation(TradingPairConfig config)
     {
         // Only allocate for Primary strategies, not Filters
-        if (config.Role != "Primary")
+        if (config.Role != TradingPairRole.Primary)
         {
             return 0m;
         }
 
         // Count only Primary strategies for allocation
         var primaryConfigs = _settings.TradingPairs
-            .Where(p => p.Role == "Primary")
+            .Where(p => p.Role == TradingPairRole.Primary)
             .ToList();
 
         return _settings.AllocationMode switch
         {
-            "Equal" => _settings.TotalCapital / primaryConfigs.Count,
+            AllocationMode.Equal => _settings.TotalCapital / primaryConfigs.Count,
 
-            "Weighted" => _settings.TotalCapital *
+            AllocationMode.Weighted => _settings.TotalCapital *
                 (config.WeightPercent ?? (100m / primaryConfigs.Count)) / 100m,
 
-            "Dynamic" => _settings.TotalCapital / primaryConfigs.Count, // TODO: ATR-based allocation
+            AllocationMode.Kelly => _settings.TotalCapital / primaryConfigs.Count, // TODO: ATR-based allocation
 
             _ => _settings.TotalCapital / primaryConfigs.Count
         };
@@ -240,18 +269,12 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
 
     private ISignalFilter? CreateSignalFilter(TradingPairConfig config)
     {
-        if (config.Role != "Filter" || string.IsNullOrEmpty(config.FilterMode))
+        if (config.Role != TradingPairRole.Filter || !config.FilterMode.HasValue)
         {
             return null;
         }
 
-        var filterMode = config.FilterMode.ToLowerInvariant() switch
-        {
-            "confirm" => FilterMode.Confirm,
-            "veto" => FilterMode.Veto,
-            "score" => FilterMode.Score,
-            _ => FilterMode.Confirm
-        };
+        var filterMode = config.FilterMode.Value;
 
         // Create filter based on strategy type
         return config.Strategy.ToUpperInvariant() switch

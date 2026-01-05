@@ -1,5 +1,6 @@
 using Binance.Net.Enums;
 using ComplexBot.Configuration;
+using ComplexBot.Configuration.Trading;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Notifications;
@@ -41,7 +42,7 @@ public static class TraderFactory
             InitialCapital = initialCapital,
             UseTestnet = useTestnet,
             PaperTrade = paperTrade,
-            EnableTradeExecution = config.Role == "Primary",
+            EnableTradeExecution = config.Role == TradingPairRole.Primary,
             WarmupCandles = 100,
             TradingMode = TradingMode.Spot,
             FeeRate = 0.001m,

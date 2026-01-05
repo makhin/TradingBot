@@ -1,4 +1,6 @@
 using ComplexBot.Models;
+using ComplexBot.Models.Enums;
+using ComplexBot.Models.Records;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Trading.SignalFilters;
 

@@ -1,6 +1,7 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Indicators;
 using ComplexBot.Services.Filters;
+using ComplexBot.Services.Trading;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -29,8 +30,10 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
     private decimal? _previousRsi;
     private decimal? _currentRsi;
     private decimal? _currentTrendEma;
+    private decimal? _lastPrice;
     private decimal? _entryPrice;
     private decimal? _stopLoss;
+    private SignalType? _lastSignal;
 
     public RsiStrategy(RsiStrategySettings? settings = null) : base(settings)
     {
@@ -69,12 +72,38 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
         return 0m;
     }
 
+    public override StrategyState GetCurrentState()
+    {
+        var customValues = new Dictionary<string, decimal>();
+        var rsi = _currentRsi ?? _rsi.Value;
+
+        if (_currentTrendEma.HasValue && _lastPrice.HasValue && _currentTrendEma.Value != 0)
+        {
+            var emaTrend = (_lastPrice.Value - _currentTrendEma.Value) / _currentTrendEma.Value * 100m;
+            customValues["EmaTrend"] = emaTrend;
+        }
+
+        var isOverbought = rsi.HasValue && rsi.Value >= Settings.OverboughtLevel;
+        var isOversold = rsi.HasValue && rsi.Value <= Settings.OversoldLevel;
+        var isTrending = Settings.UseTrendFilter && _currentTrendEma.HasValue && _lastPrice.HasValue;
+
+        return new StrategyState(
+            LastSignal: _lastSignal,
+            IndicatorValue: rsi,
+            IsOverbought: isOverbought,
+            IsOversold: isOversold,
+            IsTrending: isTrending,
+            CustomValues: customValues
+        );
+    }
+
     protected override void UpdateIndicators(Candle candle)
     {
         _currentRsi = _rsi.Update(candle.Close);
         _atr.Update(candle);
         _currentTrendEma = _trendFilter.Update(candle.Close);
         _volumeFilter.Update(candle.Volume);
+        _lastPrice = candle.Close;
     }
 
     protected override bool IndicatorsReady =>
@@ -121,6 +150,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
 
             _entryPrice = candle.Close;
             _stopLoss = stopLoss;
+            _lastSignal = SignalType.Buy;
 
             return new TradeSignal(
                 symbol,
@@ -147,6 +177,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
 
             _entryPrice = candle.Close;
             _stopLoss = stopLoss;
+            _lastSignal = SignalType.Sell;
 
             return new TradeSignal(
                 symbol,
@@ -237,6 +268,10 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
         _trendFilter.Reset();
         _volumeFilter.Reset();
         _previousRsi = null;
+        _currentRsi = null;
+        _currentTrendEma = null;
+        _lastPrice = null;
+        _lastSignal = null;
         ResetPosition();
     }
 }

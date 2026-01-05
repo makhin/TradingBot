@@ -1,4 +1,6 @@
 using ComplexBot.Models;
+using ComplexBot.Models.Records;
+using ComplexBot.Models.Enums;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Trading.SignalFilters;
 using Moq;

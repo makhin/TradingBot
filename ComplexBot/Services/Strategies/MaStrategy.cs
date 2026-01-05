@@ -1,6 +1,7 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Indicators;
 using ComplexBot.Services.Filters;
+using ComplexBot.Services.Trading;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -30,6 +31,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
     private decimal? _currentSlowMa;
     private decimal? _entryPrice;
     private decimal? _trailingStop;
+    private SignalType? _lastSignal;
 
     public MaStrategy(MaStrategySettings? settings = null) : base(settings)
     {
@@ -53,6 +55,30 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
 
         // Confidence based on MA separation (0-2% maps to 0.5-1.0)
         return Math.Min(1m, 0.5m + separation / 4m);
+    }
+
+    public override StrategyState GetCurrentState()
+    {
+        var customValues = new Dictionary<string, decimal>();
+        decimal? emaTrend = null;
+        decimal? trendStrength = null;
+
+        if (_currentFastMa.HasValue && _currentSlowMa.HasValue && _currentSlowMa.Value != 0)
+        {
+            emaTrend = (_currentFastMa.Value - _currentSlowMa.Value) / _currentSlowMa.Value * 100m;
+            trendStrength = Math.Abs(emaTrend.Value);
+            customValues["EmaTrend"] = emaTrend.Value;
+            customValues["TrendStrength"] = trendStrength.Value;
+        }
+
+        return new StrategyState(
+            LastSignal: _lastSignal,
+            IndicatorValue: trendStrength,
+            IsOverbought: false,
+            IsOversold: false,
+            IsTrending: emaTrend.HasValue,
+            CustomValues: customValues
+        );
     }
 
     protected override void UpdateIndicators(Candle candle)
@@ -103,6 +129,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
 
             _entryPrice = candle.Close;
             _trailingStop = stopLoss;
+            _lastSignal = SignalType.Buy;
 
             return new TradeSignal(
                 symbol,
@@ -123,6 +150,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
 
             _entryPrice = candle.Close;
             _trailingStop = stopLoss;
+            _lastSignal = SignalType.Sell;
 
             return new TradeSignal(
                 symbol,
@@ -217,6 +245,9 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
         _volumeFilter.Reset();
         _previousFastMa = null;
         _previousSlowMa = null;
+        _currentFastMa = null;
+        _currentSlowMa = null;
+        _lastSignal = null;
         ResetPosition();
     }
 }

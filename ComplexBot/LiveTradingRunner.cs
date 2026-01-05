@@ -2,6 +2,7 @@ using Binance.Net.Enums;
 using Spectre.Console;
 using ComplexBot.Models;
 using ComplexBot.Configuration;
+using ComplexBot.Configuration.Trading;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Notifications;
@@ -326,8 +327,10 @@ class LiveTradingRunner
         }
 
         // Calculate capital allocation per symbol
-        var primaryPairs = multiPairSettings.TradingPairs.Where(p => p.Role == "Primary").ToList();
-        var capitalPerSymbol = multiPairSettings.AllocationMode == "Equal"
+        var primaryPairs = multiPairSettings.TradingPairs
+            .Where(p => p.Role == TradingPairRole.Primary)
+            .ToList();
+        var capitalPerSymbol = multiPairSettings.AllocationMode == AllocationMode.Equal
             ? multiPairSettings.TotalCapital / primaryPairs.Count
             : 0m; // Will be calculated individually for Weighted mode
 
@@ -432,23 +435,23 @@ class LiveTradingRunner
             .AddColumn("Role")
             .AddColumn("Allocation");
 
-        var primaryPairs = settings.TradingPairs.Where(p => p.Role == "Primary").ToList();
+        var primaryPairs = settings.TradingPairs.Where(p => p.Role == TradingPairRole.Primary).ToList();
 
         foreach (var pair in settings.TradingPairs)
         {
-            var weight = pair.Role == "Primary"
-                ? (settings.AllocationMode == "Equal"
+            var weight = pair.Role == TradingPairRole.Primary
+                ? (settings.AllocationMode == AllocationMode.Equal
                     ? 100m / primaryPairs.Count
                     : pair.WeightPercent ?? (100m / primaryPairs.Count))
                 : 0m;
 
-            var allocation = pair.Role == "Primary"
+            var allocation = pair.Role == TradingPairRole.Primary
                 ? $"{weight:F1}% ({settings.TotalCapital * weight / 100:N0} USDT)"
                 : "-";
 
-            var roleDisplay = pair.Role == "Filter"
+            var roleDisplay = pair.Role == TradingPairRole.Filter
                 ? $"Filter ({pair.FilterMode})"
-                : pair.Role;
+                : pair.Role.ToString();
 
             table.AddRow(
                 $"[cyan]{pair.Symbol}[/]",
@@ -467,9 +470,9 @@ class LiveTradingRunner
 
     private decimal CalculateWeightedAllocation(TradingPairConfig config, MultiPairLiveTradingSettings settings)
     {
-        if (config.Role != "Primary") return 0m;
+        if (config.Role != TradingPairRole.Primary) return 0m;
 
-        var primaryPairs = settings.TradingPairs.Where(p => p.Role == "Primary").ToList();
+        var primaryPairs = settings.TradingPairs.Where(p => p.Role == TradingPairRole.Primary).ToList();
         var weight = config.WeightPercent ?? (100m / primaryPairs.Count);
         return settings.TotalCapital * weight / 100m;
     }

@@ -1,5 +1,6 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Trading.SignalFilters;
+using ComplexBot.Services.Strategies;
 
 namespace ComplexBot.Services.Trading;
 
