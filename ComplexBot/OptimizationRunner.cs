@@ -449,6 +449,7 @@ class OptimizationRunner
             backtestSettings);
 
         DisplayMultiTimeframeOptimizationResults(results, settings);
+        PromptSaveMultiTimeframeBestConfig(results, symbol);
     }
 
     private void DisplayMultiTimeframeOptimizationResults(
@@ -523,6 +524,76 @@ class OptimizationRunner
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[green]Best configuration: {best.Configuration}[/]");
         _resultsRenderer.DisplayBacktestResults(best.Backtest.Result);
+    }
+
+    private void PromptSaveMultiTimeframeBestConfig(
+        List<MultiTimeframeOptimizationResult> results,
+        string symbol)
+    {
+        var best = results
+            .Where(r => !r.IsBaseline && !string.IsNullOrWhiteSpace(r.FilterStrategy))
+            .OrderByDescending(r => r.Score)
+            .FirstOrDefault();
+
+        if (best == null)
+            return;
+
+        if (!AnsiConsole.Confirm("Save best filter configuration to appsettings.user.json?", defaultValue: true))
+            return;
+
+        var config = _configService.GetConfiguration();
+        var settings = config.MultiPairLiveTrading;
+
+        var filterConfig = settings.TradingPairs.FirstOrDefault(p =>
+            p.Role == StrategyRole.Filter
+            && p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase)
+            && p.Strategy.Equals(best.FilterStrategy!, StringComparison.OrdinalIgnoreCase));
+
+        if (filterConfig == null)
+        {
+            filterConfig = new TradingPairConfig
+            {
+                Symbol = symbol,
+                Role = StrategyRole.Filter
+            };
+            settings.TradingPairs.Add(filterConfig);
+        }
+
+        filterConfig.Strategy = best.FilterStrategy!;
+        if (!string.IsNullOrWhiteSpace(best.FilterInterval))
+        {
+            filterConfig.Interval = best.FilterInterval!;
+        }
+
+        if (best.FilterMode.HasValue)
+        {
+            filterConfig.FilterMode = best.FilterMode;
+        }
+
+        if (best.FilterStrategy!.Equals("RSI", StringComparison.OrdinalIgnoreCase))
+        {
+            filterConfig.RsiOverbought = best.FilterParameters.TryGetValue("Overbought", out var overbought)
+                ? overbought
+                : filterConfig.RsiOverbought;
+            filterConfig.RsiOversold = best.FilterParameters.TryGetValue("Oversold", out var oversold)
+                ? oversold
+                : filterConfig.RsiOversold;
+            filterConfig.AdxMinThreshold = null;
+            filterConfig.AdxStrongThreshold = null;
+        }
+        else if (best.FilterStrategy!.Equals("ADX", StringComparison.OrdinalIgnoreCase))
+        {
+            filterConfig.AdxMinThreshold = best.FilterParameters.TryGetValue("MinAdx", out var minAdx)
+                ? minAdx
+                : filterConfig.AdxMinThreshold;
+            filterConfig.AdxStrongThreshold = best.FilterParameters.TryGetValue("StrongAdx", out var strongAdx)
+                ? strongAdx
+                : filterConfig.AdxStrongThreshold;
+            filterConfig.RsiOverbought = null;
+            filterConfig.RsiOversold = null;
+        }
+
+        _configService.UpdateSection("MultiPairLiveTrading", settings);
     }
 
     private static string FormatFilterParameters(Dictionary<string, decimal> parameters)

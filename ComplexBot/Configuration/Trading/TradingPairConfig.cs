@@ -13,6 +13,10 @@ public class TradingPairConfig
     // Multi-Timeframe Support
     public StrategyRole Role { get; set; } = StrategyRole.Primary;
     public FilterMode? FilterMode { get; set; }        // For Filter role: Confirm, Veto, or Score
+    public decimal? RsiOverbought { get; set; }
+    public decimal? RsiOversold { get; set; }
+    public decimal? AdxMinThreshold { get; set; }
+    public decimal? AdxStrongThreshold { get; set; }
 
     // Optional per-pair strategy overrides
     public StrategyConfigSettings? StrategyOverrides { get; set; }

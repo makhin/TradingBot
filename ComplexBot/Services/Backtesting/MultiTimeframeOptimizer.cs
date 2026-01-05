@@ -132,45 +132,53 @@ public class MultiTimeframeOptimizer
 
             foreach (var minTrend in settings.AdxMinThresholdRange)
             {
-                foreach (var mode in settings.FilterModesToTest)
+                var strongRange = settings.AdxStrongThresholdRange?.Length > 0
+                    ? settings.AdxStrongThresholdRange
+                    : [minTrend + 10m];
+
+                foreach (var strongTrend in strongRange)
                 {
-                    var strongTrend = Math.Max(minTrend + 10m, minTrend);
+                    if (strongTrend < minTrend)
+                        continue;
 
-                    var filter = new AdxSignalFilter(
-                        minTrendStrength: minTrend,
-                        strongTrendThreshold: strongTrend,
-                        mode: mode);
-
-                    var strategy = adxFilterStrategyFactory(minTrend);
-                    var filterDef = new MultiTimeframeFilterDefinition(
-                        "ADX",
-                        strategy,
-                        filter,
-                        intervalCandles);
-
-                    var backtest = _backtester.Run(
-                        symbol,
-                        primaryCandles,
-                        primaryStrategyFactory(),
-                        new[] { filterDef },
-                        riskSettings,
-                        backtestSettings);
-
-                    var parameters = new Dictionary<string, decimal>
+                    foreach (var mode in settings.FilterModesToTest)
                     {
-                        ["MinAdx"] = minTrend,
-                        ["StrongAdx"] = strongTrend
-                    };
+                        var filter = new AdxSignalFilter(
+                            minTrendStrength: minTrend,
+                            strongTrendThreshold: strongTrend,
+                            mode: mode);
 
-                    results.Add(CreateResult(
-                        $"ADX {minTrend} {interval} {mode}",
-                        interval,
-                        "ADX",
-                        mode,
-                        parameters,
-                        backtest,
-                        settings.OptimizeFor,
-                        isBaseline: false));
+                        var strategy = adxFilterStrategyFactory(minTrend);
+                        var filterDef = new MultiTimeframeFilterDefinition(
+                            "ADX",
+                            strategy,
+                            filter,
+                            intervalCandles);
+
+                        var backtest = _backtester.Run(
+                            symbol,
+                            primaryCandles,
+                            primaryStrategyFactory(),
+                            new[] { filterDef },
+                            riskSettings,
+                            backtestSettings);
+
+                        var parameters = new Dictionary<string, decimal>
+                        {
+                            ["MinAdx"] = minTrend,
+                            ["StrongAdx"] = strongTrend
+                        };
+
+                        results.Add(CreateResult(
+                            $"ADX {minTrend}/{strongTrend} {interval} {mode}",
+                            interval,
+                            "ADX",
+                            mode,
+                            parameters,
+                            backtest,
+                            settings.OptimizeFor,
+                            isBaseline: false));
+                    }
                 }
             }
         }

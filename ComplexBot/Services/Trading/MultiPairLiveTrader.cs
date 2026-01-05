@@ -280,14 +280,14 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
         return config.Strategy.ToUpperInvariant() switch
         {
             "RSI" => new SignalFilters.RsiSignalFilter(
-                overboughtThreshold: 70m,
-                oversoldThreshold: 30m,
+                overboughtThreshold: config.RsiOverbought ?? 70m,
+                oversoldThreshold: config.RsiOversold ?? 30m,
                 mode: filterMode
             ),
 
             "ADX" => new SignalFilters.AdxSignalFilter(
-                minTrendStrength: 20m,
-                strongTrendThreshold: 30m,
+                minTrendStrength: config.AdxMinThreshold ?? 20m,
+                strongTrendThreshold: ResolveAdxStrongThreshold(config),
                 mode: filterMode
             ),
 
@@ -298,6 +298,13 @@ public class MultiPairLiveTrader<TTrader> : IDisposable
 
             _ => null
         };
+    }
+
+    private static decimal ResolveAdxStrongThreshold(TradingPairConfig config)
+    {
+        var minThreshold = config.AdxMinThreshold ?? 20m;
+        var strongThreshold = config.AdxStrongThreshold ?? (minThreshold + 10m);
+        return strongThreshold < minThreshold ? minThreshold : strongThreshold;
     }
 
     private void Log(string context, string message)
