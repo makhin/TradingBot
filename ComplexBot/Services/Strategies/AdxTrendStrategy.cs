@@ -20,7 +20,7 @@ namespace ComplexBot.Services.Strategies;
 public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 {
     public override string Name => "ADX Trend Following + Volume";
-    public override decimal? CurrentStopLoss => _trailingStop;
+    public override decimal? CurrentStopLoss => _positionManager.StopLoss;
 
     private readonly Adx _adx;
     private readonly Ema _fastEma;
@@ -29,21 +29,16 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
     private readonly Macd _macd;
     private readonly Obv _obv;
     private readonly VolumeFilter _volumeFilter;
+    private readonly PositionManager _positionManager;
     private readonly Queue<decimal> _adxHistory;
     private decimal? _currentFastEma;
     private decimal? _currentSlowEma;
     private bool _adxRising;
-    
-    private decimal? _entryPrice;
-    private decimal? _trailingStop;
-    private decimal? _initialStop;
-    private decimal? _highestSinceEntry;
-    private decimal? _lowestSinceEntry;
+
     private bool _wasAboveThreshold;
     private int _adxFallingStreak;
     private decimal? _previousAdx;
     private bool _breakevenMoved;
-    private int _barsSinceEntry;
 
     public AdxTrendStrategy(StrategySettings? settings = null) : base(settings)
     {
@@ -54,6 +49,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         _macd = new Macd();
         _obv = new Obv(Settings.ObvPeriod);
         _volumeFilter = new VolumeFilter(Settings.VolumePeriod, Settings.VolumeThreshold, Settings.RequireVolumeConfirmation);
+        _positionManager = new PositionManager();
         _adxHistory = new Queue<decimal>(Settings.AdxSlopeLookback);
     }
 
@@ -161,11 +157,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         // Long entry: Fast EMA > Slow EMA + +DI > -DI + volume/OBV confirmed + optional fresh trend
         if (fastEma > slowEma && plusDi > minusDi && volumeConfirmed && obvBullish && entryFreshTrendOk)
         {
-            _entryPrice = candle.Close;
-            _highestSinceEntry = candle.High;
-            _trailingStop = longStop;
-            _initialStop = longStop;
-            _barsSinceEntry = 0;
+            _positionManager.EnterLong(candle.Close, longStop, candle.High);
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
@@ -183,11 +175,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         // Short entry: Fast EMA < Slow EMA + -DI > +DI + volume/OBV confirmed + optional fresh trend
         if (fastEma < slowEma && minusDi > plusDi && volumeConfirmed && obvBearish && entryFreshTrendOk)
         {
-            _entryPrice = candle.Close;
-            _lowestSinceEntry = candle.Low;
-            _trailingStop = shortStop;
-            _initialStop = shortStop;
-            _barsSinceEntry = 0;
+            _positionManager.EnterShort(candle.Close, shortStop, candle.Low);
             _adxFallingStreak = 0;
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
@@ -207,10 +195,10 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 
     protected override TradeSignal? CheckExitConditions(Candle candle, decimal position, string symbol)
     {
-        if (!_entryPrice.HasValue)
+        if (!_positionManager.EntryPrice.HasValue)
             return null;
 
-        _barsSinceEntry++;
+        _positionManager.IncrementBars();
         decimal atr = _atr.Value!.Value;
         decimal adx = _adx.Value!.Value;
         bool isLong = position > 0;
@@ -218,59 +206,57 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         // Update trailing stop
         if (isLong)
         {
-            if (candle.High > (_highestSinceEntry ?? candle.High))
+            if (candle.High > (_positionManager.HighestSinceEntry ?? candle.High))
             {
-                _highestSinceEntry = candle.High;
                 decimal newStop = candle.High - (atr * Settings.AtrStopMultiplier);
-                _trailingStop = Math.Max(_trailingStop ?? 0, newStop);
+                _positionManager.UpdateLongStop(newStop, candle.High);
             }
 
             // Exit conditions for long
-            if (candle.Low <= _trailingStop)
+            if (candle.Low <= _positionManager.StopLoss)
             {
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null, 
-                    $"Trailing stop hit at {_trailingStop:F2}");
+                    $"Trailing stop hit at {_positionManager.StopLoss:F2}");
             }
         }
         else
         {
-            if (candle.Low < (_lowestSinceEntry ?? candle.Low))
+            if (candle.Low < (_positionManager.LowestSinceEntry ?? candle.Low))
             {
-                _lowestSinceEntry = candle.Low;
                 decimal newStop = candle.Low + (atr * Settings.AtrStopMultiplier);
-                _trailingStop = Math.Min(_trailingStop ?? decimal.MaxValue, newStop);
+                _positionManager.UpdateShortStop(newStop, candle.Low);
             }
 
             // Exit conditions for short
-            if (candle.High >= _trailingStop)
+            if (candle.High >= _positionManager.StopLoss)
             {
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
-                    $"Trailing stop hit at {_trailingStop:F2}");
+                    $"Trailing stop hit at {_positionManager.StopLoss:F2}");
             }
         }
 
-        if (!_breakevenMoved && _entryPrice.HasValue && _initialStop.HasValue
+        if (!_breakevenMoved && _positionManager.EntryPrice.HasValue && _positionManager.InitialStop.HasValue
             && Settings.PartialExitRMultiple > 0 && Settings.PartialExitFraction > 0)
         {
-            decimal riskPerUnit = Math.Abs(_entryPrice.Value - _initialStop.Value);
+            decimal riskPerUnit = Math.Abs(_positionManager.EntryPrice.Value - _positionManager.InitialStop.Value);
             if (riskPerUnit > 0)
             {
                 decimal achievedR = isLong
-                    ? (candle.High - _entryPrice.Value) / riskPerUnit
-                    : (_entryPrice.Value - candle.Low) / riskPerUnit;
+                    ? (candle.High - _positionManager.EntryPrice.Value) / riskPerUnit
+                    : (_positionManager.EntryPrice.Value - candle.Low) / riskPerUnit;
 
                 if (achievedR >= Settings.PartialExitRMultiple)
                 {
                     _breakevenMoved = true;
-                    _trailingStop = _entryPrice.Value;
+                    _positionManager.MoveStopToBreakeven();
 
                     return new TradeSignal(
                         symbol,
                         SignalType.PartialExit,
                         candle.Close,
-                        _entryPrice.Value,
+                        _positionManager.EntryPrice.Value,
                         null,
                         $"Partial exit at {Settings.PartialExitRMultiple:F1}R, move stop to breakeven",
                         PartialExitPercent: Settings.PartialExitFraction,
@@ -279,7 +265,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
             }
         }
 
-        if (Settings.MaxBarsInTrade > 0 && _barsSinceEntry >= Settings.MaxBarsInTrade)
+        if (Settings.MaxBarsInTrade > 0 && _positionManager.BarsSinceEntry >= Settings.MaxBarsInTrade)
         {
             ResetPosition();
             return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
@@ -306,12 +292,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 
     private void ResetPosition()
     {
-        _entryPrice = null;
-        _trailingStop = null;
-        _initialStop = null;
-        _highestSinceEntry = null;
-        _lowestSinceEntry = null;
-        _barsSinceEntry = 0;
+        _positionManager.Reset();
         _breakevenMoved = false;
     }
 
