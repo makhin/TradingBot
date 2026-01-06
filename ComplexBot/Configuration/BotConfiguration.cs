@@ -2,6 +2,7 @@ namespace ComplexBot.Configuration;
 
 public class BotConfiguration
 {
+    public AppSettings App { get; set; } = new();
     public BinanceApiSettings BinanceApi { get; set; } = new();
     public TelegramSettings Telegram { get; set; } = new();
     public RiskManagementSettings RiskManagement { get; set; } = new();

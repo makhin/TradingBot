@@ -5,6 +5,8 @@ using Spectre.Console;
 using DotNetEnv;
 using ComplexBot.Utils;
 using Serilog;
+using FluentValidation;
+using ComplexBot.Configuration.Validation;
 
 namespace ComplexBot.Configuration;
 
@@ -110,6 +112,7 @@ public class ConfigurationService
     {
         var config = new BotConfiguration();
         _configuration.Bind(config);
+        ValidateConfiguration(config);
         return config;
     }
 
@@ -179,6 +182,24 @@ public class ConfigurationService
                 new JsonStringEnumConverter()
             }
         };
+    }
+
+    private static void ValidateConfiguration(BotConfiguration config)
+    {
+        var validator = new BotConfigurationValidator();
+        var result = validator.Validate(config);
+
+        if (result.IsValid)
+        {
+            return;
+        }
+
+        foreach (var error in result.Errors)
+        {
+            Log.Error("Configuration validation error: {Property} - {Message}", error.PropertyName, error.ErrorMessage);
+        }
+
+        throw new ValidationException("Configuration validation failed.", result.Errors);
     }
 
     public void EditInteractive(string section)

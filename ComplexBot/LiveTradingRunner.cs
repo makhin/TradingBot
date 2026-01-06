@@ -106,7 +106,7 @@ class LiveTradingRunner
                 new SelectionPrompt<KlineInterval>()
                     .Title($"Interval (current: [green]{UiMappings.GetIntervalLabel(config.LiveTrading.Interval)}[/]):")
                     .UseConverter(UiMappings.GetIntervalLabel)
-                    .AddChoices(UiMappings.IntervalModes)
+                    .AddChoices(config.App.AllowedIntervals)
             );
             tradingMode = AnsiConsole.Prompt(
                 new SelectionPrompt<TradingMode>()
@@ -168,7 +168,7 @@ class LiveTradingRunner
                 config.Telegram.ChatId);
         }
 
-        var liveSettings = new LiveTraderSettings
+        var liveSettings = config.LiveTrading.ToLiveTraderSettings() with
         {
             Symbol = symbol,
             Interval = interval,

@@ -11,21 +11,19 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        // Configure Serilog early
-        ConfigureLogging();
+        var configService = new ConfigurationService();
+        ConfigureLogging(configService.GetConfiguration().App.Paths);
 
         try
         {
             Log.Information("=== TradingBot Starting ===");
             Log.Information("Environment: {Environment}", Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production");
 
-            var configService = new ConfigurationService();
-
             var menu = new AppMenu();
             var settingsService = new SettingsService(configService);
             var strategyFactory = new StrategyFactory(configService);
             var resultsRenderer = new ResultsRenderer();
-            var dataRunner = new DataRunner();
+            var dataRunner = new DataRunner(configService.GetConfiguration().App);
 
             var backtestRunner = new BacktestRunner(dataRunner, settingsService, strategyFactory, resultsRenderer);
             var optimizationRunner = new OptimizationRunner(dataRunner, settingsService, resultsRenderer, configService);
@@ -80,10 +78,10 @@ class Program
         }
     }
 
-    private static void ConfigureLogging()
+    private static void ConfigureLogging(PathSettings paths)
     {
         // Ensure logs directory exists
-        var logDirectory = Path.Combine(AppContext.BaseDirectory, "data", "logs");
+        var logDirectory = ResolvePath(AppContext.BaseDirectory, paths.LogsDirectory);
         Directory.CreateDirectory(logDirectory);
 
         var logFilePath = Path.Combine(logDirectory, "tradingbot-.log");
@@ -110,5 +108,12 @@ class Program
             .CreateLogger();
 
         Log.Debug("Logging configured - File: {LogFilePath}, MinLevel: DEBUG", logFilePath);
+    }
+
+    private static string ResolvePath(string basePath, string configuredPath)
+    {
+        return Path.IsPathRooted(configuredPath)
+            ? configuredPath
+            : Path.Combine(basePath, configuredPath);
     }
 }

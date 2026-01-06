@@ -19,9 +19,6 @@ namespace ComplexBot.Services.Trading;
 
 public class BinanceLiveTrader : IAsyncDisposable
 {
-    private static readonly TimeSpan StatusLogInterval = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan BalanceLogInterval = TimeSpan.FromHours(4);
-
     private readonly BinanceRestClient _restClient;
     private readonly BinanceSocketClient _socketClient;
     private readonly IStrategy _strategy;
@@ -105,7 +102,7 @@ public class BinanceLiveTrader : IAsyncDisposable
         OrderSide side,
         decimal quantity,
         decimal limitPrice,
-        int timeoutSeconds = 5)
+        int timeoutSeconds)
     {
         if (_settings.PaperTrade)
         {
@@ -208,12 +205,17 @@ public class BinanceLiveTrader : IAsyncDisposable
         }
 
         // Try limit order first (slightly better price)
+        var offsetMultiplier = _settings.LimitOrderOffsetBps / 10000m;
         decimal limitPrice = side == OrderSide.Buy
-            ? currentPrice * 0.9995m  // 0.05% better for buy
-            : currentPrice * 1.0005m; // 0.05% better for sell
+            ? currentPrice * (1 - offsetMultiplier)
+            : currentPrice * (1 + offsetMultiplier);
 
         Log($"Attempting limit order @ {limitPrice:F2} (market: {currentPrice:F2})", LogEventLevel.Debug);
-        var limitResult = await PlaceLimitOrderWithTimeout(side, quantity, limitPrice, timeoutSeconds: 3);
+        var limitResult = await PlaceLimitOrderWithTimeout(
+            side,
+            quantity,
+            limitPrice,
+            _settings.LimitOrderTimeoutSeconds);
 
         if (limitResult.Success)
         {
@@ -624,9 +626,9 @@ public class BinanceLiveTrader : IAsyncDisposable
         }
 
         // Round quantity to valid precision
-        quantity = Math.Round(quantity, 5);
+        quantity = Math.Round(quantity, _settings.QuantityPrecision);
         
-        if (quantity * price < 10) // Binance minimum order
+        if (quantity * price < _settings.MinimumOrderUsd) // Binance minimum order
         {
             Log($"Position too small: {quantity * price:F2} USDT", LogEventLevel.Warning);
             return;
@@ -1038,7 +1040,7 @@ public class BinanceLiveTrader : IAsyncDisposable
     private void LogWaitingStatus(Candle candle)
     {
         var now = DateTime.UtcNow;
-        if (now - _lastStatusLogUtc < StatusLogInterval)
+        if (now - _lastStatusLogUtc < TimeSpan.FromMinutes(_settings.StatusLogIntervalMinutes))
         {
             return;
         }
@@ -1066,7 +1068,7 @@ public class BinanceLiveTrader : IAsyncDisposable
     private async Task LogBalanceSnapshotAsync()
     {
         var now = DateTime.UtcNow;
-        if (now - _lastBalanceLogUtc < BalanceLogInterval)
+        if (now - _lastBalanceLogUtc < TimeSpan.FromHours(_settings.BalanceLogIntervalHours))
         {
             return;
         }
