@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
 
@@ -9,6 +10,7 @@ public class EnsembleConfigSettings
     public bool Enabled { get; set; } = false;
     public decimal MinimumAgreement { get; set; } = 0.6m;
     public bool UseConfidenceWeighting { get; set; } = true;
+    [JsonConverter(typeof(StrategyWeightsJsonConverter))]
     public Dictionary<StrategyKind, decimal> StrategyWeights { get; set; } = new()
     {
         [StrategyKind.AdxTrendFollowing] = 0.5m,
