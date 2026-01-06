@@ -17,7 +17,7 @@ namespace ComplexBot.Services.Strategies;
 ///
 /// Based on research: simple trend-following with minimal filters achieves Sharpe 1.5-1.9
 /// </summary>
-public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
+public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, IProvidesIndicatorSnapshot
 {
     public override string Name => "ADX Trend Following + Volume";
     public override decimal? CurrentStopLoss => _positionManager.StopLoss;
@@ -72,6 +72,18 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
         }
     }
     public bool VolumeConfirmation => _obv.IsReady;
+    public IndicatorSnapshot GetIndicatorSnapshot()
+        => IndicatorSnapshot.FromPairs(
+            (IndicatorValueKey.Adx, CurrentAdx),
+            (IndicatorValueKey.PlusDi, CurrentPlusDi),
+            (IndicatorValueKey.MinusDi, CurrentMinusDi),
+            (IndicatorValueKey.FastEma, CurrentFastEma),
+            (IndicatorValueKey.SlowEma, CurrentSlowEma),
+            (IndicatorValueKey.Atr, CurrentAtr),
+            (IndicatorValueKey.MacdHistogram, CurrentMacdHistogram),
+            (IndicatorValueKey.VolumeRatio, CurrentVolumeRatio),
+            (IndicatorValueKey.ObvSlope, CurrentObvSlope)
+        );
 
     /// <summary>
     /// Returns confidence based on ADX strength
