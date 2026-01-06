@@ -32,11 +32,11 @@ public class Adx : IIndicator<Candle>, IMultiValueIndicator
     public decimal? MinusDi { get; private set; }
     public bool IsReady => Value.HasValue;
 
-    public IReadOnlyDictionary<string, decimal?> Values => new Dictionary<string, decimal?>
+    public IReadOnlyDictionary<IndicatorValueKey, decimal?> Values => new Dictionary<IndicatorValueKey, decimal?>
     {
-        ["ADX"] = Value,
-        ["+DI"] = PlusDi,
-        ["-DI"] = MinusDi
+        [IndicatorValueKey.Adx] = Value,
+        [IndicatorValueKey.PlusDi] = PlusDi,
+        [IndicatorValueKey.MinusDi] = MinusDi
     };
 
     public decimal? Update(Candle candle)

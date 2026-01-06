@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ComplexBot.Models;
 
 namespace ComplexBot.Services.Indicators;
 
@@ -24,11 +25,11 @@ public class Macd : IIndicator<decimal>, IMultiValueIndicator
     public decimal? Histogram { get; private set; }
     public bool IsReady => _slowEma.IsReady && _signalEma.IsReady;
 
-    public IReadOnlyDictionary<string, decimal?> Values => new Dictionary<string, decimal?>
+    public IReadOnlyDictionary<IndicatorValueKey, decimal?> Values => new Dictionary<IndicatorValueKey, decimal?>
     {
-        ["MACD"] = MacdLine,
-        ["Signal"] = SignalLine,
-        ["Histogram"] = Histogram
+        [IndicatorValueKey.MacdLine] = MacdLine,
+        [IndicatorValueKey.MacdSignal] = SignalLine,
+        [IndicatorValueKey.MacdHistogram] = Histogram
     };
 
     public decimal? Update(decimal price)

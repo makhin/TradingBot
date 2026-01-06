@@ -13,17 +13,17 @@ public class TradeJournal
     private readonly object _sync = new();
     private readonly ILogger _logger;
     private int _nextTradeId = 1;
-    private static readonly string[] DefaultIndicatorKeys =
+    private static readonly IndicatorValueKey[] DefaultIndicatorKeys =
     [
-        "ADX",
-        "+DI",
-        "-DI",
-        "FastEMA",
-        "SlowEMA",
-        "ATR",
-        "MACD_Hist",
-        "VolumeRatio",
-        "OBV_Slope"
+        IndicatorValueKey.Adx,
+        IndicatorValueKey.PlusDi,
+        IndicatorValueKey.MinusDi,
+        IndicatorValueKey.FastEma,
+        IndicatorValueKey.SlowEma,
+        IndicatorValueKey.Atr,
+        IndicatorValueKey.MacdHistogram,
+        IndicatorValueKey.VolumeRatio,
+        IndicatorValueKey.ObvSlope
     ];
 
     public TradeJournal(string outputPath = "trades", ILogger? logger = null)
@@ -77,8 +77,8 @@ public class TradeJournal
         var indicatorKeys = DefaultIndicatorKeys
             .Concat(entriesSnapshot
                 .SelectMany(entry => entry.Indicators.Values.Keys)
-                .Where(key => !DefaultIndicatorKeys.Contains(key, StringComparer.Ordinal)))
-            .Distinct(StringComparer.Ordinal)
+                .Where(key => !DefaultIndicatorKeys.Contains(key)))
+            .Distinct()
             .ToList();
 
         using var writer = new StreamWriter(path);
@@ -121,7 +121,7 @@ public class TradeJournal
 
         foreach (var indicatorKey in indicatorKeys)
         {
-            csv.WriteField(indicatorKey);
+            csv.WriteField(indicatorKey.ToDisplayName());
         }
 
         foreach (var header in postIndicatorHeaders)

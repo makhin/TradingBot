@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ComplexBot.Models;
 
 namespace ComplexBot.Services.Indicators;
 
@@ -10,5 +11,5 @@ public interface IMultiValueIndicator : IIndicator
     /// <summary>
     /// Gets all output values as a dictionary
     /// </summary>
-    IReadOnlyDictionary<string, decimal?> Values { get; }
+    IReadOnlyDictionary<IndicatorValueKey, decimal?> Values { get; }
 }
