@@ -273,10 +273,55 @@ public record GeneticOptimizationResult<TSettings>
 
 ## Примеры кода
 
-См. [OptimizerExamples.cs](ComplexBot/Services/Backtesting/OptimizerExamples.cs) для полных примеров:
-- `OptimizeAdxStrategy()` - оптимизация ADX через helper
-- `OptimizeMaStrategy()` - оптимизация MA вручную
-- `CreateRsiOptimizer()` - создание оптимизатора для RSI
+### Оптимизация ADX через helper
+
+```csharp
+var adxOptimizer = new AdxStrategyOptimizer();
+var settings = new GeneticOptimizerSettings
+{
+    PopulationSize = 100,
+    Generations = 50
+};
+
+var result = adxOptimizer.Optimize(
+    candles,
+    symbol,
+    settings,
+    progress: new Progress<GeneticProgress<StrategySettings>>(p =>
+    {
+        Log.Information("Generation {CurrentGeneration}/{TotalGenerations}: Best={BestFitness:F2}",
+            p.CurrentGeneration,
+            p.TotalGenerations,
+            p.BestFitness);
+    })
+);
+```
+
+### Оптимизация MA вручную (делегаты)
+
+```csharp
+var optimizer = new GeneticOptimizer<MaStrategySettings>(
+    createRandom,
+    mutate,
+    crossover,
+    validate,
+    new GeneticOptimizerSettings { PopulationSize = 50, Generations = 30 }
+);
+
+var result = optimizer.Optimize(evaluateFitness);
+```
+
+### Создание оптимизатора для RSI
+
+```csharp
+var rsiOptimizer = new GeneticOptimizer<RsiStrategySettings>(
+    createRandom: () => new RsiStrategySettings { /* ... */ },
+    mutate: settings => settings with { /* ... */ },
+    crossover: (p1, p2) => new RsiStrategySettings { /* ... */ },
+    validate: settings => settings.OversoldLevel < 50 && settings.OverboughtLevel > 50,
+    settings: new GeneticOptimizerSettings { PopulationSize = 80, Generations = 40 }
+);
+```
 
 ## Migration Guide
 
