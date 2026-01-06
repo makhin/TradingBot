@@ -1,5 +1,6 @@
 using ComplexBot.Configuration;
 using ComplexBot.Models;
+using ComplexBot.Services.Strategies;
 using ComplexBot.Utils;
 using Spectre.Console;
 using Serilog;
@@ -21,12 +22,13 @@ class Program
 
             var menu = new AppMenu();
             var settingsService = new SettingsService(configService);
-            var strategyFactory = new StrategyFactory(configService);
+            var strategyRegistry = new StrategyRegistry(configService);
+            var strategyFactory = new StrategyFactory(strategyRegistry);
             var resultsRenderer = new ResultsRenderer();
             var dataRunner = new DataRunner(configService.GetConfiguration().App);
 
             var backtestRunner = new BacktestRunner(dataRunner, settingsService, strategyFactory, resultsRenderer);
-            var optimizationRunner = new OptimizationRunner(dataRunner, settingsService, resultsRenderer, configService);
+            var optimizationRunner = new OptimizationRunner(dataRunner, settingsService, resultsRenderer, configService, strategyRegistry);
             var analysisRunner = new AnalysisRunner(dataRunner, settingsService, strategyFactory, resultsRenderer);
             var liveTradingRunner = new LiveTradingRunner(configService, settingsService);
 
