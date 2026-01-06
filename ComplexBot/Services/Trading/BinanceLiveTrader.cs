@@ -10,6 +10,7 @@ using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Notifications;
 using ComplexBot.Services.State;
 using ComplexBot.Services.Backtesting;
+using ComplexBot.Services.Analytics;
 using CryptoExchange.Net.Objects.Sockets;
 using Serilog;
 using Serilog.Events;
@@ -503,8 +504,7 @@ public class BinanceLiveTrader : IAsyncDisposable
         }
 
         // Check stop loss/take profit on current candle
-        await CheckTakeProfitAsync(candle);
-        await CheckStopLossAsync(candle);
+        await CheckExitConditionsAsync(candle);
 
         // Analyze for signals
         var signal = _strategy.Analyze(candle, _currentPosition, _settings.Symbol);
@@ -524,34 +524,33 @@ public class BinanceLiveTrader : IAsyncDisposable
         await LogBalanceSnapshotAsync();
     }
 
-    private async Task CheckStopLossAsync(Candle candle)
+    private async Task CheckExitConditionsAsync(Candle candle)
     {
-        if (_currentPosition == 0 || !_stopLoss.HasValue) return;
-
-        bool stopHit = _currentPosition > 0
-            ? candle.Low <= _stopLoss.Value
-            : candle.High >= _stopLoss.Value;
-
-        if (stopHit)
+        if (_currentPosition == 0 || (!_stopLoss.HasValue && !_takeProfit.HasValue))
         {
-            Log($"Stop loss triggered at {_stopLoss:F2}", LogEventLevel.Warning);
-            await ClosePositionAsync("Stop Loss");
+            return;
         }
-    }
 
-    private async Task CheckTakeProfitAsync(Candle candle)
-    {
-        if (_currentPosition == 0 || !_takeProfit.HasValue) return;
+        var direction = _currentPosition > 0 ? TradeDirection.Long : TradeDirection.Short;
+        var result = ExitConditionChecker.CheckExit(
+            candle,
+            _stopLoss,
+            _takeProfit,
+            direction,
+            price => price,
+            stopLossFirst: false);
 
-        bool takeProfitHit = _currentPosition > 0
-            ? candle.High >= _takeProfit.Value
-            : candle.Low <= _takeProfit.Value;
-
-        if (takeProfitHit)
+        if (!result.ShouldExit)
         {
-            Log($"Take profit triggered at {_takeProfit:F2}", LogEventLevel.Information);
-            await ClosePositionAsync("Take Profit");
+            return;
         }
+
+        var logLevel = result.Reason == "Stop Loss"
+            ? LogEventLevel.Warning
+            : LogEventLevel.Information;
+
+        Log($"{result.Reason} triggered at {result.ExitPrice:F2}", logLevel);
+        await ClosePositionAsync(result.Reason);
     }
 
     private async Task ProcessSignalAsync(TradeSignal signal, Candle candle)
@@ -784,7 +783,12 @@ public class BinanceLiveTrader : IAsyncDisposable
         decimal grossPnl = direction == TradeDirection.Long
             ? (currentPrice - _entryPrice!.Value) * quantity
             : (_entryPrice!.Value - currentPrice) * quantity;
-        var tradingCosts = CalculateTradingCosts(_entryPrice!.Value, currentPrice, quantity);
+        var tradingCosts = TradeCostCalculator.CalculateTotalCosts(
+            _entryPrice!.Value,
+            currentPrice,
+            quantity,
+            _settings.FeeRate,
+            _settings.SlippageBps / 10000m);
         var netPnl = grossPnl - tradingCosts;
         var exitPrice = currentPrice;
 
@@ -820,7 +824,12 @@ public class BinanceLiveTrader : IAsyncDisposable
                 grossPnl = direction == TradeDirection.Long
                     ? (fillPrice - _entryPrice!.Value) * quantity
                     : (_entryPrice!.Value - fillPrice) * quantity;
-                tradingCosts = CalculateTradingCosts(_entryPrice!.Value, fillPrice, quantity);
+                tradingCosts = TradeCostCalculator.CalculateTotalCosts(
+                    _entryPrice!.Value,
+                    fillPrice,
+                    quantity,
+                    _settings.FeeRate,
+                    _settings.SlippageBps / 10000m);
                 netPnl = grossPnl - tradingCosts;
                 exitPrice = fillPrice;
 
@@ -901,7 +910,12 @@ public class BinanceLiveTrader : IAsyncDisposable
         decimal grossPnl = direction == TradeDirection.Long
             ? (currentPrice - _entryPrice!.Value) * exitQuantity
             : (_entryPrice!.Value - currentPrice) * exitQuantity;
-        var tradingCosts = CalculateTradingCosts(_entryPrice!.Value, currentPrice, exitQuantity);
+        var tradingCosts = TradeCostCalculator.CalculateTotalCosts(
+            _entryPrice!.Value,
+            currentPrice,
+            exitQuantity,
+            _settings.FeeRate,
+            _settings.SlippageBps / 10000m);
         var netPnl = grossPnl - tradingCosts;
 
         var exitPrice = currentPrice;
@@ -937,7 +951,12 @@ public class BinanceLiveTrader : IAsyncDisposable
                 grossPnl = direction == TradeDirection.Long
                     ? (fillPrice - _entryPrice!.Value) * exitQuantity
                     : (_entryPrice!.Value - fillPrice) * exitQuantity;
-                tradingCosts = CalculateTradingCosts(_entryPrice!.Value, fillPrice, exitQuantity);
+                tradingCosts = TradeCostCalculator.CalculateTotalCosts(
+                    _entryPrice!.Value,
+                    fillPrice,
+                    exitQuantity,
+                    _settings.FeeRate,
+                    _settings.SlippageBps / 10000m);
                 netPnl = grossPnl - tradingCosts;
                 exitPrice = fillPrice;
 
@@ -1003,15 +1022,6 @@ public class BinanceLiveTrader : IAsyncDisposable
         {
             await UpdateTrailingStopAsync(_stopLoss.Value, _takeProfit.Value);
         }
-    }
-
-    private decimal CalculateTradingCosts(decimal entryPrice, decimal exitPrice, decimal quantity)
-    {
-        var notional = (entryPrice + exitPrice) * quantity;
-        var feeCosts = notional * _settings.FeeRate;
-        var slippageRate = _settings.SlippageBps / 10000m;
-        var slippageCosts = notional * slippageRate;
-        return feeCosts + slippageCosts;
     }
 
     private void Log(string message)
