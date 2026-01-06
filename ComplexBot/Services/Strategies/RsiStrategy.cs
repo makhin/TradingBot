@@ -19,18 +19,17 @@ namespace ComplexBot.Services.Strategies;
 public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
 {
     public override string Name => "RSI Mean Reversion";
-    public override decimal? CurrentStopLoss => _stopLoss;
+    public override decimal? CurrentStopLoss => _positionManager.StopLoss;
 
     private readonly Rsi _rsi;
     private readonly Atr _atr;
     private readonly Ema _trendFilter;
     private readonly VolumeFilter _volumeFilter;
+    private readonly PositionManager _positionManager;
 
     private decimal? _previousRsi;
     private decimal? _currentRsi;
     private decimal? _currentTrendEma;
-    private decimal? _entryPrice;
-    private decimal? _stopLoss;
 
     public RsiStrategy(RsiStrategySettings? settings = null) : base(settings)
     {
@@ -38,6 +37,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
         _atr = new Atr(Settings.AtrPeriod);
         _trendFilter = new Ema(Settings.TrendFilterPeriod);
         _volumeFilter = new VolumeFilter(Settings.VolumePeriod, Settings.VolumeThreshold, Settings.RequireVolumeConfirmation);
+        _positionManager = new PositionManager();
     }
 
     public decimal? CurrentRsi => _rsi.Value;
@@ -119,8 +119,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
             var stopLoss = candle.Close - atr * Settings.AtrStopMultiplier;
             var takeProfit = candle.Close + atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
-            _entryPrice = candle.Close;
-            _stopLoss = stopLoss;
+            _positionManager.EnterLong(candle.Close, stopLoss, candle.Close);
 
             return new TradeSignal(
                 symbol,
@@ -145,8 +144,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
             var stopLoss = candle.Close + atr * Settings.AtrStopMultiplier;
             var takeProfit = candle.Close - atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
-            _entryPrice = candle.Close;
-            _stopLoss = stopLoss;
+            _positionManager.EnterShort(candle.Close, stopLoss, candle.Close);
 
             return new TradeSignal(
                 symbol,
@@ -163,24 +161,26 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
 
     protected override TradeSignal? CheckExitConditions(Candle candle, decimal position, string symbol)
     {
-        if (!_stopLoss.HasValue || !_entryPrice.HasValue || !_currentRsi.HasValue)
+        if (!_positionManager.StopLoss.HasValue || !_positionManager.EntryPrice.HasValue || !_currentRsi.HasValue)
             return null;
 
         bool isLong = position > 0;
         var rsi = _currentRsi.Value;
 
         // Stop loss check
-        if (isLong && candle.Low <= _stopLoss.Value)
+        if (isLong && candle.Low <= _positionManager.StopLoss.Value)
         {
+            var stopLoss = _positionManager.StopLoss.Value;
             ResetPosition();
             return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
-                $"Stop loss hit @ {_stopLoss.Value:F2}");
+                $"Stop loss hit @ {stopLoss:F2}");
         }
-        else if (!isLong && candle.High >= _stopLoss.Value)
+        else if (!isLong && candle.High >= _positionManager.StopLoss.Value)
         {
+            var stopLoss = _positionManager.StopLoss.Value;
             ResetPosition();
             return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
-                $"Stop loss hit @ {_stopLoss.Value:F2}");
+                $"Stop loss hit @ {stopLoss:F2}");
         }
 
         // RSI exit conditions
@@ -226,8 +226,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
 
     private void ResetPosition()
     {
-        _entryPrice = null;
-        _stopLoss = null;
+        _positionManager.Reset();
     }
 
     public override void Reset()

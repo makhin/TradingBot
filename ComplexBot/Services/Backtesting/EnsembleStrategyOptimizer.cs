@@ -14,7 +14,7 @@ public class EnsembleStrategyOptimizer : StrategyOptimizerBase<EnsembleOptimizat
         BacktestSettings? backtestSettings = null,
         OptimizationTarget optimizeFor = OptimizationTarget.RiskAdjusted,
         PerformanceFitnessPolicy? policy = null)
-        : this(config ?? new EnsembleOptimizerConfig(), riskSettings, backtestSettings, optimizeFor, policy)
+        : this(config ?? new EnsembleOptimizerConfig(), riskSettings, backtestSettings, optimizeFor, policy, true)
     {
     }
 
@@ -23,7 +23,8 @@ public class EnsembleStrategyOptimizer : StrategyOptimizerBase<EnsembleOptimizat
         RiskSettings? riskSettings,
         BacktestSettings? backtestSettings,
         OptimizationTarget optimizeFor,
-        PerformanceFitnessPolicy? policy)
+        PerformanceFitnessPolicy? policy,
+        bool _)
         : base(config, riskSettings, backtestSettings, policy ?? new PerformanceFitnessPolicy { MinTrades = config.MinTrades })
     {
         _optimizeFor = optimizeFor;

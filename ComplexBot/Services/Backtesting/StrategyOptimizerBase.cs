@@ -4,6 +4,7 @@ using ComplexBot.Services.RiskManagement;
 namespace ComplexBot.Services.Backtesting;
 
 public abstract class StrategyOptimizerBase<TSettings, TConfig>
+    where TSettings : class
 {
     protected StrategyOptimizerBase(
         TConfig config,

@@ -17,19 +17,18 @@ namespace ComplexBot.Services.Strategies;
 public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
 {
     public override string Name => "MA Crossover";
-    public override decimal? CurrentStopLoss => _trailingStop;
+    public override decimal? CurrentStopLoss => _positionManager.StopLoss;
 
     private readonly Ema _fastMa;
     private readonly Ema _slowMa;
     private readonly Atr _atr;
     private readonly VolumeFilter _volumeFilter;
+    private readonly PositionManager _positionManager;
 
     private decimal? _previousFastMa;
     private decimal? _previousSlowMa;
     private decimal? _currentFastMa;
     private decimal? _currentSlowMa;
-    private decimal? _entryPrice;
-    private decimal? _trailingStop;
 
     public MaStrategy(MaStrategySettings? settings = null) : base(settings)
     {
@@ -37,6 +36,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
         _slowMa = new Ema(Settings.SlowMaPeriod);
         _atr = new Atr(Settings.AtrPeriod);
         _volumeFilter = new VolumeFilter(Settings.VolumePeriod, Settings.VolumeThreshold, Settings.RequireVolumeConfirmation);
+        _positionManager = new PositionManager();
     }
 
     public override decimal? CurrentAtr => _atr.Value;
@@ -101,8 +101,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
             var stopLoss = candle.Close - atr * Settings.AtrStopMultiplier;
             var takeProfit = candle.Close + atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
-            _entryPrice = candle.Close;
-            _trailingStop = stopLoss;
+            _positionManager.EnterLong(candle.Close, stopLoss, candle.Close);
 
             return new TradeSignal(
                 symbol,
@@ -121,8 +120,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
             var stopLoss = candle.Close + atr * Settings.AtrStopMultiplier;
             var takeProfit = candle.Close - atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
-            _entryPrice = candle.Close;
-            _trailingStop = stopLoss;
+            _positionManager.EnterShort(candle.Close, stopLoss, candle.Close);
 
             return new TradeSignal(
                 symbol,
@@ -139,7 +137,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
 
     protected override TradeSignal? CheckExitConditions(Candle candle, decimal position, string symbol)
     {
-        if (!_atr.Value.HasValue || !_entryPrice.HasValue
+        if (!_atr.Value.HasValue || !_positionManager.EntryPrice.HasValue
             || !_currentFastMa.HasValue || !_currentSlowMa.HasValue)
             return null;
 
@@ -149,31 +147,29 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
         var slowMa = _currentSlowMa.Value;
 
         // Update trailing stop
-        if (isLong && _trailingStop.HasValue)
+        if (isLong && _positionManager.StopLoss.HasValue)
         {
             var newStop = candle.Close - atr * Settings.AtrStopMultiplier;
-            if (newStop > _trailingStop.Value)
-                _trailingStop = newStop;
+            _positionManager.UpdateLongStop(newStop, candle.Close);
 
             // Stop loss hit
-            if (candle.Low <= _trailingStop.Value)
+            if (candle.Low <= _positionManager.StopLoss.Value)
             {
-                var stopPrice = _trailingStop.Value;
+                var stopPrice = _positionManager.StopLoss.Value;
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
                     $"Trailing stop hit @ {stopPrice:F2}");
             }
         }
-        else if (!isLong && _trailingStop.HasValue)
+        else if (!isLong && _positionManager.StopLoss.HasValue)
         {
             var newStop = candle.Close + atr * Settings.AtrStopMultiplier;
-            if (newStop < _trailingStop.Value)
-                _trailingStop = newStop;
+            _positionManager.UpdateShortStop(newStop, candle.Close);
 
             // Stop loss hit
-            if (candle.High >= _trailingStop.Value)
+            if (candle.High >= _positionManager.StopLoss.Value)
             {
-                var stopPrice = _trailingStop.Value;
+                var stopPrice = _positionManager.StopLoss.Value;
                 ResetPosition();
                 return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
                     $"Trailing stop hit @ {stopPrice:F2}");
@@ -205,8 +201,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
 
     private void ResetPosition()
     {
-        _entryPrice = null;
-        _trailingStop = null;
+        _positionManager.Reset();
     }
 
     public override void Reset()
