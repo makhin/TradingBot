@@ -2,6 +2,7 @@ using ComplexBot.Models;
 using CsvHelper;
 using CsvHelper.Configuration;
 using System.Globalization;
+using Serilog;
 
 namespace ComplexBot.Services.Analytics;
 
@@ -10,6 +11,7 @@ public class TradeJournal
     private readonly List<TradeJournalEntry> _entries = new();
     private readonly string _outputPath;
     private readonly object _sync = new();
+    private readonly ILogger _logger;
     private int _nextTradeId = 1;
     private static readonly string[] DefaultIndicatorKeys =
     [
@@ -24,9 +26,10 @@ public class TradeJournal
         "OBV_Slope"
     ];
 
-    public TradeJournal(string outputPath = "trades")
+    public TradeJournal(string outputPath = "trades", ILogger? logger = null)
     {
         _outputPath = outputPath;
+        _logger = logger ?? Log.ForContext<TradeJournal>();
         Directory.CreateDirectory(_outputPath);
     }
 
@@ -162,7 +165,7 @@ public class TradeJournal
             csv.NextRecord();
         }
 
-        Console.WriteLine($"📊 Trade journal exported: {path}");
+        _logger.Information("📊 Trade journal exported: {Path}", path);
     }
 
     public TradeJournalStats GetStats()
