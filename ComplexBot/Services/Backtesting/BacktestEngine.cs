@@ -46,32 +46,22 @@ public class BacktestEngine
             // Check exit conditions
             if (position.HasPosition)
             {
-                // Check stop loss
-                if (position.StopLoss.HasValue)
+                var result = ExitConditionChecker.CheckExit(
+                    candle,
+                    position.StopLoss,
+                    position.TakeProfit,
+                    position.Direction!.Value,
+                    price => TradeCostCalculator.ApplySlippage(
+                        price,
+                        _settings.SlippagePercent,
+                        position.Direction!.Value,
+                        false),
+                    stopLossFirst: true);
+
+                if (result.ShouldExit)
                 {
-                    var result = ExitConditionChecker.CheckStopLoss(
-                        candle, position.StopLoss.Value, position.Direction!.Value,
-                        price => ApplySlippage(price, position.Direction!.Value, false));
-
-                    if (result.ShouldExit)
-                    {
-                        capital += ExecuteExit(position, result.ExitPrice, candle.OpenTime, result.Reason, symbol, trades);
-                        continue;
-                    }
-                }
-
-                // Check take profit
-                if (position.TakeProfit.HasValue)
-                {
-                    var result = ExitConditionChecker.CheckTakeProfit(
-                        candle, position.TakeProfit.Value, position.Direction!.Value,
-                        price => ApplySlippage(price, position.Direction!.Value, false));
-
-                    if (result.ShouldExit)
-                    {
-                        capital += ExecuteExit(position, result.ExitPrice, candle.OpenTime, result.Reason, symbol, trades);
-                        continue;
-                    }
+                    capital += ExecuteExit(position, result.ExitPrice, candle.OpenTime, result.Reason, symbol, trades);
+                    continue;
                 }
             }
 
@@ -94,7 +84,11 @@ public class BacktestEngine
         if (position.HasPosition && candles.Count > 0)
         {
             var lastCandle = candles[^1];
-            decimal exitPrice = ApplySlippage(lastCandle.Close, position.Direction!.Value, false);
+            decimal exitPrice = TradeCostCalculator.ApplySlippage(
+                lastCandle.Close,
+                _settings.SlippagePercent,
+                position.Direction!.Value,
+                false);
             capital += ExecuteExit(position, exitPrice, lastCandle.CloseTime, "End of Backtest", symbol, trades);
         }
 
@@ -133,7 +127,11 @@ public class BacktestEngine
                 break;
 
             case SignalType.Exit when position.HasPosition:
-                decimal exitPrice = ApplySlippage(candle.Close, position.Direction!.Value, false);
+                decimal exitPrice = TradeCostCalculator.ApplySlippage(
+                    candle.Close,
+                    _settings.SlippagePercent,
+                    position.Direction!.Value,
+                    false);
                 pnl += ExecuteExit(position, exitPrice, candle.OpenTime, signal.Reason, symbol, trades);
                 break;
 
@@ -150,7 +148,11 @@ public class BacktestEngine
         if (!position.HasPosition || position.Direction != closeDirection)
             return 0;
 
-        decimal exitPrice = ApplySlippage(candle.Close, closeDirection, false);
+        decimal exitPrice = TradeCostCalculator.ApplySlippage(
+            candle.Close,
+            _settings.SlippagePercent,
+            closeDirection,
+            false);
         return ExecuteExit(position, exitPrice, candle.OpenTime, "Signal Reversal", symbol, trades);
     }
 
@@ -159,7 +161,11 @@ public class BacktestEngine
         if (!_riskManager.CanOpenPosition() || !signal.StopLoss.HasValue)
             return;
 
-        decimal entryPrice = ApplySlippage(candle.Close, direction, true);
+        decimal entryPrice = TradeCostCalculator.ApplySlippage(
+            candle.Close,
+            _settings.SlippagePercent,
+            direction,
+            true);
         var sizing = _riskManager.CalculatePositionSize(
             entryPrice, signal.StopLoss.Value,
             _strategy.CurrentAtr);
@@ -198,8 +204,14 @@ public class BacktestEngine
     private decimal ExecuteExit(PositionState position, decimal exitPrice, DateTime exitTime, string reason, string symbol, List<Trade> trades)
     {
         decimal pnl = position.CalculateExitPnL(exitPrice, position.AbsolutePosition);
-        pnl -= CalculateFees(position.EntryPrice!.Value, position.AbsolutePosition);
-        pnl -= CalculateFees(exitPrice, position.AbsolutePosition);
+        pnl -= TradeCostCalculator.CalculateFeesFromPercent(
+            position.EntryPrice!.Value,
+            position.AbsolutePosition,
+            _settings.CommissionPercent);
+        pnl -= TradeCostCalculator.CalculateFeesFromPercent(
+            exitPrice,
+            position.AbsolutePosition,
+            _settings.CommissionPercent);
 
         trades.Add(new Trade(
             symbol,
@@ -228,10 +240,20 @@ public class BacktestEngine
             return 0;
 
         exitQuantity = Math.Min(exitQuantity, position.AbsolutePosition);
-        decimal exitPrice = ApplySlippage(candle.Close, position.Direction!.Value, false);
+        decimal exitPrice = TradeCostCalculator.ApplySlippage(
+            candle.Close,
+            _settings.SlippagePercent,
+            position.Direction!.Value,
+            false);
         decimal pnl = position.CalculateExitPnL(exitPrice, exitQuantity);
-        pnl -= CalculateFees(position.EntryPrice!.Value, exitQuantity);
-        pnl -= CalculateFees(exitPrice, exitQuantity);
+        pnl -= TradeCostCalculator.CalculateFeesFromPercent(
+            position.EntryPrice!.Value,
+            exitQuantity,
+            _settings.CommissionPercent);
+        pnl -= TradeCostCalculator.CalculateFeesFromPercent(
+            exitPrice,
+            exitQuantity,
+            _settings.CommissionPercent);
 
         trades.Add(new Trade(
             symbol,
@@ -285,19 +307,6 @@ public class BacktestEngine
             MaxAdverseExcursion = position.WorstPnL,
             MaxFavorableExcursion = position.BestPnL
         });
-    }
-
-    private decimal CalculateFees(decimal price, decimal quantity)
-    {
-        return price * quantity * _settings.CommissionPercent / 100;
-    }
-
-    private decimal ApplySlippage(decimal price, TradeDirection direction, bool isEntry)
-    {
-        decimal slippageAmount = price * _settings.SlippagePercent / 100;
-        bool isBuy = (direction == TradeDirection.Long && isEntry)
-            || (direction == TradeDirection.Short && !isEntry);
-        return isBuy ? price + slippageAmount : price - slippageAmount;
     }
 
     private PerformanceMetrics CalculateMetrics(
