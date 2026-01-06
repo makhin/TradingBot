@@ -238,11 +238,11 @@ public class FullEnsembleOptimizer
         {
             MinimumAgreement = s.MinimumAgreement,
             UseConfidenceWeighting = s.UseConfidenceWeighting,
-            StrategyWeights = new Dictionary<string, decimal>
+            StrategyWeights = new Dictionary<StrategyKind, decimal>
             {
-                ["ADX Trend Following + Volume"] = s.AdxWeight,
-                ["MA Crossover"] = s.MaWeight,
-                ["RSI Mean Reversion"] = s.RsiWeight
+                [StrategyKind.AdxTrendFollowing] = s.AdxWeight,
+                [StrategyKind.MaCrossover] = s.MaWeight,
+                [StrategyKind.RsiMeanReversion] = s.RsiWeight
             }
         };
 

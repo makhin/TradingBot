@@ -66,11 +66,11 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
         var rsiStrategy = new RsiStrategy();        // Mean reversion (counter-trend)
 
         // Get weights from settings, fallback to hardcoded defaults if not found
-        var adxWeight = effectiveSettings.StrategyWeights.TryGetValue(adxStrategy.Name, out var adxW)
+        var adxWeight = effectiveSettings.StrategyWeights.TryGetValue(StrategyKind.AdxTrendFollowing, out var adxW)
             ? adxW : 0.5m;
-        var maWeight = effectiveSettings.StrategyWeights.TryGetValue(maStrategy.Name, out var maW)
+        var maWeight = effectiveSettings.StrategyWeights.TryGetValue(StrategyKind.MaCrossover, out var maW)
             ? maW : 0.25m;
-        var rsiWeight = effectiveSettings.StrategyWeights.TryGetValue(rsiStrategy.Name, out var rsiW)
+        var rsiWeight = effectiveSettings.StrategyWeights.TryGetValue(StrategyKind.RsiMeanReversion, out var rsiW)
             ? rsiW : 0.25m;
 
         ensemble.AddStrategy(adxStrategy, adxWeight);
