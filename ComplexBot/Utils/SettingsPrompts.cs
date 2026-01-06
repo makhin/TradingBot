@@ -15,7 +15,8 @@ public static class SettingsPrompts
             MaxDailyDrawdownPercent = SpectreHelpers.AskDecimal("Max daily drawdown [green](%)[/]", current.MaxDailyDrawdownPercent, min: 1m, max: 20m),
             AtrStopMultiplier = SpectreHelpers.AskDecimal("ATR stop multiplier", current.AtrStopMultiplier, min: 0.5m, max: 10m),
             TakeProfitMultiplier = SpectreHelpers.AskDecimal("Take profit ratio (reward:risk)", current.TakeProfitMultiplier, min: 0.5m, max: 10m),
-            MinimumEquityUsd = SpectreHelpers.AskDecimal("Minimum equity USD", current.MinimumEquityUsd, min: 1m, max: 1000000m)
+            MinimumEquityUsd = SpectreHelpers.AskDecimal("Minimum equity USD", current.MinimumEquityUsd, min: 1m, max: 1000000m),
+            DrawdownRiskPolicy = current.DrawdownRiskPolicy
         };
     }
 
