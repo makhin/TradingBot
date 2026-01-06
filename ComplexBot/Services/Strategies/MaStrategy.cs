@@ -14,7 +14,7 @@ namespace ComplexBot.Services.Strategies;
 /// Entry: Fast MA crosses above/below Slow MA with volume confirmation
 /// Exit: Opposite crossover or trailing stop
 /// </summary>
-public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
+public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IProvidesIndicatorSnapshot
 {
     public override string Name => "MA Crossover";
     public override decimal? CurrentStopLoss => _positionManager.StopLoss;
@@ -40,6 +40,13 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence
     }
 
     public override decimal? CurrentAtr => _atr.Value;
+    public IndicatorSnapshot GetIndicatorSnapshot()
+        => IndicatorSnapshot.FromPairs(
+            (IndicatorValueKey.FastEma, _currentFastMa),
+            (IndicatorValueKey.SlowEma, _currentSlowMa),
+            (IndicatorValueKey.Atr, CurrentAtr),
+            (IndicatorValueKey.VolumeRatio, _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : null)
+        );
 
     /// <summary>
     /// Returns confidence based on MA separation and trend strength

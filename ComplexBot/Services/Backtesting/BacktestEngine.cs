@@ -183,7 +183,7 @@ public class BacktestEngine
 
         if (_journal != null)
         {
-            var adxStrategy = _strategy as AdxTrendStrategy;
+            var indicatorSnapshotProvider = _strategy as IProvidesIndicatorSnapshot;
             position.JournalTradeId = _journal.OpenTrade(new TradeJournalEntry
             {
                 EntryTime = candle.OpenTime,
@@ -195,17 +195,7 @@ public class BacktestEngine
                 Quantity = sizing.Quantity,
                 PositionValueUsd = position.PositionValue ?? 0,
                 RiskAmount = sizing.RiskAmount,
-                Indicators = IndicatorSnapshot.FromPairs(
-                    (IndicatorValueKey.Adx, adxStrategy?.CurrentAdx),
-                    (IndicatorValueKey.PlusDi, adxStrategy?.CurrentPlusDi),
-                    (IndicatorValueKey.MinusDi, adxStrategy?.CurrentMinusDi),
-                    (IndicatorValueKey.FastEma, adxStrategy?.CurrentFastEma),
-                    (IndicatorValueKey.SlowEma, adxStrategy?.CurrentSlowEma),
-                    (IndicatorValueKey.Atr, _strategy.CurrentAtr),
-                    (IndicatorValueKey.MacdHistogram, adxStrategy?.CurrentMacdHistogram),
-                    (IndicatorValueKey.VolumeRatio, adxStrategy?.CurrentVolumeRatio),
-                    (IndicatorValueKey.ObvSlope, adxStrategy?.CurrentObvSlope)
-                ),
+                Indicators = indicatorSnapshotProvider?.GetIndicatorSnapshot() ?? IndicatorSnapshot.Empty,
                 EntryReason = signal.Reason
             });
         }

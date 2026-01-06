@@ -16,7 +16,7 @@ namespace ComplexBot.Services.Strategies;
 ///
 /// Note: Works best in ranging/oscillating markets. In strong trends, signals may be premature.
 /// </summary>
-public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
+public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IProvidesIndicatorSnapshot
 {
     public override string Name => "RSI Mean Reversion";
     public override decimal? CurrentStopLoss => _positionManager.StopLoss;
@@ -42,6 +42,12 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence
 
     public decimal? CurrentRsi => _rsi.Value;
     public override decimal? CurrentAtr => _atr.Value;
+    public IndicatorSnapshot GetIndicatorSnapshot()
+        => IndicatorSnapshot.FromPairs(
+            (IndicatorValueKey.Rsi, CurrentRsi),
+            (IndicatorValueKey.Atr, CurrentAtr),
+            (IndicatorValueKey.VolumeRatio, _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : null)
+        );
 
     /// <summary>
     /// Returns confidence based on RSI extremity

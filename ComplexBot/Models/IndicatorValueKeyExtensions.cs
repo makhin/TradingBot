@@ -10,6 +10,7 @@ public static class IndicatorValueKeyExtensions
             IndicatorValueKey.MinusDi => "-DI",
             IndicatorValueKey.FastEma => "FastEMA",
             IndicatorValueKey.SlowEma => "SlowEMA",
+            IndicatorValueKey.Rsi => "RSI",
             IndicatorValueKey.Atr => "ATR",
             IndicatorValueKey.MacdLine => "MACD",
             IndicatorValueKey.MacdSignal => "Signal",
