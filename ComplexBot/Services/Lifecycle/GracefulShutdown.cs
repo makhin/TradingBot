@@ -1,6 +1,7 @@
 using ComplexBot.Services.State;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Notifications;
+using Serilog;
 
 namespace ComplexBot.Services.Lifecycle;
 
@@ -10,16 +11,19 @@ public class GracefulShutdown
     private readonly StateManager _stateManager;
     private readonly BinanceLiveTrader _trader;
     private readonly TelegramNotifier? _notifier;
+    private readonly ILogger _logger;
     private bool _isShuttingDown = false;
 
     public GracefulShutdown(
         StateManager stateManager,
         BinanceLiveTrader trader,
-        TelegramNotifier? notifier = null)
+        TelegramNotifier? notifier = null,
+        ILogger? logger = null)
     {
         _stateManager = stateManager;
         _trader = trader;
         _notifier = notifier;
+        _logger = logger ?? Log.ForContext<GracefulShutdown>();
 
         // Регистрация обработчиков сигналов
         Console.CancelKeyPress += OnCancelKeyPress;
@@ -44,7 +48,7 @@ public class GracefulShutdown
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("⚠️ Shutdown timed out during process exit.");
+            _logger.Warning("Shutdown timed out during process exit.");
         }
     }
 
@@ -55,24 +59,24 @@ public class GracefulShutdown
 
         _isShuttingDown = true;
 
-        Console.WriteLine($"\n🛑 Initiating graceful shutdown: {reason}");
+        _logger.Information("Initiating graceful shutdown: {Reason}", reason);
 
         // 1. Остановить приём новых сигналов
         _cts.Cancel();
 
         // 2. Сохранить текущее состояние
-        Console.WriteLine("💾 Saving current state...");
+        _logger.Information("Saving current state...");
         var state = await _trader.BuildCurrentState();
         await _stateManager.SaveState(state, cancellationToken);
 
         // 3. Спросить о закрытии позиций (если интерактивный режим)
         if (state.OpenPositions.Any() && Console.IsInputRedirected == false)
         {
-            Console.WriteLine($"\n⚠️ You have {state.OpenPositions.Count} open position(s).");
-            Console.WriteLine("Choose action:");
-            Console.WriteLine("  1. Keep positions open (OCO orders remain active)");
-            Console.WriteLine("  2. Close all positions at market");
-            Console.WriteLine("  3. Close positions and cancel OCO orders");
+            _logger.Warning("You have {PositionCount} open position(s).", state.OpenPositions.Count);
+            _logger.Information("Choose action:");
+            _logger.Information("  1. Keep positions open (OCO orders remain active)");
+            _logger.Information("  2. Close all positions at market");
+            _logger.Information("  3. Close positions and cancel OCO orders");
             Console.Write("Your choice [1]: ");
 
             var choice = Console.ReadLine();
@@ -86,13 +90,13 @@ public class GracefulShutdown
                     await CloseAllPositionsAsync(cancelOco: true);
                     break;
                 default:
-                    Console.WriteLine("✅ Positions kept open with OCO protection");
+                    _logger.Information("Positions kept open with OCO protection");
                     break;
             }
         }
 
         // 4. Остановить трейдер
-        Console.WriteLine("🛑 Stopping trader...");
+        _logger.Information("Stopping trader...");
         await _trader.StopAsync(cancellationToken);
 
         // 5. Уведомить
@@ -105,12 +109,12 @@ public class GracefulShutdown
             await _notifier.SendMessageAsync($"🛑 Bot shutdown: {reason}{positionsInfo}", cancellationToken);
         }
 
-        Console.WriteLine("👋 Goodbye!");
+        _logger.Information("Goodbye!");
     }
 
     private async Task CloseAllPositionsAsync(bool cancelOco)
     {
-        Console.WriteLine("📤 Closing all positions...");
+        _logger.Information("Closing all positions...");
 
         var positions = await _trader.GetOpenPositions();
         foreach (var position in positions)
@@ -121,10 +125,10 @@ public class GracefulShutdown
             }
 
             await _trader.ClosePosition(position.Symbol, "Graceful shutdown");
-            Console.WriteLine($"  ✅ Closed {position.Symbol}");
+            _logger.Information("Closed {Symbol}", position.Symbol);
         }
 
-        Console.WriteLine("✅ All positions closed");
+        _logger.Information("All positions closed");
     }
 
     public void Dispose()
