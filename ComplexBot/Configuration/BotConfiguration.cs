@@ -14,7 +14,7 @@ public class BotConfiguration
     public RsiStrategyConfigSettings RsiStrategy { get; set; } = new();
     public MaOptimizerConfigSettings MaOptimizer { get; set; } = new();
     public RsiOptimizerConfigSettings RsiOptimizer { get; set; } = new();
-    public BacktestingSettings Backtesting { get; set; } = new();
+    public BacktestSettings Backtest { get; set; } = new();
     public LiveTradingSettings LiveTrading { get; set; } = new();
     public OptimizationSettings Optimization { get; set; } = new();
     public GeneticOptimizerConfigSettings GeneticOptimizer { get; set; } = new();

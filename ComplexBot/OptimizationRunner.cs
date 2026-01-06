@@ -44,7 +44,7 @@ class OptimizationRunner
         );
 
         var riskSettings = _settingsService.GetRiskSettings();
-        var backtestSettings = new BacktestSettings { InitialCapital = 10000m };
+        var backtestSettings = _configService.GetConfiguration().Backtest.ToBacktestSettings();
 
         if (optimizationChoice.Kind == StrategyKind.StrategyEnsemble)
         {

@@ -1,4 +1,5 @@
 using Spectre.Console;
+using ComplexBot.Configuration;
 using ComplexBot.Models;
 using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Backtesting;
@@ -11,17 +12,20 @@ class BacktestRunner
 {
     private readonly DataRunner _dataRunner;
     private readonly SettingsService _settingsService;
+    private readonly ConfigurationService _configService;
     private readonly StrategyFactory _strategyFactory;
     private readonly ResultsRenderer _resultsRenderer;
 
     public BacktestRunner(
         DataRunner dataRunner,
         SettingsService settingsService,
+        ConfigurationService configService,
         StrategyFactory strategyFactory,
         ResultsRenderer resultsRenderer)
     {
         _dataRunner = dataRunner;
         _settingsService = settingsService;
+        _configService = configService;
         _strategyFactory = strategyFactory;
         _resultsRenderer = resultsRenderer;
     }
@@ -33,11 +37,11 @@ class BacktestRunner
 
         var riskSettings = _settingsService.GetRiskSettings();
         var strategySettings = _settingsService.GetStrategySettings();
-        var backtestSettings = new BacktestSettings
-        {
-            InitialCapital = SpectreHelpers.AskDecimal("Initial capital [green](USDT)[/]", 10000m, min: 1m),
-            CommissionPercent = 0.1m
-        };
+        var backtestSettings = _configService.GetConfiguration().Backtest.ToBacktestSettings();
+        backtestSettings.InitialCapital = SpectreHelpers.AskDecimal(
+            "Initial capital [green](USDT)[/]",
+            backtestSettings.InitialCapital,
+            min: 1m);
 
         var strategy = _strategyFactory.SelectStrategy(strategySettings);
         var journal = new TradeJournal();
