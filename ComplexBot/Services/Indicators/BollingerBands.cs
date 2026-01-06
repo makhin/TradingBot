@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ComplexBot.Models;
 
 namespace ComplexBot.Services.Indicators;
 
@@ -20,11 +21,11 @@ public class BollingerBands : WindowedIndicator<decimal>, IMultiValueIndicator
     public decimal? Upper { get; private set; }
     public decimal? Lower { get; private set; }
 
-    public IReadOnlyDictionary<string, decimal?> Values => new Dictionary<string, decimal?>
+    public IReadOnlyDictionary<IndicatorValueKey, decimal?> Values => new Dictionary<IndicatorValueKey, decimal?>
     {
-        ["Middle"] = Middle,
-        ["Upper"] = Upper,
-        ["Lower"] = Lower
+        [IndicatorValueKey.BollingerMiddle] = Middle,
+        [IndicatorValueKey.BollingerUpper] = Upper,
+        [IndicatorValueKey.BollingerLower] = Lower
     };
 
     public override decimal? Update(decimal price)

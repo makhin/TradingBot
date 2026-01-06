@@ -196,15 +196,15 @@ public class BacktestEngine
                 PositionValueUsd = position.PositionValue ?? 0,
                 RiskAmount = sizing.RiskAmount,
                 Indicators = IndicatorSnapshot.FromPairs(
-                    ("ADX", adxStrategy?.CurrentAdx),
-                    ("+DI", adxStrategy?.CurrentPlusDi),
-                    ("-DI", adxStrategy?.CurrentMinusDi),
-                    ("FastEMA", adxStrategy?.CurrentFastEma),
-                    ("SlowEMA", adxStrategy?.CurrentSlowEma),
-                    ("ATR", _strategy.CurrentAtr),
-                    ("MACD_Hist", adxStrategy?.CurrentMacdHistogram),
-                    ("VolumeRatio", adxStrategy?.CurrentVolumeRatio),
-                    ("OBV_Slope", adxStrategy?.CurrentObvSlope)
+                    (IndicatorValueKey.Adx, adxStrategy?.CurrentAdx),
+                    (IndicatorValueKey.PlusDi, adxStrategy?.CurrentPlusDi),
+                    (IndicatorValueKey.MinusDi, adxStrategy?.CurrentMinusDi),
+                    (IndicatorValueKey.FastEma, adxStrategy?.CurrentFastEma),
+                    (IndicatorValueKey.SlowEma, adxStrategy?.CurrentSlowEma),
+                    (IndicatorValueKey.Atr, _strategy.CurrentAtr),
+                    (IndicatorValueKey.MacdHistogram, adxStrategy?.CurrentMacdHistogram),
+                    (IndicatorValueKey.VolumeRatio, adxStrategy?.CurrentVolumeRatio),
+                    (IndicatorValueKey.ObvSlope, adxStrategy?.CurrentObvSlope)
                 ),
                 EntryReason = signal.Reason
             });
