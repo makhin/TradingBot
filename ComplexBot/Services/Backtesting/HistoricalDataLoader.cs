@@ -1,13 +1,18 @@
 using Binance.Net.Clients;
-using CryptoExchange.Net.Authentication;
 using ComplexBot.Models;
+using CryptoExchange.Net.Authentication;
+using CsvHelper;
+using CsvHelper.Configuration;
+using CsvHelper.TypeConversion;
+using System.Globalization;
 
 namespace ComplexBot.Services.Backtesting;
 
 public class HistoricalDataLoader
 {
     private readonly BinanceRestClient _client;
-    
+    private const string CsvDateTimeFormat = "yyyy-MM-dd HH:mm:ss";
+
     public HistoricalDataLoader(string? apiKey = null, string? apiSecret = null)
     {
         _client = new BinanceRestClient(options =>
@@ -84,37 +89,19 @@ public class HistoricalDataLoader
     public async Task SaveToCsvAsync(List<Candle> candles, string filePath)
     {
         using var writer = new StreamWriter(filePath);
-        await writer.WriteLineAsync("OpenTime,Open,High,Low,Close,Volume,CloseTime");
+        using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture));
+        csv.Context.RegisterClassMap<CandleCsvMap>();
 
-        foreach (var candle in candles)
+        await csv.WriteRecordsAsync(candles.Select(candle => new CandleCsvRecord
         {
-            await writer.WriteLineAsync(string.Format(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "{0:yyyy-MM-dd HH:mm:ss},{1},{2},{3},{4},{5},{6:yyyy-MM-dd HH:mm:ss}",
-                candle.OpenTime,
-                candle.Open,
-                candle.High,
-                candle.Low,
-                candle.Close,
-                candle.Volume,
-                candle.CloseTime
-            ));
-        }
-    }
-
-    /// <summary>
-    /// Parse DateTime from string - supports both Unix timestamp (ms) and ISO format
-    /// </summary>
-    private DateTime ParseDateTime(string value)
-    {
-        // Try Unix timestamp (milliseconds)
-        if (long.TryParse(value, out long timestamp))
-        {
-            return DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime;
-        }
-
-        // Try ISO format
-        return DateTime.Parse(value);
+            OpenTime = candle.OpenTime,
+            Open = candle.Open,
+            High = candle.High,
+            Low = candle.Low,
+            Close = candle.Close,
+            Volume = candle.Volume,
+            CloseTime = candle.CloseTime
+        }));
     }
 
     /// <summary>
@@ -124,30 +111,19 @@ public class HistoricalDataLoader
     {
         var candles = new List<Candle>();
         using var reader = new StreamReader(filePath);
+        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture));
+        csv.Context.RegisterClassMap<CandleCsvMap>();
 
-        // Skip header
-        await reader.ReadLineAsync();
-        
-        while (!reader.EndOfStream)
+        await foreach (var record in csv.GetRecordsAsync<CandleCsvRecord>())
         {
-            var line = await reader.ReadLineAsync();
-            if (string.IsNullOrEmpty(line)) continue;
-
-            var parts = line.Split(',');
-            if (parts.Length < 7) continue;
-
-            // Parse dates - support both Unix timestamp (ms) and ISO format
-            DateTime openTime = ParseDateTime(parts[0]);
-            DateTime closeTime = ParseDateTime(parts[6]);
-
             candles.Add(new Candle(
-                openTime,
-                decimal.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture),
-                decimal.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture),
-                decimal.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture),
-                decimal.Parse(parts[4], System.Globalization.CultureInfo.InvariantCulture),
-                decimal.Parse(parts[5], System.Globalization.CultureInfo.InvariantCulture),
-                closeTime
+                record.OpenTime,
+                record.Open,
+                record.High,
+                record.Low,
+                record.Close,
+                record.Volume,
+                record.CloseTime
             ));
         }
 
@@ -169,5 +145,82 @@ public class HistoricalDataLoader
             .Select(s => s.Name)
             .OrderBy(s => s)
             .ToList();
+    }
+
+    private sealed class CandleCsvRecord
+    {
+        public DateTime OpenTime { get; set; }
+        public decimal Open { get; set; }
+        public decimal High { get; set; }
+        public decimal Low { get; set; }
+        public decimal Close { get; set; }
+        public decimal Volume { get; set; }
+        public DateTime CloseTime { get; set; }
+    }
+
+    private sealed class CandleCsvMap : ClassMap<CandleCsvRecord>
+    {
+        public CandleCsvMap()
+        {
+            Map(m => m.OpenTime).Name("OpenTime").Index(0).TypeConverter<CandleDateTimeConverter>();
+            Map(m => m.Open).Name("Open").Index(1);
+            Map(m => m.High).Name("High").Index(2);
+            Map(m => m.Low).Name("Low").Index(3);
+            Map(m => m.Close).Name("Close").Index(4);
+            Map(m => m.Volume).Name("Volume").Index(5);
+            Map(m => m.CloseTime).Name("CloseTime").Index(6).TypeConverter<CandleDateTimeConverter>();
+        }
+    }
+
+    private sealed class CandleDateTimeConverter : DefaultTypeConverter
+    {
+        private static readonly string[] DateFormats =
+        [
+            CsvDateTimeFormat,
+            "yyyy-MM-ddTHH:mm:ss",
+            "yyyy-MM-ddTHH:mm:ss.FFFFFFFK",
+            "O"
+        ];
+
+        public override object? ConvertFromString(string? text, IReaderRow row, MemberMapData memberMapData)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return base.ConvertFromString(text, row, memberMapData);
+            }
+
+            if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var timestamp))
+            {
+                return DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime;
+            }
+
+            if (DateTime.TryParseExact(
+                    text,
+                    DateFormats,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out var parsed))
+            {
+                return parsed;
+            }
+
+            if (DateTime.TryParse(
+                    text,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out parsed))
+            {
+                return parsed;
+            }
+
+            throw new TypeConverterException(this, memberMapData, text, row.Context, $"Invalid date value '{text}'.");
+        }
+
+        public override string? ConvertToString(object? value, IWriterRow row, MemberMapData memberMapData)
+        {
+            return value is DateTime dateTime
+                ? dateTime.ToString(CsvDateTimeFormat, CultureInfo.InvariantCulture)
+                : base.ConvertToString(value, row, memberMapData);
+        }
     }
 }
