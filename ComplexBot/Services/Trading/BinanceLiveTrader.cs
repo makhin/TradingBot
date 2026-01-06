@@ -10,11 +10,16 @@ using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Notifications;
 using ComplexBot.Services.State;
 using CryptoExchange.Net.Objects.Sockets;
+using Serilog;
+using Serilog.Events;
 
 namespace ComplexBot.Services.Trading;
 
 public class BinanceLiveTrader : IDisposable
 {
+    private static readonly TimeSpan StatusLogInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan BalanceLogInterval = TimeSpan.FromHours(4);
+
     private readonly BinanceRestClient _restClient;
     private readonly BinanceSocketClient _socketClient;
     private readonly IStrategy _strategy;
@@ -33,6 +38,9 @@ public class BinanceLiveTrader : IDisposable
     private bool _isRunning;
     private UpdateSubscription? _subscription;
     private long? _currentOcoOrderListId;
+    private readonly ILogger _logger = Serilog.Log.ForContext<BinanceLiveTrader>();
+    private DateTime _lastStatusLogUtc = DateTime.MinValue;
+    private DateTime _lastBalanceLogUtc = DateTime.MinValue;
 
     public event Action<string>? OnLog;
     public event Action<TradeSignal>? OnSignal;
@@ -162,7 +170,7 @@ public class BinanceLiveTrader : IDisposable
             }
 
             // Timeout - cancel the order
-            Log($"⏱️ Limit order timeout, cancelling...");
+            Log("⏱️ Limit order timeout, cancelling...", LogEventLevel.Warning);
             var cancelResult = await _restClient.SpotApi.Trading.CancelOrderAsync(_settings.Symbol, orderId);
 
             if (cancelResult.Success)
@@ -172,7 +180,7 @@ public class BinanceLiveTrader : IDisposable
                 if (finalQuery.Success && finalQuery.Data.QuantityFilled > 0)
                 {
                     var avgPrice = finalQuery.Data.AverageFillPrice ?? limitPrice;
-                    Log($"⚠️ Partial fill: {finalQuery.Data.QuantityFilled:F5} @ {avgPrice:F2}");
+                    Log($"⚠️ Partial fill: {finalQuery.Data.QuantityFilled:F5} @ {avgPrice:F2}", LogEventLevel.Warning);
                     return new OrderResult(true, finalQuery.Data.QuantityFilled, avgPrice, "Partial fill");
                 }
             }
@@ -181,7 +189,7 @@ public class BinanceLiveTrader : IDisposable
         }
         catch (Exception ex)
         {
-            Log($"Limit order error: {ex.Message}");
+            Log($"Limit order error: {ex.Message}", LogEventLevel.Error);
             return new OrderResult(false, 0, 0, ex.Message);
         }
     }
@@ -202,19 +210,19 @@ public class BinanceLiveTrader : IDisposable
             ? currentPrice * 0.9995m  // 0.05% better for buy
             : currentPrice * 1.0005m; // 0.05% better for sell
 
-        Log($"Attempting limit order @ {limitPrice:F2} (market: {currentPrice:F2})");
+        Log($"Attempting limit order @ {limitPrice:F2} (market: {currentPrice:F2})", LogEventLevel.Debug);
         var limitResult = await PlaceLimitOrderWithTimeout(side, quantity, limitPrice, timeoutSeconds: 3);
 
         if (limitResult.Success)
         {
             // Limit order filled - great!
             var savedAmount = Math.Abs(limitResult.AveragePrice - currentPrice) * limitResult.FilledQuantity;
-            Log($"💰 Limit order saved ${savedAmount:F2} vs market price");
+            Log($"💰 Limit order saved ${savedAmount:F2} vs market price", LogEventLevel.Information);
             return limitResult;
         }
 
         // Limit order failed - fallback to market order
-        Log($"Limit order failed, using market order...");
+        Log("Limit order failed, using market order...", LogEventLevel.Warning);
 
         try
         {
@@ -231,7 +239,7 @@ public class BinanceLiveTrader : IDisposable
             }
 
             var avgPrice = marketResult.Data.AverageFillPrice ?? currentPrice;
-            Log($"Market order filled: {quantity:F5} @ {avgPrice:F2}");
+            Log($"Market order filled: {quantity:F5} @ {avgPrice:F2}", LogEventLevel.Information);
             return new OrderResult(true, quantity, avgPrice, null);
         }
         catch (Exception ex)
@@ -270,21 +278,21 @@ public class BinanceLiveTrader : IDisposable
             if (result.Success)
             {
                 _currentOcoOrderListId = result.Data.Id;
-                Log($"✅ OCO Order placed:");
-                Log($"   Take Profit: {takeProfitPrice:F2}");
-                Log($"   Stop Loss: {stopLossPrice:F2} (limit: {stopLossLimitPrice:F2})");
-                Log($"   Order List ID: {result.Data.Id}");
+                Log("✅ OCO Order placed:", LogEventLevel.Information);
+                Log($"   Take Profit: {takeProfitPrice:F2}", LogEventLevel.Information);
+                Log($"   Stop Loss: {stopLossPrice:F2} (limit: {stopLossLimitPrice:F2})", LogEventLevel.Information);
+                Log($"   Order List ID: {result.Data.Id}", LogEventLevel.Information);
                 return true;
             }
             else
             {
-                Log($"❌ OCO Order failed: {result.Error?.Message}");
+                Log($"❌ OCO Order failed: {result.Error?.Message}", LogEventLevel.Error);
                 return false;
             }
         }
         catch (Exception ex)
         {
-            Log($"❌ OCO Order exception: {ex.Message}");
+            Log($"❌ OCO Order exception: {ex.Message}", LogEventLevel.Error);
             return false;
         }
     }
@@ -303,19 +311,19 @@ public class BinanceLiveTrader : IDisposable
 
             if (result.Success)
             {
-                Log($"✅ OCO Order cancelled (ID: {_currentOcoOrderListId})");
+                Log($"✅ OCO Order cancelled (ID: {_currentOcoOrderListId})", LogEventLevel.Information);
                 _currentOcoOrderListId = null;
                 return true;
             }
             else
             {
-                Log($"❌ OCO Cancel failed: {result.Error?.Message}");
+                Log($"❌ OCO Cancel failed: {result.Error?.Message}", LogEventLevel.Error);
                 return false;
             }
         }
         catch (Exception ex)
         {
-            Log($"❌ OCO Cancel exception: {ex.Message}");
+            Log($"❌ OCO Cancel exception: {ex.Message}", LogEventLevel.Error);
             return false;
         }
     }
@@ -347,26 +355,26 @@ public class BinanceLiveTrader : IDisposable
         await PlaceOcoOrderAsync(side, quantity, newStopPrice, stopLimitPrice, takeProfitPrice);
 
         _stopLoss = newStopPrice;
-        Log($"🔄 Trailing stop updated to {newStopPrice:F2}");
+        Log($"🔄 Trailing stop updated to {newStopPrice:F2}", LogEventLevel.Information);
     }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         if (_settings.TradingMode == TradingMode.Futures)
         {
-            Log("Futures/margin trading is not supported by BinanceLiveTrader. Please select spot mode.");
+            Log("Futures/margin trading is not supported by BinanceLiveTrader. Please select spot mode.", LogEventLevel.Error);
             throw new NotSupportedException("BinanceLiveTrader supports spot trading only.");
         }
 
         _isRunning = true;
-        Log($"Starting {(_settings.PaperTrade ? "PAPER" : "LIVE")} trading on {_settings.Symbol}");
-        Log($"Trading mode: {_settings.TradingMode}");
-        Log($"Testnet: {_settings.UseTestnet}");
+        Log($"Starting {(_settings.PaperTrade ? "PAPER" : "LIVE")} trading on {_settings.Symbol}", LogEventLevel.Information);
+        Log($"Trading mode: {_settings.TradingMode}", LogEventLevel.Information);
+        Log($"Testnet: {_settings.UseTestnet}", LogEventLevel.Information);
         
         // Get initial balance
         var balance = await GetAccountBalanceAsync();
         _paperEquity = _settings.PaperTrade ? _settings.InitialCapital : balance;
-        Log($"USDT Balance: {balance:F2}");
+        Log($"USDT Balance: {balance:F2}", LogEventLevel.Information);
         _riskManager.UpdateEquity(_settings.PaperTrade ? _paperEquity : balance);
         OnEquityUpdate?.Invoke(_settings.PaperTrade ? _paperEquity : balance);
 
@@ -382,12 +390,12 @@ public class BinanceLiveTrader : IDisposable
 
         if (!subscribeResult.Success)
         {
-            Log($"Failed to subscribe: {subscribeResult.Error?.Message}");
+            Log($"Failed to subscribe: {subscribeResult.Error?.Message}", LogEventLevel.Error);
             return;
         }
 
         _subscription = subscribeResult.Data;
-        Log("Subscribed to kline updates. Waiting for signals...");
+        Log("Subscribed to kline updates. Waiting for signals...", LogEventLevel.Information);
 
         // Keep running until cancelled
         try
@@ -396,7 +404,7 @@ public class BinanceLiveTrader : IDisposable
         }
         catch (OperationCanceledException)
         {
-            Log("Stopping trader...");
+            Log("Stopping trader...", LogEventLevel.Information);
         }
     }
 
@@ -413,7 +421,7 @@ public class BinanceLiveTrader : IDisposable
         // Cancel OCO orders and close any open position
         if (_currentPosition != 0)
         {
-            Log("Closing open position...");
+            Log("Closing open position...", LogEventLevel.Information);
             await ClosePositionAsync("Manual stop");
         }
         else
@@ -422,12 +430,12 @@ public class BinanceLiveTrader : IDisposable
             await CancelOcoOrderAsync();
         }
 
-        Log("Trader stopped.");
+        Log("Trader stopped.", LogEventLevel.Information);
     }
 
     private async Task WarmupIndicatorsAsync()
     {
-        Log("Loading historical data for indicator warmup...");
+        Log("Loading historical data for indicator warmup...", LogEventLevel.Information);
         
         var klines = await _restClient.SpotApi.ExchangeData.GetKlinesAsync(
             _settings.Symbol,
@@ -437,7 +445,7 @@ public class BinanceLiveTrader : IDisposable
 
         if (!klines.Success)
         {
-            Log($"Warning: Failed to load historical data: {klines.Error?.Message}");
+            Log($"Failed to load historical data: {klines.Error?.Message}", LogEventLevel.Warning);
             return;
         }
 
@@ -457,7 +465,7 @@ public class BinanceLiveTrader : IDisposable
             _strategy.Analyze(candle, _currentPosition, _settings.Symbol);
         }
 
-        Log($"Warmed up with {klines.Data.Count()} candles");
+        Log($"Warmed up with {klines.Data.Count()} candles", LogEventLevel.Information);
     }
 
     private async Task OnKlineUpdateAsync(IBinanceStreamKlineData data)
@@ -500,11 +508,17 @@ public class BinanceLiveTrader : IDisposable
 
         if (signal != null)
         {
-            Log($"Signal: {signal.Type} at {signal.Price:F2} - {signal.Reason}");
+            Log($"Signal: {signal.Type} at {signal.Price:F2} - {signal.Reason}", LogEventLevel.Information);
             OnSignal?.Invoke(signal);
             
             await ProcessSignalAsync(signal, candle);
         }
+        else
+        {
+            LogWaitingStatus(candle);
+        }
+
+        await LogBalanceSnapshotAsync();
     }
 
     private async Task CheckStopLossAsync(Candle candle)
@@ -517,7 +531,7 @@ public class BinanceLiveTrader : IDisposable
 
         if (stopHit)
         {
-            Log($"Stop loss triggered at {_stopLoss:F2}");
+            Log($"Stop loss triggered at {_stopLoss:F2}", LogEventLevel.Warning);
             await ClosePositionAsync("Stop Loss");
         }
     }
@@ -532,7 +546,7 @@ public class BinanceLiveTrader : IDisposable
 
         if (takeProfitHit)
         {
-            Log($"Take profit triggered at {_takeProfit:F2}");
+            Log($"Take profit triggered at {_takeProfit:F2}", LogEventLevel.Information);
             await ClosePositionAsync("Take Profit");
         }
     }
@@ -603,7 +617,7 @@ public class BinanceLiveTrader : IDisposable
     {
         if (_settings.TradingMode == TradingMode.Spot && direction == TradeDirection.Short)
         {
-            Log("Short positions are not allowed in spot mode without margin.");
+            Log("Short positions are not allowed in spot mode without margin.", LogEventLevel.Warning);
             return;
         }
 
@@ -612,7 +626,7 @@ public class BinanceLiveTrader : IDisposable
         
         if (quantity * price < 10) // Binance minimum order
         {
-            Log($"Position too small: {quantity * price:F2} USDT");
+            Log($"Position too small: {quantity * price:F2} USDT", LogEventLevel.Warning);
             return;
         }
 
@@ -634,7 +648,7 @@ public class BinanceLiveTrader : IDisposable
                 price);
 
             var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
-            Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}{takeProfitText}");
+            Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}{takeProfitText}", LogEventLevel.Information);
             OnTrade?.Invoke(new Trade(
                 _settings.Symbol,
                 _entryTime.Value,
@@ -646,6 +660,20 @@ public class BinanceLiveTrader : IDisposable
                 stopLoss,
                 takeProfit,
                 null));
+
+            if (_telegram != null)
+            {
+                var riskAmt = Math.Abs(price - stopLoss) * quantity;
+                var signal = new TradeSignal(
+                    _settings.Symbol,
+                    direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
+                    price,
+                    stopLoss,
+                    takeProfit,
+                    $"{direction} position opened (paper)"
+                );
+                await _telegram.SendTradeOpen(signal, quantity, riskAmt);
+            }
         }
         else
         {
@@ -659,7 +687,7 @@ public class BinanceLiveTrader : IDisposable
 
                 if (!orderResult.Success)
                 {
-                    Log($"Order failed: {orderResult.ErrorMessage}");
+                    Log($"Order failed: {orderResult.ErrorMessage}", LogEventLevel.Error);
                     return;
                 }
 
@@ -669,12 +697,12 @@ public class BinanceLiveTrader : IDisposable
                 // Validate execution slippage
                 var validation = _executionValidator.ValidateExecution(price, actualPrice, side);
                 var slippageDesc = _executionValidator.GetSlippageDescription(validation, side);
-                Log(slippageDesc);
+                Log(slippageDesc, LogEventLevel.Debug);
 
                 if (!validation.IsAcceptable)
                 {
-                    Log($"⚠️ WARNING: {validation.RejectReason}");
-                    Log($"   Expected: {validation.ExpectedPrice:F2}, Actual: {validation.ActualPrice:F2}");
+                    Log($"⚠️ WARNING: {validation.RejectReason}", LogEventLevel.Warning);
+                    Log($"   Expected: {validation.ExpectedPrice:F2}, Actual: {validation.ActualPrice:F2}", LogEventLevel.Warning);
                 }
 
                 _currentPosition = direction == TradeDirection.Long ? actualQuantity : -actualQuantity;
@@ -693,7 +721,7 @@ public class BinanceLiveTrader : IDisposable
                     actualPrice);
 
                 var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
-                Log($"Opened {direction} {actualQuantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}");
+                Log($"Opened {direction} {actualQuantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}", LogEventLevel.Information);
                 OnTrade?.Invoke(new Trade(
                     _settings.Symbol,
                     _entryTime.Value,
@@ -734,7 +762,7 @@ public class BinanceLiveTrader : IDisposable
             }
             catch (Exception ex)
             {
-                Log($"Order error: {ex.Message}");
+                Log($"Order error: {ex.Message}", LogEventLevel.Error);
             }
         }
     }
@@ -760,7 +788,7 @@ public class BinanceLiveTrader : IDisposable
         if (_settings.PaperTrade)
         {
             _paperEquity += netPnl;
-            Log($"[PAPER] Closed {direction} {quantity:F5} @ {currentPrice:F2}, Gross PnL: {grossPnl:F2} USDT, Net PnL: {netPnl:F2} USDT (costs: {tradingCosts:F2}) - {reason}");
+            Log($"[PAPER] Closed {direction} {quantity:F5} @ {currentPrice:F2}, Gross PnL: {grossPnl:F2} USDT, Net PnL: {netPnl:F2} USDT (costs: {tradingCosts:F2}) - {reason}", LogEventLevel.Information);
         }
         else
         {
@@ -777,7 +805,7 @@ public class BinanceLiveTrader : IDisposable
 
                 if (!result.Success)
                 {
-                    Log($"Close order failed: {result.Error?.Message}");
+                    Log($"Close order failed: {result.Error?.Message}", LogEventLevel.Error);
                     return;
                 }
 
@@ -793,17 +821,17 @@ public class BinanceLiveTrader : IDisposable
                 netPnl = grossPnl - tradingCosts;
                 exitPrice = fillPrice;
 
-                Log($"Closed {direction} {quantity:F5} @ {fillPrice:F2}, Gross PnL: {grossPnl:F2} USDT, Net PnL: {netPnl:F2} USDT (costs: {tradingCosts:F2}) - {reason}");
-                Log(slippageDesc);
+                Log($"Closed {direction} {quantity:F5} @ {fillPrice:F2}, Gross PnL: {grossPnl:F2} USDT, Net PnL: {netPnl:F2} USDT (costs: {tradingCosts:F2}) - {reason}", LogEventLevel.Information);
+                Log(slippageDesc, LogEventLevel.Debug);
 
                 if (!validation.IsAcceptable)
                 {
-                    Log($"⚠️ WARNING: Exit {validation.RejectReason}");
+                    Log($"⚠️ WARNING: Exit {validation.RejectReason}", LogEventLevel.Warning);
                 }
             }
             catch (Exception ex)
             {
-                Log($"Close error: {ex.Message}");
+                Log($"Close error: {ex.Message}", LogEventLevel.Error);
                 return;
             }
         }
@@ -820,7 +848,7 @@ public class BinanceLiveTrader : IDisposable
         {
             var riskAmount = Math.Abs(_entryPrice.Value - (_stopLoss ?? _entryPrice.Value)) * quantity;
             var rMultiple = riskAmount > 0 ? netPnl / riskAmount : 0;
-            await _telegram.SendTradeClose(_settings.Symbol, _entryPrice.Value, currentPrice, netPnl, rMultiple, reason);
+            await _telegram.SendTradeClose(_settings.Symbol, _entryPrice.Value, exitPrice, netPnl, rMultiple, reason);
         }
 
         if (_entryPrice.HasValue)
@@ -873,10 +901,12 @@ public class BinanceLiveTrader : IDisposable
         var tradingCosts = CalculateTradingCosts(_entryPrice!.Value, currentPrice, exitQuantity);
         var netPnl = grossPnl - tradingCosts;
 
+        var exitPrice = currentPrice;
+
         if (_settings.PaperTrade)
         {
             _paperEquity += netPnl;
-            Log($"[PAPER] Partial close {direction} {exitQuantity:F5} @ {currentPrice:F2}, Net PnL: {netPnl:F2} USDT - {signal.Reason}");
+            Log($"[PAPER] Partial close {direction} {exitQuantity:F5} @ {currentPrice:F2}, Net PnL: {netPnl:F2} USDT - {signal.Reason}", LogEventLevel.Information);
         }
         else
         {
@@ -892,7 +922,7 @@ public class BinanceLiveTrader : IDisposable
 
                 if (!result.Success)
                 {
-                    Log($"Partial close failed: {result.Error?.Message}");
+                    Log($"Partial close failed: {result.Error?.Message}", LogEventLevel.Error);
                     return;
                 }
 
@@ -906,18 +936,19 @@ public class BinanceLiveTrader : IDisposable
                     : (_entryPrice!.Value - fillPrice) * exitQuantity;
                 tradingCosts = CalculateTradingCosts(_entryPrice!.Value, fillPrice, exitQuantity);
                 netPnl = grossPnl - tradingCosts;
+                exitPrice = fillPrice;
 
-                Log($"Partial close {direction} {exitQuantity:F5} @ {fillPrice:F2}, Net PnL: {netPnl:F2} USDT - {signal.Reason}");
-                Log(slippageDesc);
+                Log($"Partial close {direction} {exitQuantity:F5} @ {fillPrice:F2}, Net PnL: {netPnl:F2} USDT - {signal.Reason}", LogEventLevel.Information);
+                Log(slippageDesc, LogEventLevel.Debug);
 
                 if (!validation.IsAcceptable)
                 {
-                    Log($"⚠️ WARNING: Partial exit {validation.RejectReason}");
+                    Log($"⚠️ WARNING: Partial exit {validation.RejectReason}", LogEventLevel.Warning);
                 }
             }
             catch (Exception ex)
             {
-                Log($"Partial close error: {ex.Message}");
+                Log($"Partial close error: {ex.Message}", LogEventLevel.Error);
                 return;
             }
         }
@@ -935,6 +966,16 @@ public class BinanceLiveTrader : IDisposable
             : await GetAccountBalanceAsync();
         _riskManager.UpdateEquity(equity);
         OnEquityUpdate?.Invoke(equity);
+
+        if (_telegram != null && _entryPrice.HasValue)
+        {
+            var riskAmount = Math.Abs(_entryPrice.Value - (_stopLoss ?? _entryPrice.Value)) * exitQuantity;
+            var rMultiple = riskAmount > 0 ? netPnl / riskAmount : 0;
+            var reason = string.IsNullOrWhiteSpace(signal.Reason)
+                ? "Partial Exit"
+                : $"Partial Exit - {signal.Reason}";
+            await _telegram.SendTradeClose(_settings.Symbol, _entryPrice.Value, exitPrice, netPnl, rMultiple, reason);
+        }
 
         if (remainingQuantity <= 0)
         {
@@ -972,10 +1013,95 @@ public class BinanceLiveTrader : IDisposable
 
     private void Log(string message)
     {
-        var timestamp = DateTime.UtcNow.ToString("HH:mm:ss");
-        var formatted = $"[{timestamp}] {message}";
-        OnLog?.Invoke(formatted);
-        Console.WriteLine(formatted);
+        Log(message, LogEventLevel.Information);
+    }
+
+    private void Log(string message, LogEventLevel level)
+    {
+        _logger.Write(level, message);
+        OnLog?.Invoke(message);
+    }
+
+    private void LogWaitingStatus(Candle candle)
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastStatusLogUtc < StatusLogInterval)
+        {
+            return;
+        }
+
+        _lastStatusLogUtc = now;
+
+        var positionState = _currentPosition switch
+        {
+            > 0 => "LONG",
+            < 0 => "SHORT",
+            _ => "FLAT"
+        };
+
+        var stopLossText = _stopLoss.HasValue ? _stopLoss.Value.ToString("F2") : "n/a";
+        var takeProfitText = _takeProfit.HasValue ? _takeProfit.Value.ToString("F2") : "n/a";
+        var unrealizedPnl = _riskManager.GetUnrealizedPnL();
+        var totalEquity = _riskManager.GetTotalEquity();
+
+        Log(
+            $"Waiting for signal... {candle.CloseTime:HH:mm} UTC | Price {candle.Close:F2} | " +
+            $"Pos {positionState} | SL {stopLossText} | TP {takeProfitText} | " +
+            $"uPnL {unrealizedPnl:F2} | Equity {totalEquity:F2}");
+    }
+
+    private async Task LogBalanceSnapshotAsync()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastBalanceLogUtc < BalanceLogInterval)
+        {
+            return;
+        }
+
+        _lastBalanceLogUtc = now;
+
+        if (_settings.PaperTrade)
+        {
+            var positionState = _currentPosition switch
+            {
+                > 0 => "LONG",
+                < 0 => "SHORT",
+                _ => "FLAT"
+            };
+
+            Log(
+                $"[PAPER] Balance snapshot: Equity {_paperEquity:F2} USDT | " +
+                $"Pos {positionState} {_currentPosition:F5}",
+                LogEventLevel.Information);
+            return;
+        }
+
+        var result = await _restClient.SpotApi.Account.GetAccountInfoAsync();
+        if (!result.Success)
+        {
+            Log($"Balance snapshot failed: {result.Error?.Message}", LogEventLevel.Warning);
+            return;
+        }
+
+        var balances = result.Data.Balances
+            .Select(balance => new
+            {
+                balance.Asset,
+                balance.Available,
+                balance.Total
+            })
+            .Where(balance => balance.Total > 0)
+            .OrderByDescending(balance => balance.Total)
+            .ToList();
+
+        var summary = balances.Count == 0
+            ? "no assets"
+            : string.Join(", ", balances.Select(balance =>
+                $"{balance.Asset}:{balance.Available:F6}/{balance.Total:F6}"));
+
+        Log(
+            $"Balance snapshot: {summary}",
+            LogEventLevel.Information);
     }
 
     // Graceful Shutdown Support Methods

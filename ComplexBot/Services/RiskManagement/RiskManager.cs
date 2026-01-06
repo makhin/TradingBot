@@ -1,4 +1,5 @@
 using ComplexBot.Models;
+using Serilog;
 
 namespace ComplexBot.Services.RiskManagement;
 
@@ -119,14 +120,14 @@ public class RiskManager
         // Check minimum equity requirement
         if (currentEquity < _settings.MinimumEquityUsd)
         {
-            Console.WriteLine($"Equity below minimum: ${currentEquity:F2} < ${_settings.MinimumEquityUsd:F2}");
+            Log.Warning("Equity below minimum: ${CurrentEquity:F2} < ${MinimumEquity:F2}", currentEquity, _settings.MinimumEquityUsd);
             return false;
         }
 
         // Check daily loss limit (with unrealized P&L)
         if (IsDailyLimitExceeded())
         {
-            Console.WriteLine($"Daily loss limit exceeded: {GetDailyDrawdownPercent():F2}%");
+            Log.Warning("Daily loss limit exceeded: {DrawdownPercent:F2}%", GetDailyDrawdownPercent());
             return false;
         }
 
@@ -134,7 +135,7 @@ public class RiskManager
         var totalDrawdown = GetTotalDrawdownPercent();
         if (totalDrawdown >= _settings.MaxDrawdownPercent)
         {
-            Console.WriteLine($"Max drawdown exceeded (including unrealized): {totalDrawdown:F2}%");
+            Log.Warning("Max drawdown exceeded (including unrealized): {DrawdownPercent:F2}%", totalDrawdown);
             return false;
         }
 
