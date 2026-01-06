@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
 
 namespace ComplexBot.Services.Backtesting;
@@ -15,11 +16,11 @@ public record EnsembleOptimizationSettings
     {
         MinimumAgreement = MinimumAgreement,
         UseConfidenceWeighting = UseConfidenceWeighting,
-        StrategyWeights = new Dictionary<string, decimal>
+        StrategyWeights = new Dictionary<StrategyKind, decimal>
         {
-            ["ADX Trend Following + Volume"] = AdxWeight,
-            ["MA Crossover"] = MaWeight,
-            ["RSI Mean Reversion"] = RsiWeight
+            [StrategyKind.AdxTrendFollowing] = AdxWeight,
+            [StrategyKind.MaCrossover] = MaWeight,
+            [StrategyKind.RsiMeanReversion] = RsiWeight
         }
     };
 }

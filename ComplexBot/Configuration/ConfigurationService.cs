@@ -112,6 +112,7 @@ public class ConfigurationService
     {
         var config = new BotConfiguration();
         _configuration.Bind(config);
+        ApplyLegacyEnsembleWeights(config);
         ValidateConfiguration(config);
         return config;
     }
@@ -179,9 +180,35 @@ public class ConfigurationService
             WriteIndented = writeIndented,
             Converters =
             {
+                new StrategyWeightsJsonConverter(),
                 new JsonStringEnumConverter()
             }
         };
+    }
+
+    private void ApplyLegacyEnsembleWeights(BotConfiguration config)
+    {
+        var weightsSection = _configuration.GetSection("Ensemble:StrategyWeights");
+        if (!weightsSection.Exists())
+        {
+            return;
+        }
+
+        foreach (var child in weightsSection.GetChildren())
+        {
+            if (!StrategyWeightKeyMapper.TryGetStrategyKind(child.Key, out var kind))
+            {
+                continue;
+            }
+
+            if (!decimal.TryParse(child.Value, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var weight))
+            {
+                continue;
+            }
+
+            config.Ensemble.StrategyWeights[kind] = weight;
+        }
     }
 
     private static void ValidateConfiguration(BotConfiguration config)

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ComplexBot.Models;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -25,10 +26,10 @@ public record EnsembleSettings
     /// - Trend Following (ADX 50% + MA 25% = 75%) - dominant in strong trends
     /// - Mean Reversion (RSI 25%) - catches pullbacks, filtered by trend strategies
     /// </summary>
-    public Dictionary<string, decimal> StrategyWeights { get; init; } = new()
+    public Dictionary<StrategyKind, decimal> StrategyWeights { get; init; } = new()
     {
-        ["ADX Trend Following + Volume"] = 0.5m,  // Primary trend follower
-        ["MA Crossover"] = 0.25m,                  // Secondary trend follower
-        ["RSI Mean Reversion"] = 0.25m             // Counter-trend (mean reversion)
+        [StrategyKind.AdxTrendFollowing] = 0.5m,  // Primary trend follower
+        [StrategyKind.MaCrossover] = 0.25m,       // Secondary trend follower
+        [StrategyKind.RsiMeanReversion] = 0.25m   // Counter-trend (mean reversion)
     };
 }

@@ -320,11 +320,11 @@ class OptimizationRunner
             Enabled = true,
             MinimumAgreement = settings.MinimumAgreement,
             UseConfidenceWeighting = settings.UseConfidenceWeighting,
-            StrategyWeights = new Dictionary<string, decimal>
+            StrategyWeights = new Dictionary<StrategyKind, decimal>
             {
-                ["ADX Trend Following + Volume"] = settings.AdxWeight,
-                ["MA Crossover"] = settings.MaWeight,
-                ["RSI Mean Reversion"] = settings.RsiWeight
+                [StrategyKind.AdxTrendFollowing] = settings.AdxWeight,
+                [StrategyKind.MaCrossover] = settings.MaWeight,
+                [StrategyKind.RsiMeanReversion] = settings.RsiWeight
             }
         };
         _configService.UpdateSection("Ensemble", ensembleSettings);
@@ -397,11 +397,11 @@ class OptimizationRunner
             Enabled = current.Enabled,
             MinimumAgreement = settings.MinimumAgreement,
             UseConfidenceWeighting = settings.UseConfidenceWeighting,
-            StrategyWeights = new Dictionary<string, decimal>
+            StrategyWeights = new Dictionary<StrategyKind, decimal>
             {
-                ["ADX Trend Following + Volume"] = settings.AdxWeight,
-                ["MA Crossover"] = settings.MaWeight,
-                ["RSI Mean Reversion"] = settings.RsiWeight
+                [StrategyKind.AdxTrendFollowing] = settings.AdxWeight,
+                [StrategyKind.MaCrossover] = settings.MaWeight,
+                [StrategyKind.RsiMeanReversion] = settings.RsiWeight
             }
         };
 
