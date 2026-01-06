@@ -192,6 +192,18 @@ class LiveTradingRunner
             .AddColumn("Price")
             .AddColumn("Reason");
 
+        var trades = new List<Trade>();
+        var tradeTable = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Entry")
+            .AddColumn("Exit")
+            .AddColumn("Side")
+            .AddColumn("Qty")
+            .AddColumn("Entry Price")
+            .AddColumn("Exit Price")
+            .AddColumn("PnL")
+            .AddColumn("Reason");
+
         trader.OnSignal += signal =>
         {
             Log.Information("SIGNAL: {SignalType} at {Price:F2} - {Reason}",
@@ -202,6 +214,30 @@ class LiveTradingRunner
                 $"{signal.Price:F2}",
                 signal.Reason ?? ""
             );
+        };
+
+        trader.OnTrade += trade =>
+        {
+            trades.Add(trade);
+
+            if (!trade.ExitPrice.HasValue)
+            {
+                return;
+            }
+
+            var pnlText = trade.PnL.HasValue
+                ? $"{trade.PnL.Value:F2} ({trade.PnLPercent:0.##}%)"
+                : "-";
+
+            tradeTable.AddRow(
+                trade.EntryTime.ToString("HH:mm:ss"),
+                trade.ExitTime?.ToString("HH:mm:ss") ?? "-",
+                trade.Direction.ToString(),
+                $"{trade.Quantity:F5}",
+                $"{trade.EntryPrice:F2}",
+                $"{trade.ExitPrice:F2}",
+                pnlText,
+                trade.ExitReason ?? "");
         };
 
         AnsiConsole.MarkupLine("\n[green]Starting trader... Press Ctrl+C to stop[/]\n");
@@ -245,6 +281,18 @@ class LiveTradingRunner
         else
         {
             Log.Information("No signals generated during session");
+        }
+
+        if (tradeTable.Rows.Count > 0)
+        {
+            Log.Information("Total trades executed: {TradeCount}", tradeTable.Rows.Count);
+            AnsiConsole.WriteLine();
+            AnsiConsole.Write(new Rule("[yellow]Trades Executed[/]"));
+            AnsiConsole.Write(tradeTable);
+        }
+        else
+        {
+            Log.Information("No trades executed during session");
         }
 
         Log.Information("=== RunLiveTrading Completed ===");
