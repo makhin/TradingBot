@@ -1,4 +1,6 @@
 using ComplexBot.Models;
+using CsvHelper;
+using CsvHelper.Configuration;
 using System.Globalization;
 
 namespace ComplexBot.Services.Analytics;
@@ -7,7 +9,20 @@ public class TradeJournal
 {
     private readonly List<TradeJournalEntry> _entries = new();
     private readonly string _outputPath;
+    private readonly object _sync = new();
     private int _nextTradeId = 1;
+    private static readonly string[] DefaultIndicatorKeys =
+    [
+        "ADX",
+        "+DI",
+        "-DI",
+        "FastEMA",
+        "SlowEMA",
+        "ATR",
+        "MACD_Hist",
+        "VolumeRatio",
+        "OBV_Slope"
+    ];
 
     public TradeJournal(string outputPath = "trades")
     {
@@ -17,30 +32,36 @@ public class TradeJournal
 
     public int OpenTrade(TradeJournalEntry entry)
     {
-        var tradeId = _nextTradeId++;
-        _entries.Add(entry with { TradeId = tradeId });
-        return tradeId;
+        lock (_sync)
+        {
+            var tradeId = _nextTradeId++;
+            _entries.Add(entry with { TradeId = tradeId });
+            return tradeId;
+        }
     }
 
     public void CloseTrade(int tradeId, TradeJournalEntry updates)
     {
-        var index = _entries.FindIndex(e => e.TradeId == tradeId);
-        if (index >= 0)
+        lock (_sync)
         {
-            _entries[index] = _entries[index] with
+            var index = _entries.FindIndex(e => e.TradeId == tradeId);
+            if (index >= 0)
             {
-                ExitTime = updates.ExitTime,
-                ExitPrice = updates.ExitPrice,
-                GrossPnL = updates.GrossPnL,
-                NetPnL = updates.NetPnL,
-                RMultiple = updates.RMultiple,
-                Result = updates.Result,
-                ExitReason = updates.ExitReason,
-                BarsInTrade = updates.BarsInTrade,
-                Duration = updates.Duration,
-                MaxAdverseExcursion = updates.MaxAdverseExcursion,
-                MaxFavorableExcursion = updates.MaxFavorableExcursion
-            };
+                _entries[index] = _entries[index] with
+                {
+                    ExitTime = updates.ExitTime,
+                    ExitPrice = updates.ExitPrice,
+                    GrossPnL = updates.GrossPnL,
+                    NetPnL = updates.NetPnL,
+                    RMultiple = updates.RMultiple,
+                    Result = updates.Result,
+                    ExitReason = updates.ExitReason,
+                    BarsInTrade = updates.BarsInTrade,
+                    Duration = updates.Duration,
+                    MaxAdverseExcursion = updates.MaxAdverseExcursion,
+                    MaxFavorableExcursion = updates.MaxFavorableExcursion
+                };
+            }
         }
     }
 
@@ -49,24 +70,96 @@ public class TradeJournal
         filename ??= $"trades_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
         var path = Path.Combine(_outputPath, filename);
 
+        var entriesSnapshot = GetEntriesSnapshot();
+        var indicatorKeys = DefaultIndicatorKeys
+            .Concat(entriesSnapshot
+                .SelectMany(entry => entry.Indicators.Values.Keys)
+                .Where(key => !DefaultIndicatorKeys.Contains(key, StringComparer.Ordinal)))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
         using var writer = new StreamWriter(path);
+        using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture));
 
-        // Header
-        writer.WriteLine("TradeId,EntryTime,ExitTime,Symbol,Direction," +
-            "EntryPrice,ExitPrice,StopLoss,TakeProfit," +
-            "Quantity,PositionValue,RiskAmount," +
-            "GrossPnL,NetPnL,RMultiple,Result," +
-            "ADX,+DI,-DI,FastEMA,SlowEMA,ATR,MACD_Hist,VolumeRatio,OBV_Slope," +
-            "EntryReason,ExitReason,BarsInTrade,Duration,MAE,MFE");
-
-        foreach (var e in _entries)
+        var preIndicatorHeaders = new[]
         {
-            writer.WriteLine($"{e.TradeId},{FormatDateTime(e.EntryTime)},{FormatDateTime(e.ExitTime)},{e.Symbol},{e.Direction}," +
-                $"{e.EntryPrice},{FormatDecimal(e.ExitPrice)},{e.StopLoss},{e.TakeProfit}," +
-                $"{e.Quantity},{e.PositionValueUsd},{e.RiskAmount}," +
-                $"{FormatDecimal(e.GrossPnL)},{FormatDecimal(e.NetPnL)},{FormatDecimal(e.RMultiple)},{e.Result}," +
-                $"{e.AdxValue},{e.PlusDi},{e.MinusDi},{e.FastEma},{e.SlowEma},{e.Atr},{e.MacdHistogram},{e.VolumeRatio},{e.ObvSlope}," +
-                $"\"{e.EntryReason}\",\"{e.ExitReason}\",{e.BarsInTrade},{FormatDuration(e.Duration)},{FormatDecimal(e.MaxAdverseExcursion)},{FormatDecimal(e.MaxFavorableExcursion)}");
+            "TradeId",
+            "EntryTime",
+            "ExitTime",
+            "Symbol",
+            "Direction",
+            "EntryPrice",
+            "ExitPrice",
+            "StopLoss",
+            "TakeProfit",
+            "Quantity",
+            "PositionValue",
+            "RiskAmount",
+            "GrossPnL",
+            "NetPnL",
+            "RMultiple",
+            "Result"
+        };
+
+        var postIndicatorHeaders = new[]
+        {
+            "EntryReason",
+            "ExitReason",
+            "BarsInTrade",
+            "Duration",
+            "MAE",
+            "MFE"
+        };
+
+        foreach (var header in preIndicatorHeaders)
+        {
+            csv.WriteField(header);
+        }
+
+        foreach (var indicatorKey in indicatorKeys)
+        {
+            csv.WriteField(indicatorKey);
+        }
+
+        foreach (var header in postIndicatorHeaders)
+        {
+            csv.WriteField(header);
+        }
+
+        csv.NextRecord();
+
+        foreach (var e in entriesSnapshot)
+        {
+            csv.WriteField(e.TradeId);
+            csv.WriteField(FormatDateTime(e.EntryTime));
+            csv.WriteField(FormatDateTime(e.ExitTime));
+            csv.WriteField(e.Symbol);
+            csv.WriteField(e.Direction.ToString());
+            csv.WriteField(FormatDecimal(e.EntryPrice));
+            csv.WriteField(FormatDecimal(e.ExitPrice));
+            csv.WriteField(FormatDecimal(e.StopLoss));
+            csv.WriteField(FormatDecimal(e.TakeProfit));
+            csv.WriteField(FormatDecimal(e.Quantity));
+            csv.WriteField(FormatDecimal(e.PositionValueUsd));
+            csv.WriteField(FormatDecimal(e.RiskAmount));
+            csv.WriteField(FormatDecimal(e.GrossPnL));
+            csv.WriteField(FormatDecimal(e.NetPnL));
+            csv.WriteField(FormatDecimal(e.RMultiple));
+            csv.WriteField(e.Result?.ToString() ?? "");
+
+            foreach (var indicatorKey in indicatorKeys)
+            {
+                csv.WriteField(FormatDecimal(e.Indicators.GetValue(indicatorKey)));
+            }
+
+            csv.WriteField(e.EntryReason);
+            csv.WriteField(e.ExitReason);
+            csv.WriteField(e.BarsInTrade);
+            csv.WriteField(FormatDuration(e.Duration));
+            csv.WriteField(FormatDecimal(e.MaxAdverseExcursion));
+            csv.WriteField(FormatDecimal(e.MaxFavorableExcursion));
+
+            csv.NextRecord();
         }
 
         Console.WriteLine($"📊 Trade journal exported: {path}");
@@ -74,7 +167,7 @@ public class TradeJournal
 
     public TradeJournalStats GetStats()
     {
-        var closed = _entries.Where(e => e.ExitTime.HasValue).ToList();
+        var closed = GetEntriesSnapshot().Where(e => e.ExitTime.HasValue).ToList();
 
         if (closed.Count == 0)
         {
@@ -109,7 +202,16 @@ public class TradeJournal
         };
     }
 
-    public IReadOnlyList<TradeJournalEntry> GetAllTrades() => _entries.AsReadOnly();
+    public IReadOnlyList<TradeJournalEntry> GetAllTrades()
+        => GetEntriesSnapshot().AsReadOnly();
+
+    private List<TradeJournalEntry> GetEntriesSnapshot()
+    {
+        lock (_sync)
+        {
+            return _entries.ToList();
+        }
+    }
 
     private static string FormatDateTime(DateTime? dt)
         => dt?.ToString("O") ?? "";

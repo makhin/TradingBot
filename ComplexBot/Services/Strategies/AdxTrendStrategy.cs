@@ -59,6 +59,22 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence
 
     public override decimal? CurrentAtr => _atr.Value;
     public decimal? CurrentAdx => _adx.Value;
+    public decimal? CurrentPlusDi => _adx.PlusDi;
+    public decimal? CurrentMinusDi => _adx.MinusDi;
+    public decimal? CurrentFastEma => _currentFastEma;
+    public decimal? CurrentSlowEma => _currentSlowEma;
+    public decimal? CurrentMacdHistogram => _macd.Histogram;
+    public decimal? CurrentVolumeRatio => _volumeFilter.VolumeRatio;
+    public decimal? CurrentObvSlope
+    {
+        get
+        {
+            if (!_obv.Signal.HasValue || !_obv.Value.HasValue)
+                return null;
+
+            return _obv.Value.Value - _obv.Signal.Value;
+        }
+    }
     public bool VolumeConfirmation => _obv.IsReady;
 
     /// <summary>

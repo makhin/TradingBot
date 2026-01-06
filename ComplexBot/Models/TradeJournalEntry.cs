@@ -28,15 +28,7 @@ public record TradeJournalEntry
     public TradeResult? Result { get; init; }  // Win/Loss/Breakeven
 
     // Индикаторы на момент входа
-    public decimal AdxValue { get; init; }
-    public decimal PlusDi { get; init; }
-    public decimal MinusDi { get; init; }
-    public decimal FastEma { get; init; }
-    public decimal SlowEma { get; init; }
-    public decimal Atr { get; init; }
-    public decimal MacdHistogram { get; init; }
-    public decimal VolumeRatio { get; init; }  // CurrentVol / AvgVol
-    public decimal ObvSlope { get; init; }
+    public IndicatorSnapshot Indicators { get; init; } = IndicatorSnapshot.Empty;
 
     // Причины входа/выхода
     public string EntryReason { get; init; } = "";
