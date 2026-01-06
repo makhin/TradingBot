@@ -8,8 +8,10 @@ public record OptimizerSettings
     // Optimization target
     public OptimizationTarget OptimizeFor { get; init; } = OptimizationTarget.RiskAdjusted;
 
+    // Policy configuration
+    public PerformanceFitnessPolicy Policy { get; init; } = new();
+
     // Minimum requirements
-    public int MinTrades { get; init; } = 30;
     public decimal MinRobustnessRatio { get; init; } = 0.5m; // OOS должен быть >= 50% от IS
     public int TopResultsCount { get; init; } = 10;
 

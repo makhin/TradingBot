@@ -147,7 +147,7 @@ public static class OptimizerExamples
             riskSettings: riskSettings,
             backtestSettings: backtestSettings,
             fitnessFunction: FitnessFunction.RiskAdjusted,
-            minTrades: 20);
+            policy: new PerformanceFitnessPolicy { MinTrades = 20 });
 
         var result = maOptimizer.Optimize(
             candles,
@@ -225,7 +225,7 @@ public static class OptimizerExamples
             riskSettings: riskSettings,
             backtestSettings: backtestSettings,
             fitnessFunction: FitnessFunction.RiskAdjusted,
-            minTrades: 20);
+            policy: new PerformanceFitnessPolicy { MinTrades = 20 });
 
         var result = rsiOptimizer.Optimize(
             candles,
