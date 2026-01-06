@@ -9,15 +9,7 @@ public class RiskManagerTests
     public void CalculatePositionSize_WithNormalDrawdown_ReturnsFullSize()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault();
         var manager = new RiskManager(settings, initialCapital: 10000m);
 
         // Act
@@ -38,15 +30,7 @@ public class RiskManagerTests
     public void CalculatePositionSize_WithDrawdown_ReducesSize()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault();
         var manager = new RiskManager(settings, initialCapital: 10000m);
         manager.UpdateEquity(8500m); // 15% drawdown
 
@@ -67,15 +51,7 @@ public class RiskManagerTests
     public void CalculatePositionSize_WithZeroStopDistance_ReturnsZero()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault();
         var manager = new RiskManager(settings, initialCapital: 10000m);
 
         // Act
@@ -92,15 +68,7 @@ public class RiskManagerTests
     public void CurrentDrawdown_WithEquityChange_CalculatesCorrectly()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault();
         var manager = new RiskManager(settings, initialCapital: 10000m);
 
         // Act
@@ -116,15 +84,7 @@ public class RiskManagerTests
     public void GetDailyDrawdownPercent_TracksDaily()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault();
         var manager = new RiskManager(settings, initialCapital: 10000m);
 
         // Act
@@ -141,15 +101,7 @@ public class RiskManagerTests
     public void IsDailyLimitExceeded_WithExceededLimit_ReturnsTrue()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault();
         var manager = new RiskManager(settings, initialCapital: 10000m);
 
         // Act
@@ -165,15 +117,7 @@ public class RiskManagerTests
     public void GetDrawdownAdjustedRisk_WithHighDrawdown_ReducesRiskSignificantly()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 2.0m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault() with { RiskPerTradePercent = 2.0m };
         var manager = new RiskManager(settings, initialCapital: 10000m);
 
         // Act
@@ -190,15 +134,7 @@ public class RiskManagerTests
     public void CalculatePositionSize_WithAtr_UsesAttrForMinStopDistance()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault();
         var manager = new RiskManager(settings, initialCapital: 10000m);
         decimal atr = 200m;  // ATR = 200, so minimum stop distance = 200 * 2.0 = 400
 
@@ -220,15 +156,7 @@ public class RiskManagerTests
     public void PortfolioHeat_WithMultiplePositions_CalculatesTotal()
     {
         // Arrange
-        var settings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var settings = RiskSettingsFactory.CreateDefault();
         var manager = new RiskManager(settings, initialCapital: 10000m);
 
         // Act - Calculate position sizes for multiple symbols

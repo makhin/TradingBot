@@ -26,7 +26,7 @@ public class RsiStrategyTests
             RequireVolumeConfirmation = false
         };
         var strategy = new RsiStrategy(settings);
-        var candles = BuildOversoldRecovery();
+        var candles = TestDataFactory.BuildOversoldRecovery();
 
         TradeSignal? entrySignal = null;
         foreach (var candle in candles)
@@ -43,34 +43,16 @@ public class RsiStrategyTests
         Assert.NotNull(strategy.CurrentStopLoss);
 
         var stopLoss = strategy.CurrentStopLoss!.Value;
-        var exitCandle = CreateCandle(DateTime.UtcNow.AddMinutes(10), stopLoss + 0.5m, stopLoss + 1.0m, stopLoss - 1.0m);
+        var exitCandle = TestDataFactory.CreateCandle(
+            TestDataFactory.BaseTime.AddMinutes(10),
+            stopLoss + 0.5m,
+            high: stopLoss + 1.0m,
+            low: stopLoss - 1.0m
+        );
         var exitSignal = strategy.Analyze(exitCandle, currentPosition: 1m, symbol: "BTCUSDT");
 
         Assert.NotNull(exitSignal);
         Assert.Equal(SignalType.Exit, exitSignal!.Type);
     }
 
-    private static List<Candle> BuildOversoldRecovery()
-    {
-        var candles = new List<Candle>();
-        var baseTime = DateTime.UtcNow;
-        var closes = new[] { 100m, 92m, 85m, 88m, 92m, 96m };
-
-        for (int i = 0; i < closes.Length; i++)
-        {
-            candles.Add(CreateCandle(baseTime.AddMinutes(i), closes[i]));
-        }
-
-        return candles;
-    }
-
-    private static Candle CreateCandle(DateTime time, decimal close, decimal? high = null, decimal? low = null)
-    {
-        var open = close * 0.99m;
-        var candleHigh = high ?? close * 1.01m;
-        var candleLow = low ?? close * 0.98m;
-        var volume = 1000m;
-
-        return new Candle(time, open, candleHigh, candleLow, close, volume, time.AddMinutes(1));
-    }
 }
