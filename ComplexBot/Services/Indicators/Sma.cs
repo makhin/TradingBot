@@ -6,31 +6,13 @@ namespace ComplexBot.Services.Indicators;
 /// <summary>
 /// Simple Moving Average
 /// </summary>
-public class Sma : IIndicator<decimal>
+public class Sma : SkenderIndicatorBase<decimal, SmaResult>
 {
-    private readonly int _period;
-    private readonly QuoteSeries _series = new();
-
     public Sma(int period)
+        : base(
+            (series, price) => series.AddPrice(price),
+            quotes => quotes.GetSma(period).LastOrDefault(),
+            result => Value = IndicatorValueConverter.ToDecimal(result?.Sma))
     {
-        _period = period;
-    }
-
-    public decimal? Value { get; private set; }
-    public bool IsReady => Value.HasValue;
-
-    public decimal? Update(decimal price)
-    {
-        _series.AddPrice(price);
-
-        var result = _series.Quotes.GetSma(_period).LastOrDefault();
-        Value = IndicatorValueConverter.ToDecimal(result?.Sma);
-        return Value;
-    }
-
-    public void Reset()
-    {
-        _series.Reset();
-        Value = null;
     }
 }
