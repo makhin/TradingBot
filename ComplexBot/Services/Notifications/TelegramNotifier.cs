@@ -21,7 +21,7 @@ public class TelegramNotifier
         }
     }
 
-    public async Task SendTradeOpen(TradeSignal signal, decimal quantity, decimal riskAmount)
+    public async Task SendTradeOpen(TradeSignal signal, decimal quantity, decimal riskAmount, CancellationToken cancellationToken = default)
     {
         if (!_enabled) return;
 
@@ -43,11 +43,11 @@ public class TelegramNotifier
             📝 _{signal.Reason}_
             """;
 
-        await SendMessage(message);
+        await SendMessage(message, cancellationToken);
     }
 
     public async Task SendTradeClose(string symbol, decimal entryPrice, decimal exitPrice,
-        decimal pnl, decimal rMultiple, string reason)
+        decimal pnl, decimal rMultiple, string reason, CancellationToken cancellationToken = default)
     {
         if (!_enabled) return;
 
@@ -67,10 +67,10 @@ public class TelegramNotifier
             📝 _{reason}_
             """;
 
-        await SendMessage(message);
+        await SendMessage(message, cancellationToken);
     }
 
-    public async Task SendDrawdownAlert(decimal currentDrawdown, decimal dailyDrawdown)
+    public async Task SendDrawdownAlert(decimal currentDrawdown, decimal dailyDrawdown, CancellationToken cancellationToken = default)
     {
         if (!_enabled) return;
 
@@ -83,10 +83,10 @@ public class TelegramNotifier
             _Risk management may reduce position sizes_
             """;
 
-        await SendMessage(message);
+        await SendMessage(message, cancellationToken);
     }
 
-    public async Task SendCircuitBreakerTriggered(string reason)
+    public async Task SendCircuitBreakerTriggered(string reason, CancellationToken cancellationToken = default)
     {
         if (!_enabled) return;
 
@@ -100,10 +100,10 @@ public class TelegramNotifier
             _Manual intervention required_
             """;
 
-        await SendMessage(message);
+        await SendMessage(message, cancellationToken);
     }
 
-    public async Task SendDailySummary(TradeJournalStats stats, decimal equity, decimal drawdown)
+    public async Task SendDailySummary(TradeJournalStats stats, decimal equity, decimal drawdown, CancellationToken cancellationToken = default)
     {
         if (!_enabled) return;
 
@@ -121,10 +121,10 @@ public class TelegramNotifier
             Worst Trade: `${stats.LargestLoss:F2}`
             """;
 
-        await SendMessage(message);
+        await SendMessage(message, cancellationToken);
     }
 
-    public async Task SendError(string errorMessage)
+    public async Task SendError(string errorMessage, CancellationToken cancellationToken = default)
     {
         if (!_enabled) return;
 
@@ -136,15 +136,15 @@ public class TelegramNotifier
             _Check logs for details_
             """;
 
-        await SendMessage(message);
+        await SendMessage(message, cancellationToken);
     }
 
-    public async Task SendMessageAsync(string message)
+    public async Task SendMessageAsync(string message, CancellationToken cancellationToken = default)
     {
-        await SendMessage(message);
+        await SendMessage(message, cancellationToken);
     }
 
-    private async Task SendMessage(string message)
+    private async Task SendMessage(string message, CancellationToken cancellationToken)
     {
         if (_bot == null) return;
 
@@ -153,7 +153,8 @@ public class TelegramNotifier
             await _bot.SendMessage(
                 chatId: _chatId,
                 text: message,
-                parseMode: ParseMode.Markdown
+                parseMode: ParseMode.Markdown,
+                cancellationToken: cancellationToken
             );
         }
         catch (Exception ex)

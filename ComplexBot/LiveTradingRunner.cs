@@ -182,7 +182,7 @@ class LiveTradingRunner
         Log.Information("Initializing ADX Trend Strategy");
         var strategy = new AdxTrendStrategy(strategySettings);
         Log.Information("Creating BinanceLiveTrader instance");
-        using var trader = new BinanceLiveTrader(
+        await using var trader = new BinanceLiveTrader(
             apiKey, apiSecret, strategy, riskSettings, liveSettings, telegram);
 
         var signalTable = new Table()
