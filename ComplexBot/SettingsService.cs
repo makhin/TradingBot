@@ -11,6 +11,18 @@ namespace ComplexBot;
 class SettingsService
 {
     private readonly ConfigurationService _configService;
+    private const string UpdatePromptText = "Save these settings?";
+    private const string PromptHintText = "[grey]Press Enter to keep current value shown in brackets[/]\n";
+
+    private static readonly SettingsPromptMetadata RiskPrompt = new(
+        SectionName: "RiskManagement",
+        UseDefaultsPrompt: "Use saved risk settings?",
+        Title: "Risk Management Settings");
+
+    private static readonly SettingsPromptMetadata StrategyPrompt = new(
+        SectionName: "Strategy",
+        UseDefaultsPrompt: "Use saved strategy settings?",
+        Title: "Strategy Settings");
 
     public SettingsService(ConfigurationService configService)
     {
@@ -20,61 +32,23 @@ class SettingsService
     public RiskSettings GetRiskSettings()
     {
         var config = _configService.GetConfiguration();
-        var current = config.RiskManagement;
-
-        // In non-interactive mode (when TRADING_MODE is set), always use saved settings
-        var tradingModeEnv = Environment.GetEnvironmentVariable("TRADING_MODE");
-        var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
-
-        if (!isInteractive)
-            return current.ToRiskSettings();
-
-        var useDefaults = AnsiConsole.Confirm("Use saved risk settings?", defaultValue: true);
-
-        if (useDefaults)
-            return current.ToRiskSettings();
-
-        AnsiConsole.MarkupLine("\n[yellow]Risk Management Settings[/]");
-        AnsiConsole.MarkupLine("[grey]Press Enter to keep current value shown in brackets[/]\n");
-
-        var updated = SettingsPrompts.BuildRiskSettings(current);
-
-        if (AnsiConsole.Confirm("Save these settings?", defaultValue: true))
-        {
-            _configService.UpdateSection("RiskManagement", updated);
-        }
-
-        return updated.ToRiskSettings();
+        return PromptSettings(
+            config.RiskManagement,
+            SettingsPrompts.BuildRiskSettings,
+            settings => settings.ToRiskSettings(),
+            RiskPrompt,
+            updated => _configService.UpdateSection(RiskPrompt.SectionName, updated));
     }
 
     public StrategySettings GetStrategySettings()
     {
         var config = _configService.GetConfiguration();
-        var current = config.Strategy;
-
-        // In non-interactive mode (when TRADING_MODE is set), always use saved settings
-        var tradingModeEnv = Environment.GetEnvironmentVariable("TRADING_MODE");
-        var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
-
-        if (!isInteractive)
-            return current.ToStrategySettings();
-
-        var useDefaults = AnsiConsole.Confirm("Use saved strategy settings?", defaultValue: true);
-
-        if (useDefaults)
-            return current.ToStrategySettings();
-
-        AnsiConsole.MarkupLine("\n[yellow]Strategy Settings[/]");
-        AnsiConsole.MarkupLine("[grey]Press Enter to keep current value shown in brackets[/]\n");
-
-        var updated = SettingsPrompts.BuildStrategySettings(current);
-
-        if (AnsiConsole.Confirm("Save these settings?", defaultValue: true))
-        {
-            _configService.UpdateSection("Strategy", updated);
-        }
-
-        return updated.ToStrategySettings();
+        return PromptSettings(
+            config.Strategy,
+            SettingsPrompts.BuildStrategySettings,
+            settings => settings.ToStrategySettings(),
+            StrategyPrompt,
+            updated => _configService.UpdateSection(StrategyPrompt.SectionName, updated));
     }
 
     public (PortfolioRiskSettings Settings, Dictionary<string, string[]> CorrelationGroups) GetPortfolioRiskConfiguration()
@@ -124,4 +98,42 @@ class SettingsService
                 break;
         }
     }
+
+    private TResult PromptSettings<TConfig, TResult>(
+        TConfig current,
+        Func<TConfig, TConfig> promptFactory,
+        Func<TConfig, TResult> toRuntime,
+        SettingsPromptMetadata metadata,
+        Action<TConfig> updateSection)
+    {
+        // In non-interactive mode (when TRADING_MODE is set), always use saved settings
+        var tradingModeEnv = Environment.GetEnvironmentVariable("TRADING_MODE");
+        var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
+
+        if (!isInteractive)
+        {
+            return toRuntime(current);
+        }
+
+        var useDefaults = AnsiConsole.Confirm(metadata.UseDefaultsPrompt, defaultValue: true);
+
+        if (useDefaults)
+        {
+            return toRuntime(current);
+        }
+
+        AnsiConsole.MarkupLine($"\n[yellow]{metadata.Title}[/]");
+        AnsiConsole.MarkupLine(PromptHintText);
+
+        var updated = promptFactory(current);
+
+        if (AnsiConsole.Confirm(UpdatePromptText, defaultValue: true))
+        {
+            updateSection(updated);
+        }
+
+        return toRuntime(updated);
+    }
+
+    private sealed record SettingsPromptMetadata(string SectionName, string UseDefaultsPrompt, string Title);
 }

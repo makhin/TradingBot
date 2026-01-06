@@ -27,15 +27,15 @@ public class TradeJournalTests : IDisposable
         decimal obvSlope)
     {
         return IndicatorSnapshot.FromPairs(
-            ("ADX", adx),
-            ("+DI", plusDi),
-            ("-DI", minusDi),
-            ("FastEMA", fastEma),
-            ("SlowEMA", slowEma),
-            ("ATR", atr),
-            ("MACD_Hist", macdHistogram),
-            ("VolumeRatio", volumeRatio),
-            ("OBV_Slope", obvSlope)
+            (IndicatorValueKey.Adx, adx),
+            (IndicatorValueKey.PlusDi, plusDi),
+            (IndicatorValueKey.MinusDi, minusDi),
+            (IndicatorValueKey.FastEma, fastEma),
+            (IndicatorValueKey.SlowEma, slowEma),
+            (IndicatorValueKey.Atr, atr),
+            (IndicatorValueKey.MacdHistogram, macdHistogram),
+            (IndicatorValueKey.VolumeRatio, volumeRatio),
+            (IndicatorValueKey.ObvSlope, obvSlope)
         );
     }
 

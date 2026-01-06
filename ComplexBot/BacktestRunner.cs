@@ -38,10 +38,13 @@ class BacktestRunner
         var riskSettings = _settingsService.GetRiskSettings();
         var strategySettings = _settingsService.GetStrategySettings();
         var backtestSettings = _configService.GetConfiguration().Backtest.ToBacktestSettings();
-        backtestSettings.InitialCapital = SpectreHelpers.AskDecimal(
-            "Initial capital [green](USDT)[/]",
-            backtestSettings.InitialCapital,
-            min: 1m);
+        backtestSettings = backtestSettings with
+        {
+            InitialCapital = SpectreHelpers.AskDecimal(
+                "Initial capital [green](USDT)[/]",
+                backtestSettings.InitialCapital,
+                min: 1m)
+        };
 
         var strategy = _strategyFactory.SelectStrategy(strategySettings);
         var journal = new TradeJournal();

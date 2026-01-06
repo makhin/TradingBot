@@ -7,6 +7,7 @@ using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Utils;
+using BacktestSettingsModel = ComplexBot.Services.Backtesting.BacktestSettings;
 
 namespace ComplexBot;
 
@@ -208,7 +209,7 @@ class OptimizationRunner
         List<Candle> candles,
         string symbol,
         RiskSettings riskSettings,
-        BacktestSettings backtestSettings,
+        BacktestSettingsModel backtestSettings,
         OptimizationTarget optimizeFor)
     {
         var config = _configService.GetConfiguration();
@@ -235,7 +236,7 @@ class OptimizationRunner
         List<Candle> candles,
         string symbol,
         RiskSettings riskSettings,
-        BacktestSettings backtestSettings,
+        BacktestSettingsModel backtestSettings,
         OptimizationTarget optimizeFor)
     {
         var config = _configService.GetConfiguration();
@@ -331,7 +332,7 @@ class OptimizationRunner
         List<Candle> candles,
         string symbol,
         RiskSettings riskSettings,
-        BacktestSettings backtestSettings,
+        BacktestSettingsModel backtestSettings,
         OptimizationTarget optimizeFor)
     {
         var config = _configService.GetConfiguration();
@@ -358,7 +359,7 @@ class OptimizationRunner
         List<Candle> candles,
         string symbol,
         RiskSettings riskSettings,
-        BacktestSettings backtestSettings,
+        BacktestSettingsModel backtestSettings,
         OptimizationTarget optimizeFor)
     {
         var config = _configService.GetConfiguration();
