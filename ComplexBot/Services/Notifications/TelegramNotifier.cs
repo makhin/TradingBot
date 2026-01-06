@@ -2,6 +2,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 using ComplexBot.Models;
 using ComplexBot.Services.Analytics;
+using Serilog;
 
 namespace ComplexBot.Services.Notifications;
 
@@ -10,9 +11,11 @@ public class TelegramNotifier
     private readonly TelegramBotClient? _bot;
     private readonly long _chatId;
     private readonly bool _enabled;
+    private readonly ILogger _logger;
 
-    public TelegramNotifier(string? botToken, long chatId)
+    public TelegramNotifier(string? botToken, long chatId, ILogger? logger = null)
     {
+        _logger = logger ?? Log.ForContext<TelegramNotifier>();
         _enabled = !string.IsNullOrEmpty(botToken);
         if (_enabled)
         {
@@ -159,7 +162,7 @@ public class TelegramNotifier
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Telegram error: {ex.Message}");
+            _logger.Error(ex, "Telegram error sending message to chat {ChatId}", _chatId);
         }
     }
 }

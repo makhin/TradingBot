@@ -152,7 +152,10 @@ class LiveTradingRunner
         if (config.Telegram.Enabled && !string.IsNullOrWhiteSpace(config.Telegram.BotToken))
         {
             Log.Information("Telegram notifications enabled - ChatId: {ChatId}", config.Telegram.ChatId);
-            telegram = new TelegramNotifier(config.Telegram.BotToken, config.Telegram.ChatId);
+            telegram = new TelegramNotifier(
+                config.Telegram.BotToken,
+                config.Telegram.ChatId,
+                Log.ForContext<TelegramNotifier>());
             AnsiConsole.MarkupLine("[green]✓[/] Telegram notifications enabled (from config)\n");
         }
         else if (isInteractive && AnsiConsole.Confirm("Enable Telegram notifications?", defaultValue: false))

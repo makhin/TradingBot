@@ -1,16 +1,19 @@
 using System.Text.Json;
 using ComplexBot.Models;
 using Binance.Net.Clients;
+using Serilog;
 
 namespace ComplexBot.Services.State;
 
 public class StateManager
 {
     private readonly string _statePath;
+    private readonly ILogger _logger;
 
-    public StateManager(string statePath = "bot_state.json")
+    public StateManager(string statePath = "bot_state.json", ILogger? logger = null)
     {
         _statePath = statePath;
+        _logger = logger ?? Log.ForContext<StateManager>();
     }
 
     public async Task SaveState(BotState state, CancellationToken cancellationToken = default)
@@ -22,11 +25,11 @@ public class StateManager
                 WriteIndented = true
             });
             await File.WriteAllTextAsync(_statePath, json, cancellationToken);
-            Console.WriteLine($"💾 State saved: {state.OpenPositions.Count} positions, Equity: ${state.CurrentEquity:F2}");
+            _logger.Information("State saved: {PositionCount} positions, Equity: {Equity}", state.OpenPositions.Count, state.CurrentEquity);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Failed to save state: {ex.Message}");
+            _logger.Error(ex, "Failed to save state");
         }
     }
 
@@ -34,7 +37,7 @@ public class StateManager
     {
         if (!File.Exists(_statePath))
         {
-            Console.WriteLine("📂 No saved state found, starting fresh");
+            _logger.Information("No saved state found, starting fresh");
             return null;
         }
 
@@ -42,19 +45,19 @@ public class StateManager
         {
             var json = await File.ReadAllTextAsync(_statePath);
             var state = JsonSerializer.Deserialize<BotState>(json);
-            Console.WriteLine($"📂 State loaded: {state?.OpenPositions.Count ?? 0} positions, Equity: ${state?.CurrentEquity ?? 0:F2}");
+            _logger.Information("State loaded: {PositionCount} positions, Equity: {Equity}", state?.OpenPositions.Count ?? 0, state?.CurrentEquity ?? 0m);
             return state;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"⚠️ Failed to load state: {ex.Message}");
+            _logger.Warning(ex, "Failed to load state");
             return null;
         }
     }
 
     public async Task<StateReconciliationResult> ReconcileWithExchange(BinanceRestClient client, BotState state, string symbol)
     {
-        Console.WriteLine("🔄 Reconciling state with exchange...");
+        _logger.Information("Reconciling state with exchange for {Symbol}", symbol);
 
         var result = new StateReconciliationResult
         {
@@ -72,7 +75,7 @@ public class StateManager
                 var balanceResult = await client.SpotApi.Account.GetBalancesAsync();
                 if (!balanceResult.Success)
                 {
-                    Console.WriteLine($"⚠️ Failed to get balance: {balanceResult.Error?.Message}");
+                    _logger.Warning("Failed to get balance: {Error}", balanceResult.Error?.Message);
                     continue;
                 }
 
@@ -83,19 +86,21 @@ public class StateManager
                 // Allow 1% tolerance for rounding/fees
                 if (actualQuantity >= savedPos.RemainingQuantity * 0.99m)
                 {
-                    Console.WriteLine($"✅ Position confirmed: {savedPos.Symbol} {savedPos.RemainingQuantity:F5}");
+                    _logger.Information("Position confirmed: {Symbol} {Quantity:F5}", savedPos.Symbol, savedPos.RemainingQuantity);
                     result.PositionsConfirmed.Add(savedPos);
                 }
                 else
                 {
-                    Console.WriteLine($"⚠️ Position mismatch: {savedPos.Symbol}");
-                    Console.WriteLine($"   Expected: {savedPos.RemainingQuantity:F5}, Actual: {actualQuantity:F5}");
+                    _logger.Warning("Position mismatch: {Symbol}. Expected {Expected:F5}, Actual {Actual:F5}",
+                        savedPos.Symbol,
+                        savedPos.RemainingQuantity,
+                        actualQuantity);
                     result.PositionsMismatch.Add((savedPos, actualQuantity));
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error checking position {savedPos.Symbol}: {ex.Message}");
+                _logger.Error(ex, "Error checking position {Symbol}", savedPos.Symbol);
             }
         }
 
@@ -109,25 +114,29 @@ public class StateManager
 
                 if (ocoStatus.Success)
                 {
-                    Console.WriteLine($"✅ OCO order active: {oco.Symbol} #{oco.OrderListId}");
+                    _logger.Information("OCO order active: {Symbol} #{OrderListId}", oco.Symbol, oco.OrderListId);
                     result.OcoOrdersActive.Add(oco);
                 }
                 else
                 {
-                    Console.WriteLine($"⚠️ OCO order not found: {oco.Symbol} #{oco.OrderListId}");
-                    Console.WriteLine($"   This may mean the order was filled or cancelled");
+                    _logger.Warning("OCO order not found: {Symbol} #{OrderListId}. This may mean the order was filled or cancelled",
+                        oco.Symbol,
+                        oco.OrderListId);
                     result.OcoOrdersMissing.Add(oco);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error checking OCO {oco.OrderListId}: {ex.Message}");
+                _logger.Error(ex, "Error checking OCO {OrderListId}", oco.OrderListId);
             }
         }
 
-        Console.WriteLine($"📊 Reconciliation complete:");
-        Console.WriteLine($"   Positions: {result.PositionsConfirmed.Count} confirmed, {result.PositionsMismatch.Count} mismatched");
-        Console.WriteLine($"   OCO Orders: {result.OcoOrdersActive.Count} active, {result.OcoOrdersMissing.Count} missing");
+        _logger.Information(
+            "Reconciliation complete. Positions: {Confirmed} confirmed, {Mismatched} mismatched. OCO Orders: {Active} active, {Missing} missing",
+            result.PositionsConfirmed.Count,
+            result.PositionsMismatch.Count,
+            result.OcoOrdersActive.Count,
+            result.OcoOrdersMissing.Count);
 
         return result;
     }
@@ -139,12 +148,12 @@ public class StateManager
             if (File.Exists(_statePath))
             {
                 File.Delete(_statePath);
-                Console.WriteLine("🗑️ State file deleted");
+                _logger.Information("State file deleted");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Failed to delete state: {ex.Message}");
+            _logger.Error(ex, "Failed to delete state");
         }
     }
 
