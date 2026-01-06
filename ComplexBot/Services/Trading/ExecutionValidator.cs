@@ -46,7 +46,7 @@ public class ExecutionValidator
 
         string direction = side == OrderSide.Buy
             ? (result.SlippagePercent > 0 ? "worse" : "better")
-            : (result.SlippagePercent > 0 ? "worse" : "better");
+            : (result.SlippagePercent > 0 ? "better" : "worse");
 
         string emoji = Math.Abs(result.SlippagePercent) switch
         {
