@@ -12,10 +12,12 @@ namespace ComplexBot.Services.Backtesting;
 public class ParameterOptimizer
 {
     private readonly OptimizerSettings _settings;
+    private readonly PerformanceFitnessCalculator _fitnessCalculator;
 
     public ParameterOptimizer(OptimizerSettings? settings = null)
     {
         _settings = settings ?? new OptimizerSettings();
+        _fitnessCalculator = new PerformanceFitnessCalculator(_settings.Policy);
     }
 
     public OptimizationResult Optimize(
@@ -32,7 +34,7 @@ public class ParameterOptimizer
 
         var parameterSets = GenerateParameterSets();
         var results = new List<ParameterSetResult>();
-        
+
         int total = parameterSets.Count;
         int current = 0;
 
@@ -46,8 +48,8 @@ public class ParameterOptimizer
             var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
             var isResult = engine.Run(inSampleData, symbol);
 
-            // Skip if not enough trades
-            if (isResult.Metrics.TotalTrades < _settings.MinTrades)
+            // Skip if not enough trades or exceeds policy limits
+            if (!_fitnessCalculator.MeetsPolicy(isResult.Metrics))
                 continue;
 
             // Test on out-of-sample data
@@ -55,27 +57,20 @@ public class ParameterOptimizer
             var oosEngine = new BacktestEngine(oosStrategy, riskSettings, backtestSettings);
             var oosResult = oosEngine.Run(outOfSampleData, symbol);
 
+            var inSampleScore = CalculateScore(isResult.Metrics);
+            var outOfSampleScore = CalculateScore(oosResult.Metrics);
+
             results.Add(new ParameterSetResult(
                 parameters,
                 isResult,
                 oosResult,
-                CalculateScore(isResult.Metrics),
-                CalculateScore(oosResult.Metrics)
+                inSampleScore,
+                outOfSampleScore
             ));
         }
 
         // Sort by selected metric
-        var sorted = _settings.OptimizeFor switch
-        {
-            OptimizationTarget.SharpeRatio => results.OrderByDescending(r => r.InSampleScore),
-            OptimizationTarget.SortinoRatio => results.OrderByDescending(r => r.InSampleResult.Metrics.SortinoRatio),
-            OptimizationTarget.ProfitFactor => results.OrderByDescending(r => r.InSampleResult.Metrics.ProfitFactor),
-            OptimizationTarget.TotalReturn => results.OrderByDescending(r => r.InSampleResult.Metrics.TotalReturn),
-            OptimizationTarget.RiskAdjusted => results.OrderByDescending(r => 
-                r.InSampleResult.Metrics.AnnualizedReturn / (r.InSampleResult.Metrics.MaxDrawdownPercent + 1)),
-            _ => results.OrderByDescending(r => r.InSampleScore)
-        };
-
+        var sorted = results.OrderByDescending(r => r.InSampleScore);
         var topResults = sorted.Take(_settings.TopResultsCount).ToList();
 
         // Find robust parameters (good OOS performance)
@@ -131,19 +126,6 @@ public class ParameterOptimizer
 
     private decimal CalculateScore(PerformanceMetrics metrics)
     {
-        // Combined score: Sharpe weighted by other factors
-        if (metrics.TotalTrades < _settings.MinTrades) return -999;
-        if (metrics.MaxDrawdownPercent > 30) return -999;
-
-        return _settings.OptimizeFor switch
-        {
-            OptimizationTarget.SharpeRatio => metrics.SharpeRatio,
-            OptimizationTarget.SortinoRatio => metrics.SortinoRatio,
-            OptimizationTarget.ProfitFactor => metrics.ProfitFactor,
-            OptimizationTarget.TotalReturn => metrics.TotalReturn,
-            OptimizationTarget.RiskAdjusted => 
-                metrics.AnnualizedReturn / (metrics.MaxDrawdownPercent + 1) * (metrics.SharpeRatio + 1),
-            _ => metrics.SharpeRatio
-        };
+        return _fitnessCalculator.CalculateScore(_settings.OptimizeFor, metrics);
     }
 }

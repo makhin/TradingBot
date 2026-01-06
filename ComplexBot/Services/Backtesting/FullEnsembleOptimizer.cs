@@ -15,21 +15,22 @@ public class FullEnsembleOptimizer
     private readonly RiskSettings _riskSettings;
     private readonly BacktestSettings _backtestSettings;
     private readonly OptimizationTarget _optimizeFor;
-    private readonly int _minTrades;
+    private readonly PerformanceFitnessCalculator _fitnessCalculator;
 
     public FullEnsembleOptimizer(
         FullEnsembleOptimizerConfig? config = null,
         RiskSettings? riskSettings = null,
         BacktestSettings? backtestSettings = null,
         OptimizationTarget optimizeFor = OptimizationTarget.RiskAdjusted,
-        int minTrades = 20)
+        PerformanceFitnessPolicy? policy = null)
     {
         _config = config ?? new FullEnsembleOptimizerConfig();
         _random = new Random();
         _riskSettings = riskSettings ?? new RiskSettings();
         _backtestSettings = backtestSettings ?? new BacktestSettings();
         _optimizeFor = optimizeFor;
-        _minTrades = minTrades;
+        var resolvedPolicy = policy ?? new PerformanceFitnessPolicy { MinTrades = 20 };
+        _fitnessCalculator = new PerformanceFitnessCalculator(resolvedPolicy);
     }
 
     public GeneticOptimizer<FullEnsembleSettings> CreateOptimizer(
@@ -212,7 +213,7 @@ public class FullEnsembleOptimizer
     private decimal EvaluateFitness(FullEnsembleSettings settings, List<Candle> candles, string symbol)
     {
         if (!Validate(settings))
-            return -1000m;
+            return _fitnessCalculator.InvalidSettingsPenalty;
 
         try
         {
@@ -220,14 +221,11 @@ public class FullEnsembleOptimizer
             var engine = new BacktestEngine(ensemble, _riskSettings, _backtestSettings);
             var result = engine.Run(candles, symbol);
 
-            if (result.Metrics.TotalTrades < _minTrades)
-                return -100m;
-
             return CalculateScore(result.Metrics);
         }
         catch
         {
-            return -1000m;
+            return _fitnessCalculator.InvalidSettingsPenalty;
         }
     }
 
@@ -293,18 +291,7 @@ public class FullEnsembleOptimizer
 
     private decimal CalculateScore(PerformanceMetrics metrics)
     {
-        if (metrics.TotalTrades < _minTrades) return -100m;
-
-        return _optimizeFor switch
-        {
-            OptimizationTarget.SharpeRatio => metrics.SharpeRatio,
-            OptimizationTarget.SortinoRatio => metrics.SortinoRatio,
-            OptimizationTarget.ProfitFactor => metrics.ProfitFactor,
-            OptimizationTarget.TotalReturn => metrics.TotalReturn,
-            OptimizationTarget.RiskAdjusted =>
-                metrics.AnnualizedReturn / (metrics.MaxDrawdownPercent + 1) * (metrics.SharpeRatio + 1),
-            _ => metrics.SharpeRatio
-        };
+        return _fitnessCalculator.CalculateScore(_optimizeFor, metrics);
     }
 
     private decimal RandomDecimal(decimal min, decimal max) =>
