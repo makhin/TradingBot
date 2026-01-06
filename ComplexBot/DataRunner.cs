@@ -12,71 +12,50 @@ class DataRunner
 {
     public async Task<(List<Candle> candles, string symbol)> LoadData()
     {
-        var source = AnsiConsole.Prompt(
+        var symbol = AnsiConsole.Ask("Symbol:", "BTCUSDT");
+        var interval = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
-                .Title("Data source:")
-                .AddChoices("Download from Binance", "Load from CSV file")
+                .Title("Interval (recommended [green]4h[/] or [green]1d[/] for medium-term):")
+                .AddChoices("1h", "4h", "1d")
         );
 
-        if (source == "Load from CSV file")
-        {
-            var files = Directory.Exists("Data")
-                ? Directory.GetFiles("Data", "*.csv")
-                : Array.Empty<string>();
+        var startDate = AnsiConsole.Ask("Start date [green](yyyy-MM-dd)[/]:",
+            DateTime.UtcNow.AddYears(-1).ToString("yyyy-MM-dd"));
+        var endDate = AnsiConsole.Ask("End date [green](yyyy-MM-dd)[/]:",
+            DateTime.UtcNow.ToString("yyyy-MM-dd"));
 
-            if (files.Length == 0)
+        var loader = new HistoricalDataLoader();
+        var candles = new List<Candle>();
+        var start = DateTime.Parse(startDate);
+        var end = DateTime.Parse(endDate);
+        var filename = $"Data/{symbol}_{interval}_{start:yyyyMMdd}_{end:yyyyMMdd}.csv";
+
+        if (File.Exists(filename))
+        {
+            candles = await loader.LoadFromCsvAsync(filename);
+            AnsiConsole.MarkupLine($"[green]✓[/] Loaded {candles.Count} candles from cache [blue]{filename}[/]");
+            return (candles, symbol);
+        }
+
+        await AnsiConsole.Progress()
+            .StartAsync(async ctx =>
             {
-                AnsiConsole.MarkupLine("[red]No CSV files found in Data folder[/]");
-                return (new List<Candle>(), "");
-            }
+                var task = ctx.AddTask($"Downloading {symbol}...");
+                var progress = new Progress<int>(p => task.Value = p);
 
-            var file = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("Select file:")
-                    .AddChoices(files
-                        .Select(Path.GetFileName)
-                        .Where(f => !string.IsNullOrWhiteSpace(f))
-                        .Select(f => f!))
-            );
+                candles = await loader.LoadAsync(
+                    symbol,
+                    KlineIntervalExtensions.Parse(interval),
+                    start,
+                    end,
+                    progress
+                );
+            });
 
-            var loader = new HistoricalDataLoader();
-            var candles = await loader.LoadFromCsvAsync($"Data/{file}");
-            var symbol = file!.Split('_')[0];
-
-            AnsiConsole.MarkupLine($"[green]✓[/] Loaded {candles.Count} candles");
-            return (candles, symbol);
-        }
-        else
-        {
-            var symbol = AnsiConsole.Ask("Symbol:", "BTCUSDT");
-            var interval = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("Interval (recommended [green]4h[/] or [green]1d[/] for medium-term):")
-                    .AddChoices("1h", "4h", "1d")
-            );
-
-            var months = SpectreHelpers.AskInt("History months", 12, min: 1, max: 60);
-            var loader = new HistoricalDataLoader();
-            var candles = new List<Candle>();
-
-            await AnsiConsole.Progress()
-                .StartAsync(async ctx =>
-                {
-                    var task = ctx.AddTask($"Downloading {symbol}...");
-                    var progress = new Progress<int>(p => task.Value = p);
-
-                    candles = await loader.LoadAsync(
-                        symbol,
-                        KlineIntervalExtensions.Parse(interval),
-                        DateTime.UtcNow.AddMonths(-months),
-                        DateTime.UtcNow,
-                        progress
-                    );
-                });
-
-            AnsiConsole.MarkupLine($"[green]✓[/] Downloaded {candles.Count} candles");
-            return (candles, symbol);
-        }
+        Directory.CreateDirectory("Data");
+        await loader.SaveToCsvAsync(candles, filename);
+        AnsiConsole.MarkupLine($"[green]✓[/] Downloaded {candles.Count} candles and cached to [blue]{filename}[/]");
+        return (candles, symbol);
     }
 
     public async Task DownloadData()
