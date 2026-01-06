@@ -15,17 +15,20 @@ class OptimizationRunner
     private readonly SettingsService _settingsService;
     private readonly ResultsRenderer _resultsRenderer;
     private readonly ConfigurationService _configService;
+    private readonly StrategyRegistry _strategyRegistry;
 
     public OptimizationRunner(
         DataRunner dataRunner,
         SettingsService settingsService,
         ResultsRenderer resultsRenderer,
-        ConfigurationService configService)
+        ConfigurationService configService,
+        StrategyRegistry strategyRegistry)
     {
         _dataRunner = dataRunner;
         _settingsService = settingsService;
         _resultsRenderer = resultsRenderer;
         _configService = configService;
+        _strategyRegistry = strategyRegistry;
     }
 
     public async Task RunOptimization()
@@ -33,59 +36,47 @@ class OptimizationRunner
         var (candles, symbol) = await _dataRunner.LoadData();
         if (candles.Count == 0) return;
 
-        var strategyChoice = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
+        var optimizationChoice = AnsiConsole.Prompt(
+            new SelectionPrompt<StrategyOptimizationOption>()
                 .Title("Select strategy to optimize:")
-                .AddChoices(
-                    "ADX Trend Following (Full Grid Search)",
-                    "MA Crossover (Genetic)",
-                    "RSI Mean Reversion (Genetic)",
-                    "RSI Mean Reversion (Quick Test)",
-                    "MA Crossover (Quick Test)",
-                    "Strategy Ensemble (Weights Only)",
-                    "Strategy Ensemble (Full - All Parameters)")
+                .UseConverter(option => option.Label)
+                .AddChoices(StrategyRegistry.OptimizationOptions)
         );
 
         var riskSettings = _settingsService.GetRiskSettings();
         var backtestSettings = new BacktestSettings { InitialCapital = 10000m };
 
-        if (strategyChoice == "Strategy Ensemble (Weights Only)")
+        if (optimizationChoice.Kind == StrategyKind.StrategyEnsemble)
         {
             var optimizeFor = PromptOptimizationTarget();
-            await RunEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
-            return;
-        }
-
-        if (strategyChoice == "Strategy Ensemble (Full - All Parameters)")
-        {
-            var optimizeFor = PromptOptimizationTarget();
-            await RunFullEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
-            return;
-        }
-
-        if (strategyChoice == "MA Crossover (Genetic)")
-        {
-            var optimizeFor = PromptOptimizationTarget();
-            await RunMaOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
-            return;
-        }
-
-        if (strategyChoice == "RSI Mean Reversion (Genetic)")
-        {
-            var optimizeFor = PromptOptimizationTarget();
-            await RunRsiOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
-            return;
-        }
-
-        if (strategyChoice != "ADX Trend Following (Full Grid Search)")
-        {
-            IStrategy strategy = strategyChoice switch
+            if (optimizationChoice.Mode == StrategyOptimizationMode.EnsembleWeightsOnly)
             {
-                "RSI Mean Reversion (Quick Test)" => new RsiStrategy(),
-                "MA Crossover (Quick Test)" => new MaStrategy(),
-                _ => new AdxTrendStrategy()
-            };
+                await RunEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            }
+            else
+            {
+                await RunFullEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            }
+            return;
+        }
 
+        if (optimizationChoice.Mode == StrategyOptimizationMode.Genetic)
+        {
+            var optimizeFor = PromptOptimizationTarget();
+            switch (optimizationChoice.Kind)
+            {
+                case StrategyKind.MaCrossover:
+                    await RunMaOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+                    return;
+                case StrategyKind.RsiMeanReversion:
+                    await RunRsiOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+                    return;
+            }
+        }
+
+        if (optimizationChoice.Mode == StrategyOptimizationMode.QuickTest)
+        {
+            var strategy = _strategyRegistry.CreateStrategy(optimizationChoice.Kind);
             AnsiConsole.MarkupLine($"\n[yellow]Running backtest for {strategy.Name}...[/]");
             var journal = new TradeJournal();
             var engine = new BacktestEngine(strategy, riskSettings, backtestSettings, journal);

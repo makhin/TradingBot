@@ -1,4 +1,5 @@
 using ComplexBot.Models;
+using ComplexBot.Services.Strategies;
 
 namespace ComplexBot.Utils;
 
@@ -44,31 +45,6 @@ public static class UiMappings
             { "download", AppMode.DownloadData }
         };
 
-    private static readonly IReadOnlyDictionary<StrategyKind, string> StrategyLabels =
-        new Dictionary<StrategyKind, string>
-        {
-            { StrategyKind.AdxTrendFollowing, "ADX Trend Following (Recommended)" },
-            { StrategyKind.RsiMeanReversion, "RSI Mean Reversion" },
-            { StrategyKind.MaCrossover, "MA Crossover" },
-            { StrategyKind.StrategyEnsemble, "Strategy Ensemble (All Combined)" }
-        };
-
-    private static readonly IReadOnlyList<StrategyKind> StrategyOrder =
-    [
-        StrategyKind.AdxTrendFollowing,
-        StrategyKind.RsiMeanReversion,
-        StrategyKind.MaCrossover,
-        StrategyKind.StrategyEnsemble
-    ];
-
-    private static readonly IReadOnlyDictionary<StrategyKind, string> StrategyShortNames =
-        new Dictionary<StrategyKind, string>
-        {
-            { StrategyKind.AdxTrendFollowing, "ADX" },
-            { StrategyKind.RsiMeanReversion, "RSI" },
-            { StrategyKind.MaCrossover, "MA" },
-            { StrategyKind.StrategyEnsemble, "Ensemble" }
-        };
 
     private static readonly IReadOnlyDictionary<KlineInterval, string> IntervalLabels =
         new Dictionary<KlineInterval, string>
@@ -104,13 +80,13 @@ public static class UiMappings
     ];
 
     public static IReadOnlyList<AppMode> AppModes => AppMenuOrder;
-    public static IReadOnlyList<StrategyKind> StrategyModes => StrategyOrder;
+    public static IReadOnlyList<StrategyKind> StrategyModes => StrategyRegistry.StrategyOrder;
     public static IReadOnlyList<KlineInterval> IntervalModes => IntervalMenuOrder;
     public static IReadOnlyList<TradingMode> TradingModes => TradingModeOrder;
 
     public static string GetAppModeLabel(AppMode mode) => AppModeLabels[mode];
-    public static string GetStrategyLabel(StrategyKind kind) => StrategyLabels[kind];
-    public static string GetStrategyShortName(StrategyKind kind) => StrategyShortNames[kind];
+    public static string GetStrategyLabel(StrategyKind kind) => StrategyRegistry.GetStrategyLabel(kind);
+    public static string GetStrategyShortName(StrategyKind kind) => StrategyRegistry.GetStrategyShortName(kind);
     public static string GetIntervalLabel(KlineInterval interval) => IntervalLabels[interval];
     public static string GetTradingModeLabel(TradingMode mode) => TradingModeLabels[mode];
 
