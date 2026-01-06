@@ -72,14 +72,11 @@ public class RiskManager
         decimal drawdown = CurrentDrawdown;
 
         // Jerry Parker's rule: reduce position size during drawdowns
-        return drawdown switch
-        {
-            >= 20 => baseRisk * 0.25m,  // 75% reduction
-            >= 15 => baseRisk * 0.50m,  // 50% reduction
-            >= 10 => baseRisk * 0.75m,  // 25% reduction
-            >= 5 => baseRisk * 0.90m,   // 10% reduction
-            _ => baseRisk
-        };
+        var policy = _settings.DrawdownRiskPolicy
+            .OrderByDescending(entry => entry.DrawdownThresholdPercent)
+            .FirstOrDefault(entry => drawdown >= entry.DrawdownThresholdPercent);
+
+        return policy == null ? baseRisk : baseRisk * policy.RiskMultiplier;
     }
 
     public void UpdatePositionPrice(string symbol, decimal currentPrice)
