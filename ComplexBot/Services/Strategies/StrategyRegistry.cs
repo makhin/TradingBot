@@ -6,25 +6,11 @@ using ComplexBot.Models;
 
 namespace ComplexBot.Services.Strategies;
 
-public enum StrategyOptimizationMode
-{
-    FullGridSearch,
-    Genetic,
-    QuickTest,
-    EnsembleWeightsOnly,
-    EnsembleFull
-}
-
 public sealed record StrategyDefinition(
     StrategyKind Kind,
     string Name,
     string ShortName,
-    IReadOnlyList<StrategyOptimizationMode> OptimizationModes);
-
-public sealed record StrategyOptimizationOption(
-    StrategyKind Kind,
-    StrategyOptimizationMode Mode,
-    string Label);
+    IReadOnlyList<OptimizationMode> OptimizationModes);
 
 public class StrategyRegistry
 {
@@ -34,39 +20,29 @@ public class StrategyRegistry
             StrategyKind.AdxTrendFollowing,
             "ADX Trend Following",
             "ADX",
-            [StrategyOptimizationMode.FullGridSearch]),
+            [OptimizationMode.Full]),
         new StrategyDefinition(
             StrategyKind.RsiMeanReversion,
             "RSI Mean Reversion",
             "RSI",
-            [StrategyOptimizationMode.Genetic, StrategyOptimizationMode.QuickTest]),
+            [OptimizationMode.Genetic, OptimizationMode.Quick]),
         new StrategyDefinition(
             StrategyKind.MaCrossover,
             "MA Crossover",
             "MA",
-            [StrategyOptimizationMode.Genetic, StrategyOptimizationMode.QuickTest]),
+            [OptimizationMode.Genetic, OptimizationMode.Quick]),
         new StrategyDefinition(
             StrategyKind.StrategyEnsemble,
             "Strategy Ensemble",
             "Ensemble",
-            [StrategyOptimizationMode.EnsembleWeightsOnly, StrategyOptimizationMode.EnsembleFull])
+            [OptimizationMode.EnsembleWeightsOnly, OptimizationMode.EnsembleFull])
     ];
 
     private static readonly IReadOnlyDictionary<StrategyKind, StrategyDefinition> DefinitionMap =
         Definitions.ToDictionary(definition => definition.Kind);
 
-    private static readonly IReadOnlyDictionary<StrategyOptimizationMode, string> OptimizationModeLabels =
-        new Dictionary<StrategyOptimizationMode, string>
-        {
-            [StrategyOptimizationMode.FullGridSearch] = "Full Grid Search",
-            [StrategyOptimizationMode.Genetic] = "Genetic",
-            [StrategyOptimizationMode.QuickTest] = "Quick Test",
-            [StrategyOptimizationMode.EnsembleWeightsOnly] = "Weights Only",
-            [StrategyOptimizationMode.EnsembleFull] = "Full - All Parameters"
-        };
-
-    private static readonly IReadOnlyList<StrategyOptimizationOption> OptimizationOptionList =
-        BuildOptimizationOptions();
+    private static readonly IReadOnlyList<OptimizationScenario> OptimizationScenarioList =
+        BuildOptimizationScenarios();
 
     private static readonly IReadOnlyList<StrategyKind> StrategyKindOrder =
         Definitions.Select(definition => definition.Kind).ToList();
@@ -101,7 +77,7 @@ public class StrategyRegistry
 
     public static IReadOnlyList<StrategyKind> StrategyOrder => StrategyKindOrder;
 
-    public static IReadOnlyList<StrategyOptimizationOption> OptimizationOptions => OptimizationOptionList;
+    public static IReadOnlyList<OptimizationScenario> OptimizationScenarios => OptimizationScenarioList;
 
     public static StrategyDefinition GetDefinition(StrategyKind kind) => DefinitionMap[kind];
 
@@ -138,15 +114,14 @@ public class StrategyRegistry
         return typed;
     }
 
-    private static IReadOnlyList<StrategyOptimizationOption> BuildOptimizationOptions()
+    private static IReadOnlyList<OptimizationScenario> BuildOptimizationScenarios()
     {
-        var options = new List<StrategyOptimizationOption>();
+        var options = new List<OptimizationScenario>();
         foreach (var definition in Definitions)
         {
             foreach (var mode in definition.OptimizationModes)
             {
-                var label = $"{definition.Name} ({OptimizationModeLabels[mode]})";
-                options.Add(new StrategyOptimizationOption(definition.Kind, mode, label));
+                options.Add(new OptimizationScenario(definition.Kind, mode));
             }
         }
 

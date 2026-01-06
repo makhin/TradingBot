@@ -6,6 +6,7 @@ using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 
@@ -36,53 +37,56 @@ class OptimizationRunner
         var (candles, symbol) = await _dataRunner.LoadData();
         if (candles.Count == 0) return;
 
-        var optimizationChoice = AnsiConsole.Prompt(
-            new SelectionPrompt<StrategyOptimizationOption>()
+        var scenario = AnsiConsole.Prompt(
+            new SelectionPrompt<OptimizationScenario>()
                 .Title("Select strategy to optimize:")
-                .UseConverter(option => option.Label)
-                .AddChoices(StrategyRegistry.OptimizationOptions)
+                .UseConverter(UiMappings.GetOptimizationScenarioLabel)
+                .AddChoices(StrategyRegistry.OptimizationScenarios)
         );
 
         var riskSettings = _settingsService.GetRiskSettings();
         var backtestSettings = _configService.GetConfiguration().Backtest.ToBacktestSettings();
 
-        if (optimizationChoice.Kind == StrategyKind.StrategyEnsemble)
+        switch (scenario)
         {
-            var optimizeFor = PromptOptimizationTarget();
-            if (optimizationChoice.Mode == StrategyOptimizationMode.EnsembleWeightsOnly)
+            case { Kind: StrategyKind.StrategyEnsemble, Mode: OptimizationMode.EnsembleWeightsOnly }:
             {
+                var optimizeFor = PromptOptimizationTarget();
                 await RunEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+                return;
             }
-            else
+            case { Kind: StrategyKind.StrategyEnsemble, Mode: OptimizationMode.EnsembleFull }:
             {
+                var optimizeFor = PromptOptimizationTarget();
                 await RunFullEnsembleOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+                return;
             }
-            return;
-        }
-
-        if (optimizationChoice.Mode == StrategyOptimizationMode.Genetic)
-        {
-            var optimizeFor = PromptOptimizationTarget();
-            switch (optimizationChoice.Kind)
+            case { Kind: StrategyKind.MaCrossover, Mode: OptimizationMode.Genetic }:
             {
-                case StrategyKind.MaCrossover:
-                    await RunMaOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
-                    return;
-                case StrategyKind.RsiMeanReversion:
-                    await RunRsiOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
-                    return;
+                var optimizeFor = PromptOptimizationTarget();
+                await RunMaOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+                return;
             }
-        }
-
-        if (optimizationChoice.Mode == StrategyOptimizationMode.QuickTest)
-        {
-            var strategy = _strategyRegistry.CreateStrategy(optimizationChoice.Kind);
-            AnsiConsole.MarkupLine($"\n[yellow]Running backtest for {strategy.Name}...[/]");
-            var journal = new TradeJournal();
-            var engine = new BacktestEngine(strategy, riskSettings, backtestSettings, journal);
-            var btResult = engine.Run(candles, symbol);
-            _resultsRenderer.DisplayBacktestResults(btResult);
-            return;
+            case { Kind: StrategyKind.RsiMeanReversion, Mode: OptimizationMode.Genetic }:
+            {
+                var optimizeFor = PromptOptimizationTarget();
+                await RunRsiOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+                return;
+            }
+            case { Mode: OptimizationMode.Quick }:
+            {
+                var strategy = _strategyRegistry.CreateStrategy(scenario.Kind);
+                AnsiConsole.MarkupLine($"\n[yellow]Running backtest for {strategy.Name}...[/]");
+                var journal = new TradeJournal();
+                var engine = new BacktestEngine(strategy, riskSettings, backtestSettings, journal);
+                var btResult = engine.Run(candles, symbol);
+                _resultsRenderer.DisplayBacktestResults(btResult);
+                return;
+            }
+            case { Mode: OptimizationMode.Full }:
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported optimization scenario: {scenario}");
         }
 
         AnsiConsole.MarkupLine("\n[yellow]ADX Parameter Ranges (Grid Search)[/]");

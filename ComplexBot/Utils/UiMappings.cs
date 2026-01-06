@@ -79,6 +79,16 @@ public static class UiMappings
         TradingMode.Futures
     ];
 
+    private static readonly IReadOnlyDictionary<OptimizationMode, string> OptimizationModeLabels =
+        new Dictionary<OptimizationMode, string>
+        {
+            { OptimizationMode.Full, "Full Grid Search" },
+            { OptimizationMode.Genetic, "Genetic" },
+            { OptimizationMode.Quick, "Quick Test" },
+            { OptimizationMode.EnsembleWeightsOnly, "Weights Only" },
+            { OptimizationMode.EnsembleFull, "Full - All Parameters" }
+        };
+
     public static IReadOnlyList<AppMode> AppModes => AppMenuOrder;
     public static IReadOnlyList<StrategyKind> StrategyModes => StrategyRegistry.StrategyOrder;
     public static IReadOnlyList<KlineInterval> IntervalModes => IntervalMenuOrder;
@@ -89,6 +99,8 @@ public static class UiMappings
     public static string GetStrategyShortName(StrategyKind kind) => StrategyRegistry.GetStrategyShortName(kind);
     public static string GetIntervalLabel(KlineInterval interval) => IntervalLabels[interval];
     public static string GetTradingModeLabel(TradingMode mode) => TradingModeLabels[mode];
+    public static string GetOptimizationScenarioLabel(OptimizationScenario scenario) =>
+        $"{GetStrategyLabel(scenario.Kind)} ({OptimizationModeLabels[scenario.Mode]})";
 
     public static bool TryGetAppModeFromEnv(string value, out AppMode mode)
         => AppModeEnvMap.TryGetValue(value, out mode);
