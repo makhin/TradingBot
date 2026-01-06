@@ -1,4 +1,6 @@
+using System.Linq;
 using ComplexBot.Models;
+using Skender.Stock.Indicators;
 
 namespace ComplexBot.Services.Indicators;
 
@@ -7,42 +9,37 @@ namespace ComplexBot.Services.Indicators;
 /// </summary>
 public class Obv : IIndicator<Candle>
 {
-    private decimal _obv;
-    private decimal? _previousClose;
     private readonly Sma _obvSma;
+    private readonly QuoteSeries _series = new();
 
     public Obv(int signalPeriod = 20)
     {
         _obvSma = new Sma(signalPeriod);
     }
 
-    public decimal? Value => _obv;
+    public decimal? Value { get; private set; }
     public decimal? Signal => _obvSma.Value;
-    public bool IsReady => _obvSma.IsReady;
+    public bool IsReady => _obvSma.IsReady && Value.HasValue;
 
-    public bool IsBullish => _obvSma.Value.HasValue && _obv > _obvSma.Value;
-    public bool IsBearish => _obvSma.Value.HasValue && _obv < _obvSma.Value;
+    public bool IsBullish => _obvSma.Value.HasValue && Value.HasValue && Value.Value > _obvSma.Value;
+    public bool IsBearish => _obvSma.Value.HasValue && Value.HasValue && Value.Value < _obvSma.Value;
 
     public decimal? Update(Candle candle)
     {
-        if (_previousClose.HasValue)
-        {
-            if (candle.Close > _previousClose.Value)
-                _obv += candle.Volume;
-            else if (candle.Close < _previousClose.Value)
-                _obv -= candle.Volume;
-        }
+        _series.AddCandle(candle);
 
-        _previousClose = candle.Close;
-        _obvSma.Update(_obv);
+        var result = _series.Quotes.GetObv().LastOrDefault();
+        Value = IndicatorValueConverter.ToDecimal(result?.Obv);
+        if (Value.HasValue)
+            _obvSma.Update(Value.Value);
 
-        return _obv;
+        return Value;
     }
 
     public void Reset()
     {
-        _obv = 0;
-        _previousClose = null;
+        _series.Reset();
+        Value = null;
         _obvSma.Reset();
     }
 }

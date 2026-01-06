@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
 using ComplexBot.Models;
+using Skender.Stock.Indicators;
 
 namespace ComplexBot.Services.Indicators;
 
@@ -8,22 +10,23 @@ namespace ComplexBot.Services.Indicators;
 /// </summary>
 public class Macd : IIndicator<decimal>, IMultiValueIndicator
 {
-    private readonly Ema _fastEma;
-    private readonly Ema _slowEma;
-    private readonly Ema _signalEma;
+    private readonly int _fastPeriod;
+    private readonly int _slowPeriod;
+    private readonly int _signalPeriod;
+    private readonly QuoteSeries _series = new();
 
     public Macd(int fastPeriod = 12, int slowPeriod = 26, int signalPeriod = 9)
     {
-        _fastEma = new Ema(fastPeriod);
-        _slowEma = new Ema(slowPeriod);
-        _signalEma = new Ema(signalPeriod);
+        _fastPeriod = fastPeriod;
+        _slowPeriod = slowPeriod;
+        _signalPeriod = signalPeriod;
     }
 
     public decimal? Value => MacdLine;
     public decimal? MacdLine { get; private set; }
     public decimal? SignalLine { get; private set; }
     public decimal? Histogram { get; private set; }
-    public bool IsReady => _slowEma.IsReady && _signalEma.IsReady;
+    public bool IsReady => MacdLine.HasValue && SignalLine.HasValue;
 
     public IReadOnlyDictionary<IndicatorValueKey, decimal?> Values => new Dictionary<IndicatorValueKey, decimal?>
     {
@@ -34,26 +37,19 @@ public class Macd : IIndicator<decimal>, IMultiValueIndicator
 
     public decimal? Update(decimal price)
     {
-        var fast = _fastEma.Update(price);
-        var slow = _slowEma.Update(price);
+        _series.AddPrice(price);
 
-        if (fast.HasValue && slow.HasValue)
-        {
-            MacdLine = fast.Value - slow.Value;
-            SignalLine = _signalEma.Update(MacdLine.Value);
-
-            if (SignalLine.HasValue)
-                Histogram = MacdLine.Value - SignalLine.Value;
-        }
+        var result = _series.Quotes.GetMacd(_fastPeriod, _slowPeriod, _signalPeriod).LastOrDefault();
+        MacdLine = IndicatorValueConverter.ToDecimal(result?.Macd);
+        SignalLine = IndicatorValueConverter.ToDecimal(result?.Signal);
+        Histogram = IndicatorValueConverter.ToDecimal(result?.Histogram);
 
         return MacdLine;
     }
 
     public void Reset()
     {
-        _fastEma.Reset();
-        _slowEma.Reset();
-        _signalEma.Reset();
+        _series.Reset();
         MacdLine = null;
         SignalLine = null;
         Histogram = null;

@@ -1,49 +1,37 @@
-using System;
 using System.Linq;
 using ComplexBot.Models;
+using Skender.Stock.Indicators;
 
 namespace ComplexBot.Services.Indicators;
 
 /// <summary>
 /// Average True Range - measures volatility
 /// </summary>
-public class Atr : WindowedIndicator<Candle>
+public class Atr : IIndicator<Candle>
 {
-    private decimal? _previousClose;
+    private readonly int _period;
+    private readonly QuoteSeries _series = new();
 
-    public Atr(int period = 14) : base(period) { }
-
-    public override decimal? Update(Candle candle)
+    public Atr(int period = 14)
     {
-        decimal trueRange = CalculateTrueRange(candle);
-        AddToWindow(trueRange);
-        _previousClose = candle.Close;
-
-        if (IsReady)
-        {
-            CurrentValue = Window.Average();
-            return CurrentValue;
-        }
-        return null;
+        _period = period;
     }
 
-    private decimal CalculateTrueRange(Candle candle)
-    {
-        if (_previousClose == null)
-            return candle.High - candle.Low;
+    public decimal? Value { get; private set; }
+    public bool IsReady => Value.HasValue;
 
-        return Math.Max(
-            candle.High - candle.Low,
-            Math.Max(
-                Math.Abs(candle.High - _previousClose.Value),
-                Math.Abs(candle.Low - _previousClose.Value)
-            )
-        );
+    public decimal? Update(Candle candle)
+    {
+        _series.AddCandle(candle);
+
+        var result = _series.Quotes.GetAtr(_period).LastOrDefault();
+        Value = IndicatorValueConverter.ToDecimal(result?.Atr);
+        return Value;
     }
 
-    public override void Reset()
+    public void Reset()
     {
-        base.Reset();
-        _previousClose = null;
+        _series.Reset();
+        Value = null;
     }
 }
