@@ -1,4 +1,5 @@
 using ComplexBot.Configuration;
+using ComplexBot.Models;
 
 namespace ComplexBot;
 
@@ -30,36 +31,38 @@ class ModeDispatcher
         _configService = configService;
     }
 
-    public async Task DispatchAsync(string mode)
+    public async Task DispatchAsync(AppMode mode)
     {
         switch (mode)
         {
-            case "Backtest":
+            case AppMode.Backtest:
                 await _backtestRunner.RunBacktest();
                 break;
-            case "Parameter Optimization":
+            case AppMode.ParameterOptimization:
                 await _optimizationRunner.RunOptimization();
                 break;
-            case "Walk-Forward Analysis":
+            case AppMode.WalkForwardAnalysis:
                 await _analysisRunner.RunWalkForward();
                 break;
-            case "Monte Carlo Simulation":
+            case AppMode.MonteCarloSimulation:
                 await _analysisRunner.RunMonteCarlo();
                 break;
-            case "Live Trading (Paper)":
+            case AppMode.LiveTradingPaper:
                 await _liveTradingRunner.RunLiveTrading(paperTrade: true);
                 break;
-            case "Live Trading (Real)":
+            case AppMode.LiveTradingReal:
                 await _liveTradingRunner.RunLiveTrading(paperTrade: false);
                 break;
-            case "Download Data":
+            case AppMode.DownloadData:
                 await _dataRunner.DownloadData();
                 break;
-            case "Configuration Settings":
+            case AppMode.ConfigurationSettings:
                 _settingsService.ConfigureSettings();
                 break;
-            case "Reset to Defaults":
+            case AppMode.ResetToDefaults:
                 _configService.ResetToDefaults();
+                break;
+            case AppMode.Exit:
                 break;
         }
     }

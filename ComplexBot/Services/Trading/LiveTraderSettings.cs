@@ -1,4 +1,4 @@
-using Binance.Net.Enums;
+using ComplexBot.Models;
 
 namespace ComplexBot.Services.Trading;
 

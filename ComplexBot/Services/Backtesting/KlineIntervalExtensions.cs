@@ -1,19 +1,19 @@
-using Binance.Net.Enums;
+using ComplexBot.Models;
 
 namespace ComplexBot.Services.Backtesting;
 
 public static class KlineIntervalExtensions
 {
-    public static KlineInterval Parse(string interval) => interval.ToLower() switch
+    public static Binance.Net.Enums.KlineInterval ToBinanceInterval(this KlineInterval interval) => interval switch
     {
-        "1m" => KlineInterval.OneMinute,
-        "5m" => KlineInterval.FiveMinutes,
-        "15m" => KlineInterval.FifteenMinutes,
-        "30m" => KlineInterval.ThirtyMinutes,
-        "1h" => KlineInterval.OneHour,
-        "4h" => KlineInterval.FourHour,
-        "1d" => KlineInterval.OneDay,
-        "1w" => KlineInterval.OneWeek,
-        _ => KlineInterval.OneDay
+        KlineInterval.OneMinute => Binance.Net.Enums.KlineInterval.OneMinute,
+        KlineInterval.FiveMinutes => Binance.Net.Enums.KlineInterval.FiveMinutes,
+        KlineInterval.FifteenMinutes => Binance.Net.Enums.KlineInterval.FifteenMinutes,
+        KlineInterval.ThirtyMinutes => Binance.Net.Enums.KlineInterval.ThirtyMinutes,
+        KlineInterval.OneHour => Binance.Net.Enums.KlineInterval.OneHour,
+        KlineInterval.FourHour => Binance.Net.Enums.KlineInterval.FourHour,
+        KlineInterval.OneDay => Binance.Net.Enums.KlineInterval.OneDay,
+        KlineInterval.OneWeek => Binance.Net.Enums.KlineInterval.OneWeek,
+        _ => Binance.Net.Enums.KlineInterval.OneDay
     };
 }

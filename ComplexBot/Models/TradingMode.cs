@@ -1,4 +1,4 @@
-namespace ComplexBot.Services.Trading;
+namespace ComplexBot.Models;
 
 public enum TradingMode
 {

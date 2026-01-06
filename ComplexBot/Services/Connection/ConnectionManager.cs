@@ -1,11 +1,12 @@
 using Binance.Net.Clients;
-using Binance.Net.Enums;
 using Binance.Net.Interfaces;
 using Binance.Net.Objects.Models.Spot.Socket;
 using CryptoExchange.Net.Objects.Sockets;
 using CryptoExchange.Net.Sockets;
 using Serilog;
 using Serilog.Events;
+using ComplexBot.Models;
+using ComplexBot.Services.Backtesting;
 
 namespace ComplexBot.Services.Connection;
 
@@ -47,7 +48,7 @@ public class ConnectionManager
                 var result = await _socketClient.SpotApi.ExchangeData
                     .SubscribeToKlineUpdatesAsync(
                         symbol,
-                        interval,
+                        interval.ToBinanceInterval(),
                         onKline
                     );
 

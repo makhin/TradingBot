@@ -2,6 +2,7 @@ using Spectre.Console;
 using ComplexBot.Configuration;
 using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 
@@ -21,21 +22,18 @@ class StrategyFactory
             .ToEnsembleSettings();
 
         var strategyChoice = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
+            new SelectionPrompt<StrategyKind>()
                 .Title("Select [green]strategy[/]:")
-                .AddChoices(
-                    "ADX Trend Following (Recommended)",
-                    "RSI Mean Reversion",
-                    "MA Crossover",
-                    "Strategy Ensemble (All Combined)")
+                .UseConverter(UiMappings.GetStrategyLabel)
+                .AddChoices(UiMappings.StrategyModes)
         );
 
         return strategyChoice switch
         {
-            "ADX Trend Following (Recommended)" => new AdxTrendStrategy(adxSettings),
-            "RSI Mean Reversion" => new RsiStrategy(),
-            "MA Crossover" => new MaStrategy(),
-            "Strategy Ensemble (All Combined)" => StrategyEnsemble.CreateDefault(ensembleSettings),
+            StrategyKind.AdxTrendFollowing => new AdxTrendStrategy(adxSettings),
+            StrategyKind.RsiMeanReversion => new RsiStrategy(),
+            StrategyKind.MaCrossover => new MaStrategy(),
+            StrategyKind.StrategyEnsemble => StrategyEnsemble.CreateDefault(ensembleSettings),
             _ => new AdxTrendStrategy(adxSettings)
         };
     }
@@ -48,22 +46,19 @@ class StrategyFactory
         var rsiSettings = config.RsiStrategy.ToRsiStrategySettings();
 
         var strategyChoice = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
+            new SelectionPrompt<StrategyKind>()
                 .Title("Select [green]strategy[/] for analysis:")
-                .AddChoices(
-                    "ADX Trend Following",
-                    "RSI Mean Reversion",
-                    "MA Crossover",
-                    "Strategy Ensemble (All Combined)")
+                .UseConverter(UiMappings.GetStrategyLabel)
+                .AddChoices(UiMappings.StrategyModes)
         );
 
         return strategyChoice switch
         {
-            "ADX Trend Following" => ("ADX", () => new AdxTrendStrategy(adxSettings)),
-            "RSI Mean Reversion" => ("RSI", () => new RsiStrategy(rsiSettings)),
-            "MA Crossover" => ("MA", () => new MaStrategy(maSettings)),
-            "Strategy Ensemble (All Combined)" => ("Ensemble", () => StrategyEnsemble.CreateDefault(ensembleSettings)),
-            _ => ("ADX", () => new AdxTrendStrategy(adxSettings))
+            StrategyKind.AdxTrendFollowing => (UiMappings.GetStrategyShortName(strategyChoice), () => new AdxTrendStrategy(adxSettings)),
+            StrategyKind.RsiMeanReversion => (UiMappings.GetStrategyShortName(strategyChoice), () => new RsiStrategy(rsiSettings)),
+            StrategyKind.MaCrossover => (UiMappings.GetStrategyShortName(strategyChoice), () => new MaStrategy(maSettings)),
+            StrategyKind.StrategyEnsemble => (UiMappings.GetStrategyShortName(strategyChoice), () => StrategyEnsemble.CreateDefault(ensembleSettings)),
+            _ => (UiMappings.GetStrategyShortName(StrategyKind.AdxTrendFollowing), () => new AdxTrendStrategy(adxSettings))
         };
     }
 }

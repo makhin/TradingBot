@@ -1,4 +1,6 @@
 using ComplexBot.Configuration;
+using ComplexBot.Models;
+using ComplexBot.Utils;
 using Spectre.Console;
 using Serilog;
 using Serilog.Events;
@@ -41,26 +43,20 @@ class Program
 
             // Check for TRADING_MODE environment variable for non-interactive Docker execution
             var tradingMode = Environment.GetEnvironmentVariable("TRADING_MODE");
-            string mode;
+            AppMode mode;
 
             if (!string.IsNullOrEmpty(tradingMode))
             {
                 // Map environment variable to menu option
-                mode = tradingMode.ToLowerInvariant() switch
+                if (!UiMappings.TryGetAppModeFromEnv(tradingMode, out mode))
                 {
-                    "live" => "Live Trading (Paper)",
-                    "live-real" => "Live Trading (Real)",
-                    "backtest" => "Backtest",
-                    "optimize" => "Parameter Optimization",
-                    "walkforward" => "Walk-Forward Analysis",
-                    "montecarlo" => "Monte Carlo Simulation",
-                    "download" => "Download Data",
-                    _ => throw new ArgumentException($"Unknown TRADING_MODE: {tradingMode}. Valid values: live, live-real, backtest, optimize, walkforward, montecarlo, download")
-                };
+                    var validModes = string.Join(", ", UiMappings.AppModeEnvValues);
+                    throw new ArgumentException($"Unknown TRADING_MODE: {tradingMode}. Valid values: {validModes}");
+                }
 
                 AnsiConsole.Write(new FigletText("Trading Bot").Color(Color.Cyan1));
                 AnsiConsole.MarkupLine("[grey]ADX Trend Following Strategy with Risk Management[/]");
-                AnsiConsole.MarkupLine($"[green]Auto-starting mode:[/] {mode}\n");
+                AnsiConsole.MarkupLine($"[green]Auto-starting mode:[/] {UiMappings.GetAppModeLabel(mode)}\n");
             }
             else
             {
