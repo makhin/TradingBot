@@ -294,7 +294,7 @@ public class ConfigurationService
         var current = _currentConfig.PortfolioRisk.CorrelationGroups;
         if (current.Count == 0)
         {
-            AnsiConsole.MarkupLine("[grey]No correlation groups configured. Using defaults.[/]");
+            AnsiConsole.MarkupLine("[grey]No correlation groups configured. Correlated risk checks will treat symbols as independent.[/]");
         }
         else
         {

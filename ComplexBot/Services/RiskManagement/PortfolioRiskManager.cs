@@ -17,17 +17,20 @@ public class PortfolioRiskManager
         ILogger? logger = null)
     {
         _settings = settings;
-        _correlationGroups = correlationGroups ?? GetDefaultCorrelationGroups();
         _logger = logger ?? Log.ForContext<PortfolioRiskManager>();
+        _correlationGroups = BuildCorrelationGroups(correlationGroups);
     }
 
-    private static Dictionary<string, string[]> GetDefaultCorrelationGroups() => new()
+    private Dictionary<string, string[]> BuildCorrelationGroups(Dictionary<string, string[]>? correlationGroups)
     {
-        ["BTC_CORRELATED"] = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
-        ["ALTCOINS_L1"] = ["ADAUSDT", "DOTUSDT", "AVAXUSDT", "MATICUSDT"],
-        ["ALTCOINS_DEFI"] = ["UNIUSDT", "AAVEUSDT", "LINKUSDT", "SUSHIUSDT"],
-        ["MEMECOINS"] = ["DOGEUSDT", "SHIBUSDT", "PEPEUSDT"]
-    };
+        if (correlationGroups == null || correlationGroups.Count == 0)
+        {
+            _logger.Warning("⚠️ Correlation groups are not configured. Symbols will be treated as independent.");
+            return new Dictionary<string, string[]>();
+        }
+
+        return new Dictionary<string, string[]>(correlationGroups);
+    }
 
     public void RegisterSymbol(string symbol, RiskManager riskManager)
     {

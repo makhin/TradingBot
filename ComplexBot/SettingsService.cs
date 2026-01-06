@@ -4,6 +4,7 @@ using ComplexBot.Models;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Utils;
+using Serilog;
 
 namespace ComplexBot;
 
@@ -74,6 +75,20 @@ class SettingsService
         }
 
         return updated.ToStrategySettings();
+    }
+
+    public (PortfolioRiskSettings Settings, Dictionary<string, string[]> CorrelationGroups) GetPortfolioRiskConfiguration()
+    {
+        var config = _configService.GetConfiguration();
+        var correlationGroups = config.PortfolioRisk.CorrelationGroups;
+
+        if (correlationGroups == null || correlationGroups.Count == 0)
+        {
+            Log.Warning("⚠️ Correlation groups are not configured in settings. Using empty configuration.");
+            return (config.PortfolioRisk.ToPortfolioRiskSettings(), new Dictionary<string, string[]>());
+        }
+
+        return (config.PortfolioRisk.ToPortfolioRiskSettings(), new Dictionary<string, string[]>(correlationGroups));
     }
 
     public void ConfigureSettings()
