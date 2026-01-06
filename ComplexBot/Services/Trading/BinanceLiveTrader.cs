@@ -15,7 +15,7 @@ using Serilog.Events;
 
 namespace ComplexBot.Services.Trading;
 
-public class BinanceLiveTrader : IDisposable
+public class BinanceLiveTrader : IAsyncDisposable
 {
     private static readonly TimeSpan StatusLogInterval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan BalanceLogInterval = TimeSpan.FromHours(4);
@@ -408,8 +408,9 @@ public class BinanceLiveTrader : IDisposable
         }
     }
 
-    public async Task StopAsync()
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _isRunning = false;
 
         if (_subscription != null)
@@ -430,6 +431,7 @@ public class BinanceLiveTrader : IDisposable
             await CancelOcoOrderAsync();
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         Log("Trader stopped.", LogEventLevel.Information);
     }
 
@@ -1106,13 +1108,14 @@ public class BinanceLiveTrader : IDisposable
 
     // Graceful Shutdown Support Methods
 
-    public BotState BuildCurrentState()
+    public async Task<BotState> BuildCurrentState()
     {
-        var equity = _settings.PaperTrade ? _paperEquity : GetAccountBalanceAsync().Result;
+        var equity = _settings.PaperTrade ? _paperEquity : await GetAccountBalanceAsync();
 
         var openPositions = new List<SavedPosition>();
         if (_currentPosition != 0 && _entryPrice.HasValue)
         {
+            var currentPrice = await GetCurrentPriceAsync();
             openPositions.Add(new SavedPosition
             {
                 Symbol = _settings.Symbol,
@@ -1127,7 +1130,7 @@ public class BinanceLiveTrader : IDisposable
                     : 0,
                 EntryTime = DateTime.UtcNow,
                 TradeId = 0,
-                CurrentPrice = GetCurrentPriceAsync().Result,
+                CurrentPrice = currentPrice,
                 BreakevenMoved = false
             });
         }
@@ -1155,12 +1158,13 @@ public class BinanceLiveTrader : IDisposable
         };
     }
 
-    public List<SavedPosition> GetOpenPositions()
+    public async Task<List<SavedPosition>> GetOpenPositions()
     {
         var positions = new List<SavedPosition>();
 
         if (_currentPosition != 0 && _entryPrice.HasValue)
         {
+            var currentPrice = await GetCurrentPriceAsync();
             positions.Add(new SavedPosition
             {
                 Symbol = _settings.Symbol,
@@ -1173,7 +1177,7 @@ public class BinanceLiveTrader : IDisposable
                 RiskAmount = 0,
                 EntryTime = DateTime.UtcNow,
                 TradeId = 0,
-                CurrentPrice = GetCurrentPriceAsync().Result,
+                CurrentPrice = currentPrice,
                 BreakevenMoved = false
             });
         }
@@ -1197,9 +1201,13 @@ public class BinanceLiveTrader : IDisposable
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _subscription?.CloseAsync().Wait();
+        if (_subscription != null)
+        {
+            await _subscription.CloseAsync();
+            _subscription = null;
+        }
         _restClient.Dispose();
         _socketClient.Dispose();
     }

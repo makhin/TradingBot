@@ -13,7 +13,7 @@ public class StateManager
         _statePath = statePath;
     }
 
-    public async Task SaveState(BotState state)
+    public async Task SaveState(BotState state, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -21,7 +21,7 @@ public class StateManager
             {
                 WriteIndented = true
             });
-            await File.WriteAllTextAsync(_statePath, json);
+            await File.WriteAllTextAsync(_statePath, json, cancellationToken);
             Console.WriteLine($"💾 State saved: {state.OpenPositions.Count} positions, Equity: ${state.CurrentEquity:F2}");
         }
         catch (Exception ex)
