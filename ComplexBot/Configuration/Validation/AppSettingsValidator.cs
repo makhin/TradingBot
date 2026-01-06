@@ -11,6 +11,10 @@ public class AppSettingsValidator : AbstractValidator<AppSettings>
             .NotNull()
             .SetValidator(new PathSettingsValidator());
 
+        RuleFor(settings => settings.Connection)
+            .NotNull()
+            .SetValidator(new ConnectionSettingsValidator());
+
         RuleFor(settings => settings.AllowedIntervals)
             .NotNull()
             .Must(intervals => intervals.Count > 0)
