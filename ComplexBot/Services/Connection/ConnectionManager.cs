@@ -5,6 +5,7 @@ using CryptoExchange.Net.Objects.Sockets;
 using CryptoExchange.Net.Sockets;
 using Serilog;
 using Serilog.Events;
+using ComplexBot.Configuration;
 using ComplexBot.Models;
 using ComplexBot.Services.Backtesting;
 
@@ -13,12 +14,17 @@ namespace ComplexBot.Services.Connection;
 public class ConnectionManager
 {
     private readonly BinanceSocketClient _socketClient;
-    private readonly int[] _backoffDelays = { 1000, 2000, 4000, 8000, 16000, 32000 };
+    private readonly ConnectionSettings _connectionSettings;
+    private readonly int[] _backoffDelays;
     private int _reconnectAttempt = 0;
     private bool _isConnected = false;
     private UpdateSubscription? _currentSubscription;
     private readonly CancellationTokenSource _healthCheckCts = new();
     private readonly ILogger _logger = Serilog.Log.ForContext<ConnectionManager>();
+    private DateTimeOffset? _lastConnectedAt;
+    private DateTimeOffset? _lastDisconnectedAt;
+    private DateTimeOffset? _lastErrorAt;
+    private string? _lastErrorMessage;
 
     public event Action? OnConnected;
     public event Action<string>? OnDisconnected;
@@ -29,17 +35,20 @@ public class ConnectionManager
     public bool IsConnected => _isConnected;
     public int ReconnectAttempt => _reconnectAttempt;
 
-    public ConnectionManager(BinanceSocketClient socketClient)
+    public ConnectionManager(BinanceSocketClient socketClient, ConnectionSettings? connectionSettings = null)
     {
         _socketClient = socketClient;
+        _connectionSettings = connectionSettings ?? new ConnectionSettings();
+        _backoffDelays = BuildBackoffDelays(_connectionSettings.Backoff);
     }
 
     public async Task<bool> ConnectWithRetry(
         string symbol,
         KlineInterval interval,
-        Action<DataEvent<IBinanceStreamKlineData>> onKline)
+        Action<DataEvent<IBinanceStreamKlineData>> onKline,
+        CancellationToken cancellationToken = default)
     {
-        while (_reconnectAttempt < _backoffDelays.Length)
+        while (_reconnectAttempt < _backoffDelays.Length && !cancellationToken.IsCancellationRequested)
         {
             try
             {
@@ -57,6 +66,7 @@ public class ConnectionManager
                     _currentSubscription = result.Data;
                     _isConnected = true;
                     _reconnectAttempt = 0;
+                    _lastConnectedAt = DateTimeOffset.UtcNow;
                     Log($"✅ Connected to {symbol} {interval} stream", LogEventLevel.Information);
                     OnConnected?.Invoke();
 
@@ -64,15 +74,17 @@ public class ConnectionManager
                     result.Data.ConnectionLost += () =>
                     {
                         _isConnected = false;
+                        _lastDisconnectedAt = DateTimeOffset.UtcNow;
                         Log("⚠️ WebSocket connection lost", LogEventLevel.Warning);
                         OnDisconnected?.Invoke("Connection lost");
-                        _ = ReconnectAsync(symbol, interval, onKline);
+                        _ = ReconnectAsync(symbol, interval, onKline, CancellationToken.None);
                     };
 
                     // Set up connection restored handler
                     result.Data.ConnectionRestored += (time) =>
                     {
                         _isConnected = true;
+                        _lastConnectedAt = DateTimeOffset.UtcNow;
                         Log($"✅ WebSocket connection restored (downtime: {time.TotalSeconds:F1}s)", LogEventLevel.Information);
                         OnConnected?.Invoke();
                     };
@@ -84,16 +96,29 @@ public class ConnectionManager
                     throw new Exception(result.Error?.Message ?? "Unknown error");
                 }
             }
+            catch (OperationCanceledException)
+            {
+                Log("🛑 Connection retry cancelled", LogEventLevel.Information);
+                return false;
+            }
             catch (Exception ex)
             {
                 OnError?.Invoke(ex);
-                var delay = _backoffDelays[_reconnectAttempt];
+                _lastErrorMessage = ex.Message;
+                _lastErrorAt = DateTimeOffset.UtcNow;
+                var delay = GetJitteredDelay(_backoffDelays[_reconnectAttempt]);
                 Log($"❌ Connection failed: {ex.Message}", LogEventLevel.Error);
                 Log($"⏳ Retrying in {delay}ms... (attempt {_reconnectAttempt + 1}/{_backoffDelays.Length})", LogEventLevel.Warning);
 
-                await Task.Delay(delay);
+                await Task.Delay(delay, cancellationToken);
                 _reconnectAttempt++;
             }
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            Log("🛑 Connection retry cancelled", LogEventLevel.Information);
+            return false;
         }
 
         Log($"❌ Max reconnection attempts reached ({_backoffDelays.Length})", LogEventLevel.Error);
@@ -105,10 +130,11 @@ public class ConnectionManager
     private async Task ReconnectAsync(
         string symbol,
         KlineInterval interval,
-        Action<DataEvent<IBinanceStreamKlineData>> onKline)
+        Action<DataEvent<IBinanceStreamKlineData>> onKline,
+        CancellationToken cancellationToken = default)
     {
         Log("🔄 Starting automatic reconnection...", LogEventLevel.Information);
-        var success = await ConnectWithRetry(symbol, interval, onKline);
+        var success = await ConnectWithRetry(symbol, interval, onKline, cancellationToken);
 
         if (!success)
         {
@@ -151,6 +177,7 @@ public class ConnectionManager
             await _currentSubscription.CloseAsync();
             _currentSubscription = null;
             _isConnected = false;
+            _lastDisconnectedAt = DateTimeOffset.UtcNow;
             Log("🔌 Disconnected from stream", LogEventLevel.Information);
         }
 
@@ -180,7 +207,49 @@ public class ConnectionManager
             _isConnected,
             _reconnectAttempt,
             _backoffDelays.Length,
-            _currentSubscription != null
+            _currentSubscription != null,
+            _lastConnectedAt,
+            _lastDisconnectedAt,
+            _lastErrorMessage,
+            _lastErrorAt
         );
+    }
+
+    private int GetJitteredDelay(int baseDelayMs)
+    {
+        var jitterFactor = Math.Clamp(_connectionSettings.JitterFactor, 0.0, 1.0);
+        if (jitterFactor <= 0)
+        {
+            return baseDelayMs;
+        }
+
+        var jitterMultiplier = 1 + ((Random.Shared.NextDouble() * 2) - 1) * jitterFactor;
+        var jitteredDelay = (int)Math.Round(baseDelayMs * jitterMultiplier);
+        return Math.Max(0, jitteredDelay);
+    }
+
+    private static int[] BuildBackoffDelays(BackoffSettings settings)
+    {
+        if (settings.DelaysMs is { Count: > 0 })
+        {
+            return settings.DelaysMs.ToArray();
+        }
+
+        var delays = new List<int>();
+        var currentDelay = Math.Max(1, settings.MinDelayMs);
+
+        while (currentDelay < settings.MaxDelayMs)
+        {
+            delays.Add(currentDelay);
+            var nextDelay = (int)Math.Round(currentDelay * settings.Factor);
+            if (nextDelay <= currentDelay)
+            {
+                nextDelay = currentDelay + 1;
+            }
+            currentDelay = Math.Min(nextDelay, settings.MaxDelayMs);
+        }
+
+        delays.Add(settings.MaxDelayMs);
+        return delays.ToArray();
     }
 }
