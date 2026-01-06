@@ -136,7 +136,7 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
             var exitVotes = _lastVotes.Where(v => v.Signal == SignalType.Exit).ToList();
             var avgConfidence = exitVotes.Any() ? exitVotes.Average(v => v.Confidence) : 0m;
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Exit,
                 candle.Close,
@@ -168,7 +168,7 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
                 .DefaultIfEmpty()
                 .FirstOrDefault();
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.PartialExit,
                 candle.Close,
@@ -187,7 +187,7 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
             var stopLoss = GetConsensusStopLoss(buyVotes, candle.Close, true);
             var takeProfit = GetConsensusTakeProfit(buyVotes, candle.Close, true);
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Buy,
                 candle.Close,
@@ -204,7 +204,7 @@ public class StrategyEnsemble : IStrategy, IHasConfidence
             var stopLoss = GetConsensusStopLoss(sellVotes, candle.Close, false);
             var takeProfit = GetConsensusTakeProfit(sellVotes, candle.Close, false);
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Sell,
                 candle.Close,

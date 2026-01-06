@@ -110,7 +110,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
 
             _positionManager.EnterLong(candle.Close, stopLoss, candle.Close);
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Buy,
                 candle.Close,
@@ -129,7 +129,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
 
             _positionManager.EnterShort(candle.Close, stopLoss, candle.Close);
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Sell,
                 candle.Close,
@@ -164,7 +164,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
             {
                 var stopPrice = _positionManager.StopLoss.Value;
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     $"Trailing stop hit @ {stopPrice:F2}");
             }
         }
@@ -178,7 +178,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
             {
                 var stopPrice = _positionManager.StopLoss.Value;
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     $"Trailing stop hit @ {stopPrice:F2}");
             }
         }
@@ -189,7 +189,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
             if (_previousFastMa.Value >= _previousSlowMa.Value && fastMa < slowMa)
             {
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     "Bearish MA crossover - exit long");
             }
         }
@@ -198,7 +198,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
             if (_previousFastMa.Value <= _previousSlowMa.Value && fastMa > slowMa)
             {
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     "Bullish MA crossover - exit short");
             }
         }

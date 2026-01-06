@@ -174,7 +174,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Buy,
                 candle.Close,
@@ -192,7 +192,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
             _previousAdx = _adx.Value;
             _breakevenMoved = false;
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Sell,
                 candle.Close,
@@ -228,7 +228,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
             if (candle.Low <= _positionManager.StopLoss)
             {
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null, 
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null, 
                     $"Trailing stop hit at {_positionManager.StopLoss:F2}");
             }
         }
@@ -244,7 +244,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
             if (candle.High >= _positionManager.StopLoss)
             {
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     $"Trailing stop hit at {_positionManager.StopLoss:F2}");
             }
         }
@@ -264,7 +264,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
                     _breakevenMoved = true;
                     _positionManager.MoveStopToBreakeven();
 
-                    return new TradeSignal(
+                    return TradeSignal.Create(
                         symbol,
                         SignalType.PartialExit,
                         candle.Close,
@@ -280,14 +280,14 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
         if (Settings.MaxBarsInTrade > 0 && _positionManager.BarsSinceEntry >= Settings.MaxBarsInTrade)
         {
             ResetPosition();
-            return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+            return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                 "Time stop");
         }
 
         if (Settings.AdxFallingExitBars > 0 && _adxFallingStreak >= Settings.AdxFallingExitBars)
         {
             ResetPosition();
-            return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+            return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                 $"ADX falling {_adxFallingStreak} bars in a row");
         }
 
@@ -295,7 +295,7 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
         if (adx < Settings.AdxExitThreshold)
         {
             ResetPosition();
-            return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+            return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                 $"ADX dropped below {Settings.AdxExitThreshold} (trend weakening)");
         }
 
