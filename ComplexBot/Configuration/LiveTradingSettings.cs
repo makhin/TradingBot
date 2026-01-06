@@ -8,6 +8,7 @@ public class LiveTradingSettings
     public string Symbol { get; set; } = "BTCUSDT";
     public KlineInterval Interval { get; set; } = KlineInterval.FourHour;
     public decimal InitialCapital { get; set; } = 10000m;
+    public StrategyKind Strategy { get; set; } = StrategyKind.AdxTrendFollowing;
     public bool UseTestnet { get; set; } = true;
     public bool PaperTrade { get; set; } = true;
     public int WarmupCandles { get; set; } = 100;

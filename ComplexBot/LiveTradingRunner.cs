@@ -13,11 +13,13 @@ class LiveTradingRunner
 {
     private readonly ConfigurationService _configService;
     private readonly SettingsService _settingsService;
+    private readonly StrategyFactory _strategyFactory;
 
-    public LiveTradingRunner(ConfigurationService configService, SettingsService settingsService)
+    public LiveTradingRunner(ConfigurationService configService, SettingsService settingsService, StrategyFactory strategyFactory)
     {
         _configService = configService;
         _settingsService = settingsService;
+        _strategyFactory = strategyFactory;
     }
 
     public async Task RunLiveTrading(bool paperTrade)
@@ -96,6 +98,7 @@ class LiveTradingRunner
         KlineInterval interval;
         TradingMode tradingMode;
         decimal initialCapital;
+        StrategyKind strategyKind;
 
         if (isInteractive)
         {
@@ -114,9 +117,34 @@ class LiveTradingRunner
                     .UseConverter(UiMappings.GetTradingModeLabel)
                     .AddChoices(UiMappings.TradingModes)
             );
+            strategyKind = _strategyFactory.SelectStrategyKind(
+                $"Strategy (current: [green]{UiMappings.GetStrategyLabel(config.LiveTrading.Strategy)}[/]):",
+                config.LiveTrading.Strategy);
             initialCapital = SpectreHelpers.AskDecimal($"Initial capital [green](USDT)[/]", config.LiveTrading.InitialCapital, min: 1m);
             Log.Information("User selected - Symbol: {Symbol}, Interval: {Interval}, Mode: {TradingMode}, Capital: {Capital} USDT",
                 symbol, UiMappings.GetIntervalLabel(interval), UiMappings.GetTradingModeLabel(tradingMode), initialCapital);
+
+            var updatedSettings = new LiveTradingSettings
+            {
+                Symbol = symbol,
+                Interval = interval,
+                InitialCapital = initialCapital,
+                Strategy = strategyKind,
+                UseTestnet = config.LiveTrading.UseTestnet,
+                PaperTrade = paperTrade,
+                WarmupCandles = config.LiveTrading.WarmupCandles,
+                TradingMode = tradingMode,
+                FeeRate = config.LiveTrading.FeeRate,
+                SlippageBps = config.LiveTrading.SlippageBps,
+                MinimumOrderUsd = config.LiveTrading.MinimumOrderUsd,
+                QuantityPrecision = config.LiveTrading.QuantityPrecision,
+                LimitOrderOffsetBps = config.LiveTrading.LimitOrderOffsetBps,
+                LimitOrderTimeoutSeconds = config.LiveTrading.LimitOrderTimeoutSeconds,
+                StatusLogIntervalMinutes = config.LiveTrading.StatusLogIntervalMinutes,
+                BalanceLogIntervalHours = config.LiveTrading.BalanceLogIntervalHours
+            };
+
+            _configService.UpdateSection("LiveTrading", updatedSettings);
         }
         else
         {
@@ -126,6 +154,7 @@ class LiveTradingRunner
             interval = config.LiveTrading.Interval;
             tradingMode = config.LiveTrading.TradingMode;
             initialCapital = config.LiveTrading.InitialCapital;
+            strategyKind = config.LiveTrading.Strategy;
 
             Log.Information("Auto-configured - Symbol: {Symbol}, Interval: {Interval}, Mode: {TradingMode}, Capital: {Capital} USDT",
                 symbol, UiMappings.GetIntervalLabel(interval), UiMappings.GetTradingModeLabel(tradingMode), initialCapital);
@@ -134,6 +163,7 @@ class LiveTradingRunner
             AnsiConsole.MarkupLine($"  Symbol: [green]{symbol}[/]");
             AnsiConsole.MarkupLine($"  Interval: [green]{UiMappings.GetIntervalLabel(interval)}[/]");
             AnsiConsole.MarkupLine($"  Trading Mode: [green]{UiMappings.GetTradingModeLabel(tradingMode)}[/]");
+            AnsiConsole.MarkupLine($"  Strategy: [green]{UiMappings.GetStrategyLabel(strategyKind)}[/]");
             AnsiConsole.MarkupLine($"  Initial Capital: [green]{initialCapital} USDT[/]\n");
         }
 
@@ -181,8 +211,8 @@ class LiveTradingRunner
             TradingMode = tradingMode
         };
 
-        Log.Information("Initializing ADX Trend Strategy");
-        var strategy = new AdxTrendStrategy(strategySettings);
+        Log.Information("Initializing strategy: {Strategy}", UiMappings.GetStrategyLabel(strategyKind));
+        var strategy = _strategyFactory.CreateStrategy(strategyKind, strategySettings);
         Log.Information("Creating BinanceLiveTrader instance");
         await using var trader = new BinanceLiveTrader(
             apiKey, apiSecret, strategy, riskSettings, liveSettings, telegram);

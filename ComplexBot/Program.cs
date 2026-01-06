@@ -30,7 +30,7 @@ class Program
             var backtestRunner = new BacktestRunner(dataRunner, settingsService, configService, strategyFactory, resultsRenderer);
             var optimizationRunner = new OptimizationRunner(dataRunner, settingsService, resultsRenderer, configService, strategyRegistry);
             var analysisRunner = new AnalysisRunner(dataRunner, settingsService, strategyFactory, resultsRenderer);
-            var liveTradingRunner = new LiveTradingRunner(configService, settingsService);
+            var liveTradingRunner = new LiveTradingRunner(configService, settingsService, strategyFactory);
 
             var dispatcher = new ModeDispatcher(
                 backtestRunner,
