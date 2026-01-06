@@ -127,7 +127,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
 
             _positionManager.EnterLong(candle.Close, stopLoss, candle.Close);
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Buy,
                 candle.Close,
@@ -152,7 +152,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
 
             _positionManager.EnterShort(candle.Close, stopLoss, candle.Close);
 
-            return new TradeSignal(
+            return TradeSignal.Create(
                 symbol,
                 SignalType.Sell,
                 candle.Close,
@@ -178,14 +178,14 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
         {
             var stopLoss = _positionManager.StopLoss.Value;
             ResetPosition();
-            return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+            return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                 $"Stop loss hit @ {stopLoss:F2}");
         }
         else if (!isLong && candle.High >= _positionManager.StopLoss.Value)
         {
             var stopLoss = _positionManager.StopLoss.Value;
             ResetPosition();
-            return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+            return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                 $"Stop loss hit @ {stopLoss:F2}");
         }
 
@@ -196,7 +196,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
             if (rsi >= Settings.OverboughtLevel)
             {
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     $"RSI reached overbought ({rsi:F1}) - taking profit");
             }
 
@@ -204,7 +204,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
             if (Settings.ExitOnNeutral && rsi >= Settings.NeutralZoneHigh)
             {
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     $"RSI reached neutral zone ({rsi:F1}) - exit long");
             }
         }
@@ -214,7 +214,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
             if (rsi <= Settings.OversoldLevel)
             {
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     $"RSI reached oversold ({rsi:F1}) - taking profit");
             }
 
@@ -222,7 +222,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
             if (Settings.ExitOnNeutral && rsi <= Settings.NeutralZoneLow)
             {
                 ResetPosition();
-                return new TradeSignal(symbol, SignalType.Exit, candle.Close, null, null,
+                return TradeSignal.Create(symbol, SignalType.Exit, candle.Close, null, null,
                     $"RSI reached neutral zone ({rsi:F1}) - exit short");
             }
         }

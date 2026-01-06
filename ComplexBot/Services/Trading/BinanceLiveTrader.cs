@@ -654,7 +654,7 @@ public class BinanceLiveTrader : IAsyncDisposable
 
             var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
             Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}{takeProfitText}", LogEventLevel.Information);
-            OnTrade?.Invoke(new Trade(
+            OnTrade?.Invoke(Trade.Create(
                 _settings.Symbol,
                 _entryTime.Value,
                 null,
@@ -669,7 +669,7 @@ public class BinanceLiveTrader : IAsyncDisposable
             if (_telegram != null)
             {
                 var riskAmt = Math.Abs(price - stopLoss) * quantity;
-                var signal = new TradeSignal(
+                var signal = TradeSignal.Create(
                     _settings.Symbol,
                     direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
                     price,
@@ -727,7 +727,7 @@ public class BinanceLiveTrader : IAsyncDisposable
 
                 var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
                 Log($"Opened {direction} {actualQuantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}", LogEventLevel.Information);
-                OnTrade?.Invoke(new Trade(
+                OnTrade?.Invoke(Trade.Create(
                     _settings.Symbol,
                     _entryTime.Value,
                     null,
@@ -754,7 +754,7 @@ public class BinanceLiveTrader : IAsyncDisposable
                 if (_telegram != null)
                 {
                     var riskAmt = Math.Abs(actualPrice - stopLoss) * actualQuantity;
-                    var signal = new TradeSignal(
+                    var signal = TradeSignal.Create(
                         _settings.Symbol,
                         direction == TradeDirection.Long ? SignalType.Buy : SignalType.Sell,
                         actualPrice,
@@ -868,7 +868,7 @@ public class BinanceLiveTrader : IAsyncDisposable
 
         if (_entryPrice.HasValue)
         {
-            var trade = new Trade(
+            var trade = Trade.Create(
                 _settings.Symbol,
                 _entryTime ?? DateTime.UtcNow,
                 DateTime.UtcNow,

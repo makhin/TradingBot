@@ -213,7 +213,7 @@ public class BacktestEngine
             position.AbsolutePosition,
             _settings.CommissionPercent);
 
-        trades.Add(new Trade(
+        trades.Add(Trade.Create(
             symbol,
             position.EntryTime!.Value, exitTime,
             position.EntryPrice!.Value, exitPrice,
@@ -255,7 +255,7 @@ public class BacktestEngine
             exitQuantity,
             _settings.CommissionPercent);
 
-        trades.Add(new Trade(
+        trades.Add(Trade.Create(
             symbol,
             position.EntryTime!.Value, candle.OpenTime,
             position.EntryPrice!.Value, exitPrice,
