@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using Skender.Stock.Indicators;
 
@@ -7,31 +6,13 @@ namespace ComplexBot.Services.Indicators;
 /// <summary>
 /// Relative Strength Index
 /// </summary>
-public class Rsi : IIndicator<decimal>
+public class Rsi : SkenderIndicatorBase<decimal, RsiResult>
 {
-    private readonly int _period;
-    private readonly QuoteSeries _series = new();
-
     public Rsi(int period = 14)
+        : base(
+            (series, price) => series.AddPrice(price),
+            quotes => quotes.GetRsi(period).LastOrDefault(),
+            result => Value = IndicatorValueConverter.ToDecimal(result?.Rsi))
     {
-        _period = period;
-    }
-
-    public decimal? Value { get; private set; }
-    public bool IsReady => Value.HasValue;
-
-    public decimal? Update(decimal price)
-    {
-        _series.AddPrice(price);
-
-        var result = _series.Quotes.GetRsi(_period).LastOrDefault();
-        Value = IndicatorValueConverter.ToDecimal(result?.Rsi);
-        return Value;
-    }
-
-    public void Reset()
-    {
-        _series.Reset();
-        Value = null;
     }
 }

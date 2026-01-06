@@ -8,23 +8,25 @@ namespace ComplexBot.Services.Indicators;
 /// <summary>
 /// Bollinger Bands
 /// </summary>
-public class BollingerBands : IIndicator<decimal>, IMultiValueIndicator
+public class BollingerBands : SkenderIndicatorBase<decimal, BollingerBandsResult>, IMultiValueIndicator
 {
-    private readonly int _period;
-    private readonly decimal _stdDevMultiplier;
-    private readonly QuoteSeries _series = new();
-
     public BollingerBands(int period = 20, decimal stdDevMultiplier = 2m)
+        : base(
+            (series, price) => series.AddPrice(price),
+            quotes => quotes.GetBollingerBands(period, (double)stdDevMultiplier).LastOrDefault(),
+            result =>
+            {
+                var middle = IndicatorValueConverter.ToDecimal(result?.Sma);
+                Value = middle;
+                Upper = IndicatorValueConverter.ToDecimal(result?.UpperBand);
+                Lower = IndicatorValueConverter.ToDecimal(result?.LowerBand);
+            })
     {
-        _period = period;
-        _stdDevMultiplier = stdDevMultiplier;
     }
 
     public decimal? Middle => Value;
     public decimal? Upper { get; private set; }
     public decimal? Lower { get; private set; }
-    public decimal? Value { get; private set; }
-    public bool IsReady => Value.HasValue;
 
     public IReadOnlyDictionary<IndicatorValueKey, decimal?> Values => new Dictionary<IndicatorValueKey, decimal?>
     {
@@ -33,21 +35,9 @@ public class BollingerBands : IIndicator<decimal>, IMultiValueIndicator
         [IndicatorValueKey.BollingerLower] = Lower
     };
 
-    public decimal? Update(decimal price)
+    protected override void ResetValues()
     {
-        _series.AddPrice(price);
-
-        var result = _series.Quotes.GetBollingerBands(_period, (double)_stdDevMultiplier).LastOrDefault();
-        Value = IndicatorValueConverter.ToDecimal(result?.Sma);
-        Upper = IndicatorValueConverter.ToDecimal(result?.UpperBand);
-        Lower = IndicatorValueConverter.ToDecimal(result?.LowerBand);
-        return Value;
-    }
-
-    public void Reset()
-    {
-        _series.Reset();
-        Value = null;
+        base.ResetValues();
         Upper = null;
         Lower = null;
     }

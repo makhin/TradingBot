@@ -8,25 +8,26 @@ namespace ComplexBot.Services.Indicators;
 /// <summary>
 /// Moving Average Convergence Divergence
 /// </summary>
-public class Macd : IIndicator<decimal>, IMultiValueIndicator
+public class Macd : SkenderIndicatorBase<decimal, MacdResult>, IMultiValueIndicator
 {
-    private readonly int _fastPeriod;
-    private readonly int _slowPeriod;
-    private readonly int _signalPeriod;
-    private readonly QuoteSeries _series = new();
-
     public Macd(int fastPeriod = 12, int slowPeriod = 26, int signalPeriod = 9)
+        : base(
+            (series, price) => series.AddPrice(price),
+            quotes => quotes.GetMacd(fastPeriod, slowPeriod, signalPeriod).LastOrDefault(),
+            result =>
+            {
+                MacdLine = IndicatorValueConverter.ToDecimal(result?.Macd);
+                SignalLine = IndicatorValueConverter.ToDecimal(result?.Signal);
+                Histogram = IndicatorValueConverter.ToDecimal(result?.Histogram);
+                Value = MacdLine;
+            })
     {
-        _fastPeriod = fastPeriod;
-        _slowPeriod = slowPeriod;
-        _signalPeriod = signalPeriod;
     }
 
-    public decimal? Value => MacdLine;
     public decimal? MacdLine { get; private set; }
     public decimal? SignalLine { get; private set; }
     public decimal? Histogram { get; private set; }
-    public bool IsReady => MacdLine.HasValue && SignalLine.HasValue;
+    public override bool IsReady => MacdLine.HasValue && SignalLine.HasValue;
 
     public IReadOnlyDictionary<IndicatorValueKey, decimal?> Values => new Dictionary<IndicatorValueKey, decimal?>
     {
@@ -35,21 +36,9 @@ public class Macd : IIndicator<decimal>, IMultiValueIndicator
         [IndicatorValueKey.MacdHistogram] = Histogram
     };
 
-    public decimal? Update(decimal price)
+    protected override void ResetValues()
     {
-        _series.AddPrice(price);
-
-        var result = _series.Quotes.GetMacd(_fastPeriod, _slowPeriod, _signalPeriod).LastOrDefault();
-        MacdLine = IndicatorValueConverter.ToDecimal(result?.Macd);
-        SignalLine = IndicatorValueConverter.ToDecimal(result?.Signal);
-        Histogram = IndicatorValueConverter.ToDecimal(result?.Histogram);
-
-        return MacdLine;
-    }
-
-    public void Reset()
-    {
-        _series.Reset();
+        base.ResetValues();
         MacdLine = null;
         SignalLine = null;
         Histogram = null;

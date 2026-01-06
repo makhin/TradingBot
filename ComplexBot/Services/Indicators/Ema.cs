@@ -6,31 +6,13 @@ namespace ComplexBot.Services.Indicators;
 /// <summary>
 /// Exponential Moving Average
 /// </summary>
-public class Ema : IIndicator<decimal>
+public class Ema : SkenderIndicatorBase<decimal, EmaResult>
 {
-    private readonly int _period;
-    private readonly QuoteSeries _series = new();
-
     public Ema(int period)
+        : base(
+            (series, price) => series.AddPrice(price),
+            quotes => quotes.GetEma(period).LastOrDefault(),
+            result => Value = IndicatorValueConverter.ToDecimal(result?.Ema))
     {
-        _period = period;
-    }
-
-    public decimal? Value { get; private set; }
-    public bool IsReady => Value.HasValue;
-
-    public decimal? Update(decimal price)
-    {
-        _series.AddPrice(price);
-
-        var result = _series.Quotes.GetEma(_period).LastOrDefault();
-        Value = IndicatorValueConverter.ToDecimal(result?.Ema);
-        return Value;
-    }
-
-    public void Reset()
-    {
-        _series.Reset();
-        Value = null;
     }
 }
