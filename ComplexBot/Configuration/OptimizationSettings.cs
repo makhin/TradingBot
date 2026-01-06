@@ -4,7 +4,11 @@ namespace ComplexBot.Configuration;
 
 public class OptimizationSettings
 {
+    public decimal InSampleRatio { get; set; } = 0.7m;
     public OptimizationTarget OptimizeFor { get; set; } = OptimizationTarget.RiskAdjusted;
+    public PerformanceFitnessPolicy Policy { get; set; } = new();
+    public decimal MinRobustnessRatio { get; set; } = 0.5m;
+    public int TopResultsCount { get; set; } = 10;
     public int[] AdxPeriodRange { get; set; } = [10, 14, 20];
     public decimal[] AdxThresholdRange { get; set; } = [20m, 25m, 30m];
     public int[] FastEmaRange { get; set; } = [10, 15, 20, 25];
@@ -14,7 +18,11 @@ public class OptimizationSettings
 
     public OptimizerSettings ToOptimizerSettings() => new()
     {
+        InSampleRatio = InSampleRatio,
         OptimizeFor = OptimizeFor,
+        Policy = Policy,
+        MinRobustnessRatio = MinRobustnessRatio,
+        TopResultsCount = TopResultsCount,
         AdxPeriodRange = AdxPeriodRange,
         AdxThresholdRange = AdxThresholdRange,
         FastEmaRange = FastEmaRange,
