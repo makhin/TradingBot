@@ -9,6 +9,7 @@ using ComplexBot.Services.Strategies;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Notifications;
 using ComplexBot.Services.State;
+using ComplexBot.Services.Backtesting;
 using CryptoExchange.Net.Objects.Sockets;
 using Serilog;
 using Serilog.Events;
@@ -384,7 +385,7 @@ public class BinanceLiveTrader : IAsyncDisposable
         // Subscribe to kline updates
         var subscribeResult = await _socketClient.SpotApi.ExchangeData.SubscribeToKlineUpdatesAsync(
             _settings.Symbol,
-            _settings.Interval,
+            _settings.Interval.ToBinanceInterval(),
             async data => await OnKlineUpdateAsync(data.Data)
         );
 
@@ -441,7 +442,7 @@ public class BinanceLiveTrader : IAsyncDisposable
         
         var klines = await _restClient.SpotApi.ExchangeData.GetKlinesAsync(
             _settings.Symbol,
-            _settings.Interval,
+            _settings.Interval.ToBinanceInterval(),
             limit: _settings.WarmupCandles
         );
 

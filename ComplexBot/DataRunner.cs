@@ -1,9 +1,6 @@
-using Binance.Net.Enums;
 using Spectre.Console;
-using System.Linq;
 using ComplexBot.Models;
 using ComplexBot.Services.Backtesting;
-using ComplexBot.Services.Trading;
 using ComplexBot.Utils;
 
 namespace ComplexBot;
@@ -14,9 +11,10 @@ class DataRunner
     {
         var symbol = AnsiConsole.Ask("Symbol:", "BTCUSDT");
         var interval = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
+            new SelectionPrompt<KlineInterval>()
                 .Title("Interval (recommended [green]4h[/] or [green]1d[/] for medium-term):")
-                .AddChoices("1h", "4h", "1d")
+                .UseConverter(UiMappings.GetIntervalLabel)
+                .AddChoices(UiMappings.IntervalModes)
         );
 
         var startDate = AnsiConsole.Ask("Start date [green](yyyy-MM-dd)[/]:",
@@ -28,7 +26,8 @@ class DataRunner
         var candles = new List<Candle>();
         var start = DateTime.Parse(startDate);
         var end = DateTime.Parse(endDate);
-        var filename = $"Data/{symbol}_{interval}_{start:yyyyMMdd}_{end:yyyyMMdd}.csv";
+        var intervalLabel = UiMappings.GetIntervalLabel(interval);
+        var filename = $"Data/{symbol}_{intervalLabel}_{start:yyyyMMdd}_{end:yyyyMMdd}.csv";
 
         if (File.Exists(filename))
         {
@@ -45,7 +44,7 @@ class DataRunner
 
                 candles = await loader.LoadAsync(
                     symbol,
-                    KlineIntervalExtensions.Parse(interval),
+                    interval,
                     start,
                     end,
                     progress
@@ -62,9 +61,10 @@ class DataRunner
     {
         var symbol = AnsiConsole.Ask("Symbol:", "BTCUSDT");
         var interval = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
+            new SelectionPrompt<KlineInterval>()
                 .Title("Interval:")
-                .AddChoices("1h", "4h", "1d")
+                .UseConverter(UiMappings.GetIntervalLabel)
+                .AddChoices(UiMappings.IntervalModes)
         );
 
         var startDate = AnsiConsole.Ask("Start date [green](yyyy-MM-dd)[/]:",
@@ -83,14 +83,15 @@ class DataRunner
 
                 candles = await loader.LoadAsync(
                     symbol,
-                    KlineIntervalExtensions.Parse(interval),
+                    interval,
                     DateTime.Parse(startDate),
                     DateTime.Parse(endDate),
                     progress
                 );
             });
 
-        var filename = $"Data/{symbol}_{interval}_{startDate}_{endDate}.csv";
+        var intervalLabel = UiMappings.GetIntervalLabel(interval);
+        var filename = $"Data/{symbol}_{intervalLabel}_{startDate}_{endDate}.csv";
         Directory.CreateDirectory("Data");
         await loader.SaveToCsvAsync(candles, filename);
 

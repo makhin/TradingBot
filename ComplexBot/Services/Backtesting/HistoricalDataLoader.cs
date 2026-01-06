@@ -1,5 +1,4 @@
 using Binance.Net.Clients;
-using Binance.Net.Enums;
 using CryptoExchange.Net.Authentication;
 using ComplexBot.Models;
 
@@ -39,7 +38,7 @@ public class HistoricalDataLoader
         {
             var result = await _client.SpotApi.ExchangeData.GetKlinesAsync(
                 symbol,
-                interval,
+                interval.ToBinanceInterval(),
                 currentStart,
                 endTime,
                 limit: 1000
@@ -166,7 +165,7 @@ public class HistoricalDataLoader
             throw new Exception($"Failed to get symbols: {result.Error?.Message}");
 
         return result.Data.Symbols
-            .Where(s => s.QuoteAsset == quoteAsset && s.Status == SymbolStatus.Trading)
+            .Where(s => s.QuoteAsset == quoteAsset && s.Status == Binance.Net.Enums.SymbolStatus.Trading)
             .Select(s => s.Name)
             .OrderBy(s => s)
             .ToList();

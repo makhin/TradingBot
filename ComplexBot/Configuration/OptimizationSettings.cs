@@ -4,7 +4,7 @@ namespace ComplexBot.Configuration;
 
 public class OptimizationSettings
 {
-    public string OptimizeFor { get; set; } = "RiskAdjusted";
+    public OptimizationTarget OptimizeFor { get; set; } = OptimizationTarget.RiskAdjusted;
     public int[] AdxPeriodRange { get; set; } = [10, 14, 20];
     public decimal[] AdxThresholdRange { get; set; } = [20m, 25m, 30m];
     public int[] FastEmaRange { get; set; } = [10, 15, 20, 25];
@@ -14,22 +14,12 @@ public class OptimizationSettings
 
     public OptimizerSettings ToOptimizerSettings() => new()
     {
-        OptimizeFor = ParseOptimizationTarget(OptimizeFor),
+        OptimizeFor = OptimizeFor,
         AdxPeriodRange = AdxPeriodRange,
         AdxThresholdRange = AdxThresholdRange,
         FastEmaRange = FastEmaRange,
         SlowEmaRange = SlowEmaRange,
         AtrMultiplierRange = AtrMultiplierRange,
         VolumeThresholdRange = VolumeThresholdRange
-    };
-
-    private static OptimizationTarget ParseOptimizationTarget(string target) => target switch
-    {
-        "RiskAdjusted" => OptimizationTarget.RiskAdjusted,
-        "SharpeRatio" => OptimizationTarget.SharpeRatio,
-        "SortinoRatio" => OptimizationTarget.SortinoRatio,
-        "ProfitFactor" => OptimizationTarget.ProfitFactor,
-        "TotalReturn" => OptimizationTarget.TotalReturn,
-        _ => OptimizationTarget.RiskAdjusted
     };
 }

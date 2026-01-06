@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Spectre.Console;
 using DotNetEnv;
@@ -121,12 +122,7 @@ public class ConfigurationService
 
     public void SaveUserConfiguration(BotConfiguration config)
     {
-        var options = new JsonSerializerOptions
-        {
-            WriteIndented = true
-        };
-
-        var json = JsonSerializer.Serialize(config, options);
+        var json = JsonSerializer.Serialize(config, CreateJsonSerializerOptions(writeIndented: true));
         File.WriteAllText(UserConfigFile, json);
 
         AnsiConsole.MarkupLine($"[green]✓[/] Configuration saved to {UserConfigFile}");
@@ -169,7 +165,20 @@ public class ConfigurationService
         }
 
         var json = File.ReadAllText(UserConfigFile);
-        return JsonSerializer.Deserialize<BotConfiguration>(json) ?? new BotConfiguration();
+        return JsonSerializer.Deserialize<BotConfiguration>(json, CreateJsonSerializerOptions(writeIndented: false))
+               ?? new BotConfiguration();
+    }
+
+    private static JsonSerializerOptions CreateJsonSerializerOptions(bool writeIndented)
+    {
+        return new JsonSerializerOptions
+        {
+            WriteIndented = writeIndented,
+            Converters =
+            {
+                new JsonStringEnumConverter()
+            }
+        };
     }
 
     public void EditInteractive(string section)

@@ -1,4 +1,4 @@
-using Binance.Net.Enums;
+using ComplexBot.Models;
 using ComplexBot.Services.Trading;
 
 namespace ComplexBot.Configuration;
@@ -6,35 +6,25 @@ namespace ComplexBot.Configuration;
 public class LiveTradingSettings
 {
     public string Symbol { get; set; } = "BTCUSDT";
-    public string Interval { get; set; } = "FourHour";
+    public KlineInterval Interval { get; set; } = KlineInterval.FourHour;
     public decimal InitialCapital { get; set; } = 10000m;
     public bool UseTestnet { get; set; } = true;
     public bool PaperTrade { get; set; } = true;
     public int WarmupCandles { get; set; } = 100;
-    public string TradingMode { get; set; } = "Spot";
+    public TradingMode TradingMode { get; set; } = TradingMode.Spot;
     public decimal FeeRate { get; set; } = 0.001m;
     public decimal SlippageBps { get; set; } = 2m;
 
     public LiveTraderSettings ToLiveTraderSettings() => new()
     {
         Symbol = Symbol,
-        Interval = ParseInterval(Interval),
+        Interval = Interval,
         InitialCapital = InitialCapital,
         UseTestnet = UseTestnet,
         PaperTrade = PaperTrade,
         WarmupCandles = WarmupCandles,
-        TradingMode = TradingMode == "Spot"
-            ? global::ComplexBot.Services.Trading.TradingMode.Spot
-            : global::ComplexBot.Services.Trading.TradingMode.Futures,
+        TradingMode = TradingMode,
         FeeRate = FeeRate,
         SlippageBps = SlippageBps
-    };
-
-    private static KlineInterval ParseInterval(string interval) => interval switch
-    {
-        "1h" or "OneHour" => KlineInterval.OneHour,
-        "4h" or "FourHour" => KlineInterval.FourHour,
-        "1d" or "OneDay" => KlineInterval.OneDay,
-        _ => KlineInterval.FourHour
     };
 }

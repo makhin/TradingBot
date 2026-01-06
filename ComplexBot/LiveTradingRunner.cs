@@ -1,8 +1,6 @@
-using Binance.Net.Enums;
 using Spectre.Console;
 using ComplexBot.Models;
 using ComplexBot.Configuration;
-using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Notifications;
 using ComplexBot.Services.Strategies;
@@ -95,8 +93,8 @@ class LiveTradingRunner
         Log.Information("API keys validated - using {Environment} environment", useTestnet ? "Testnet" : "Live");
 
         string symbol;
-        string interval;
-        string tradingMode;
+        KlineInterval interval;
+        TradingMode tradingMode;
         decimal initialCapital;
 
         if (isInteractive)
@@ -105,36 +103,37 @@ class LiveTradingRunner
             // Interactive mode - ask user
             symbol = AnsiConsole.Ask("Symbol:", config.LiveTrading.Symbol);
             interval = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title($"Interval (current: [green]{config.LiveTrading.Interval}[/]):")
-                    .AddChoices("1h", "4h", "1d")
+                new SelectionPrompt<KlineInterval>()
+                    .Title($"Interval (current: [green]{UiMappings.GetIntervalLabel(config.LiveTrading.Interval)}[/]):")
+                    .UseConverter(UiMappings.GetIntervalLabel)
+                    .AddChoices(UiMappings.IntervalModes)
             );
             tradingMode = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title($"Trading mode (current: [green]{config.LiveTrading.TradingMode}[/]):")
-                    .AddChoices("Spot (no margin)", "Futures/Margin")
+                new SelectionPrompt<TradingMode>()
+                    .Title($"Trading mode (current: [green]{UiMappings.GetTradingModeLabel(config.LiveTrading.TradingMode)}[/]):")
+                    .UseConverter(UiMappings.GetTradingModeLabel)
+                    .AddChoices(UiMappings.TradingModes)
             );
             initialCapital = SpectreHelpers.AskDecimal($"Initial capital [green](USDT)[/]", config.LiveTrading.InitialCapital, min: 1m);
             Log.Information("User selected - Symbol: {Symbol}, Interval: {Interval}, Mode: {TradingMode}, Capital: {Capital} USDT",
-                symbol, interval, tradingMode, initialCapital);
+                symbol, UiMappings.GetIntervalLabel(interval), UiMappings.GetTradingModeLabel(tradingMode), initialCapital);
         }
         else
         {
             Log.Debug("Non-interactive mode - using configuration values");
             // Non-interactive mode - use config values
             symbol = config.LiveTrading.Symbol;
-            // Convert enum name (e.g., "FourHour") to short format (e.g., "4h")
-            interval = ConvertIntervalToShortFormat(config.LiveTrading.Interval);
-            tradingMode = config.LiveTrading.TradingMode == "Spot" ? "Spot (no margin)" : "Futures/Margin";
+            interval = config.LiveTrading.Interval;
+            tradingMode = config.LiveTrading.TradingMode;
             initialCapital = config.LiveTrading.InitialCapital;
 
             Log.Information("Auto-configured - Symbol: {Symbol}, Interval: {Interval}, Mode: {TradingMode}, Capital: {Capital} USDT",
-                symbol, interval, tradingMode, initialCapital);
+                symbol, UiMappings.GetIntervalLabel(interval), UiMappings.GetTradingModeLabel(tradingMode), initialCapital);
 
             AnsiConsole.MarkupLine("[grey]Auto-configured from settings:[/]");
             AnsiConsole.MarkupLine($"  Symbol: [green]{symbol}[/]");
-            AnsiConsole.MarkupLine($"  Interval: [green]{interval}[/]");
-            AnsiConsole.MarkupLine($"  Trading Mode: [green]{tradingMode}[/]");
+            AnsiConsole.MarkupLine($"  Interval: [green]{UiMappings.GetIntervalLabel(interval)}[/]");
+            AnsiConsole.MarkupLine($"  Trading Mode: [green]{UiMappings.GetTradingModeLabel(tradingMode)}[/]");
             AnsiConsole.MarkupLine($"  Initial Capital: [green]{initialCapital} USDT[/]\n");
         }
 
@@ -172,11 +171,11 @@ class LiveTradingRunner
         var liveSettings = new LiveTraderSettings
         {
             Symbol = symbol,
-            Interval = KlineIntervalExtensions.Parse(interval),
+            Interval = interval,
             InitialCapital = initialCapital,
             UseTestnet = useTestnet,
             PaperTrade = paperTrade,
-            TradingMode = tradingMode == "Spot (no margin)" ? TradingMode.Spot : TradingMode.Futures
+            TradingMode = tradingMode
         };
 
         Log.Information("Initializing ADX Trend Strategy");
@@ -242,7 +241,7 @@ class LiveTradingRunner
 
         AnsiConsole.MarkupLine("\n[green]Starting trader... Press Ctrl+C to stop[/]\n");
         Log.Information("Starting BinanceLiveTrader - Symbol: {Symbol}, Interval: {Interval}, Paper: {PaperTrade}",
-            symbol, interval, paperTrade);
+            symbol, UiMappings.GetIntervalLabel(interval), paperTrade);
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (s, e) =>
@@ -298,22 +297,4 @@ class LiveTradingRunner
         Log.Information("=== RunLiveTrading Completed ===");
     }
 
-    private static string ConvertIntervalToShortFormat(string interval)
-    {
-        // Convert from enum name format (e.g., "FourHour") to short format (e.g., "4h")
-        return interval.ToLower() switch
-        {
-            "oneminute" => "1m",
-            "fiveminutes" => "5m",
-            "fifteenminutes" => "15m",
-            "thirtyminutes" => "30m",
-            "onehour" => "1h",
-            "fourhour" => "4h",
-            "oneday" => "1d",
-            "oneweek" => "1w",
-            // If already in short format, return as is
-            "1m" or "5m" or "15m" or "30m" or "1h" or "4h" or "1d" or "1w" => interval,
-            _ => "1d" // Default to 1 day
-        };
-    }
 }
