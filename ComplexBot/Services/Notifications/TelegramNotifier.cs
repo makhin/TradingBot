@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 using ComplexBot.Models;
@@ -29,21 +31,28 @@ public class TelegramNotifier
         if (!_enabled) return;
 
         var emoji = signal.Type == SignalType.Buy ? "🟢" : "🔴";
-        var direction = signal.Type == SignalType.Buy ? "LONG" : "SHORT";
+        var direction = EscapeMarkdownV2(signal.Type == SignalType.Buy ? "LONG" : "SHORT");
+        var symbol = EscapeMarkdownV2(signal.Symbol);
+        var reason = EscapeMarkdownV2(signal.Reason);
+        var entryText = FormatDecimal(signal.Price);
+        var stopLossText = FormatNullableDecimal(signal.StopLoss);
+        var takeProfitText = FormatNullableDecimal(signal.TakeProfit);
+        var quantityText = FormatDecimal(quantity, "F4");
+        var riskText = FormatMoney(riskAmount);
 
         var message = $"""
             {emoji} *NEW TRADE OPENED*
 
-            *{signal.Symbol}* {direction}
+            *{symbol}* {direction}
 
-            📍 Entry: `{signal.Price:F2}`
-            🛑 Stop Loss: `{signal.StopLoss:F2}`
-            🎯 Take Profit: `{signal.TakeProfit:F2}`
+            📍 Entry: `{entryText}`
+            🛑 Stop Loss: `{stopLossText}`
+            🎯 Take Profit: `{takeProfitText}`
 
-            📊 Size: `{quantity:F4}`
-            💰 Risk: `${riskAmount:F2}`
+            📊 Size: `{quantityText}`
+            💰 Risk: `{riskText}`
 
-            📝 _{signal.Reason}_
+            📝 _{reason}_
             """;
 
         await SendMessage(message, cancellationToken);
@@ -56,18 +65,24 @@ public class TelegramNotifier
 
         var emoji = pnl >= 0 ? "✅" : "❌";
         var pnlEmoji = pnl >= 0 ? "📈" : "📉";
+        var symbolText = EscapeMarkdownV2(symbol);
+        var entryText = FormatDecimal(entryPrice);
+        var exitText = FormatDecimal(exitPrice);
+        var pnlText = FormatMoney(pnl);
+        var rMultipleText = FormatDecimal(rMultiple);
+        var reasonText = EscapeMarkdownV2(reason);
 
         var message = $"""
             {emoji} *TRADE CLOSED*
 
-            *{symbol}*
+            *{symbolText}*
 
-            📍 Entry: `{entryPrice:F2}`
-            📍 Exit: `{exitPrice:F2}`
+            📍 Entry: `{entryText}`
+            📍 Exit: `{exitText}`
 
-            {pnlEmoji} PnL: `${pnl:F2}` ({rMultiple:F2}R)
+            {pnlEmoji} PnL: `{pnlText}` `{rMultipleText}R`
 
-            📝 _{reason}_
+            📝 _{reasonText}_
             """;
 
         await SendMessage(message, cancellationToken);
@@ -77,11 +92,14 @@ public class TelegramNotifier
     {
         if (!_enabled) return;
 
+        var totalDrawdownText = FormatPercentage(currentDrawdown);
+        var dailyDrawdownText = FormatPercentage(dailyDrawdown);
+
         var message = $"""
             ⚠️ *DRAWDOWN ALERT*
 
-            📉 Total Drawdown: `{currentDrawdown:F2}%`
-            📉 Daily Drawdown: `{dailyDrawdown:F2}%`
+            📉 Total Drawdown: `{totalDrawdownText}`
+            📉 Daily Drawdown: `{dailyDrawdownText}`
 
             _Risk management may reduce position sizes_
             """;
@@ -93,12 +111,14 @@ public class TelegramNotifier
     {
         if (!_enabled) return;
 
+        var reasonText = EscapeMarkdownV2(reason);
+
         var message = $"""
             🚨 *CIRCUIT BREAKER TRIGGERED*
 
             ⛔ Trading has been stopped!
 
-            Reason: _{reason}_
+            Reason: _{reasonText}_
 
             _Manual intervention required_
             """;
@@ -110,18 +130,26 @@ public class TelegramNotifier
     {
         if (!_enabled) return;
 
+        var equityText = FormatMoney(equity);
+        var drawdownText = FormatPercentage(drawdown);
+        var tradesText = FormatInteger(stats.TotalTrades);
+        var winRateText = FormatDecimal(stats.WinRate, "F1");
+        var netPnlText = FormatMoney(stats.TotalNetPnL);
+        var bestTradeText = FormatMoney(stats.LargestWin);
+        var worstTradeText = FormatMoney(stats.LargestLoss);
+
         var message = $"""
             📊 *DAILY SUMMARY*
 
-            💰 Equity: `${equity:F2}`
-            📉 Drawdown: `{drawdown:F2}%`
+            💰 Equity: `{equityText}`
+            📉 Drawdown: `{drawdownText}`
 
-            📈 Trades Today: `{stats.TotalTrades}`
-            🎯 Win Rate: `{stats.WinRate:F1}%`
-            💵 Net PnL: `${stats.TotalNetPnL:F2}`
+            📈 Trades Today: `{tradesText}`
+            🎯 Win Rate: `{winRateText}%`
+            💵 Net PnL: `{netPnlText}`
 
-            Best Trade: `${stats.LargestWin:F2}`
-            Worst Trade: `${stats.LargestLoss:F2}`
+            Best Trade: `{bestTradeText}`
+            Worst Trade: `{worstTradeText}`
             """;
 
         await SendMessage(message, cancellationToken);
@@ -131,10 +159,12 @@ public class TelegramNotifier
     {
         if (!_enabled) return;
 
+        var errorText = EscapeMarkdownV2(errorMessage);
+
         var message = $"""
             ❌ *ERROR*
 
-            {errorMessage}
+            {errorText}
 
             _Check logs for details_
             """;
@@ -144,7 +174,7 @@ public class TelegramNotifier
 
     public async Task SendMessageAsync(string message, CancellationToken cancellationToken = default)
     {
-        await SendMessage(message, cancellationToken);
+        await SendMessage(EscapeMarkdownV2(message), cancellationToken);
     }
 
     private async Task SendMessage(string message, CancellationToken cancellationToken)
@@ -156,7 +186,7 @@ public class TelegramNotifier
             await _bot.SendMessage(
                 chatId: _chatId,
                 text: message,
-                parseMode: ParseMode.Markdown,
+                parseMode: ParseMode.MarkdownV2,
                 cancellationToken: cancellationToken
             );
         }
@@ -164,5 +194,61 @@ public class TelegramNotifier
         {
             _logger.Error(ex, "Telegram error sending message to chat {ChatId}", _chatId);
         }
+    }
+
+    private static string FormatDecimal(decimal value, string format = "F2")
+        => EscapeMarkdownV2Code(value.ToString(format, CultureInfo.InvariantCulture));
+
+    private static string FormatNullableDecimal(decimal? value, string format = "F2")
+        => value.HasValue ? FormatDecimal(value.Value, format) : EscapeMarkdownV2Code("N/A");
+
+    private static string FormatMoney(decimal value)
+        => EscapeMarkdownV2Code($"${value.ToString("F2", CultureInfo.InvariantCulture)}");
+
+    private static string FormatPercentage(decimal value)
+        => EscapeMarkdownV2Code($"{value.ToString("F2", CultureInfo.InvariantCulture)}%");
+
+    private static string FormatInteger(int value)
+        => EscapeMarkdownV2Code(value.ToString(CultureInfo.InvariantCulture));
+
+    private static string EscapeMarkdownV2(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(text.Length);
+        foreach (var ch in text)
+        {
+            builder.Append(ch switch
+            {
+                '_' or '*' or '[' or ']' or '(' or ')' or '~' or '`' or '>' or '#' or '+' or '-' or '=' or '|' or '{'
+                    or '}' or '.' or '!' => $"\\{ch}",
+                _ => ch.ToString()
+            });
+        }
+
+        return builder.ToString();
+    }
+
+    private static string EscapeMarkdownV2Code(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(text.Length);
+        foreach (var ch in text)
+        {
+            builder.Append(ch switch
+            {
+                '\\' or '`' => $"\\{ch}",
+                _ => ch.ToString()
+            });
+        }
+
+        return builder.ToString();
     }
 }

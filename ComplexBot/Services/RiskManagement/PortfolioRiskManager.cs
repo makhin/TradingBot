@@ -1,4 +1,5 @@
 using ComplexBot.Models;
+using Serilog;
 
 namespace ComplexBot.Services.RiskManagement;
 
@@ -8,13 +9,16 @@ public class PortfolioRiskManager
     private readonly PortfolioRiskSettings _settings;
     private readonly Dictionary<string, string[]> _correlationGroups;
     private readonly AggregatedEquityTracker _equityTracker = new();
+    private readonly ILogger _logger;
 
     public PortfolioRiskManager(
         PortfolioRiskSettings settings,
-        Dictionary<string, string[]>? correlationGroups = null)
+        Dictionary<string, string[]>? correlationGroups = null,
+        ILogger? logger = null)
     {
         _settings = settings;
         _correlationGroups = correlationGroups ?? GetDefaultCorrelationGroups();
+        _logger = logger ?? Log.ForContext<PortfolioRiskManager>();
     }
 
     private static Dictionary<string, string[]> GetDefaultCorrelationGroups() => new()
@@ -61,7 +65,9 @@ public class PortfolioRiskManager
         var totalDrawdown = GetTotalDrawdownPercent();
         if (totalDrawdown >= _settings.MaxTotalDrawdownPercent)
         {
-            Console.WriteLine($"⛔ Portfolio drawdown exceeded: {totalDrawdown:F2}% >= {_settings.MaxTotalDrawdownPercent:F2}%");
+            _logger.Warning("⛔ Portfolio drawdown exceeded: {TotalDrawdown:F2}% >= {MaxTotalDrawdown:F2}%",
+                totalDrawdown,
+                _settings.MaxTotalDrawdownPercent);
             return false;
         }
 
@@ -71,7 +77,11 @@ public class PortfolioRiskManager
         {
             var groupName = _correlationGroups
                 .FirstOrDefault(g => g.Value.Contains(symbol)).Key ?? "Unknown";
-            Console.WriteLine($"⛔ Correlated risk too high for {symbol} (group: {groupName}): {correlatedRisk:F2}% >= {_settings.MaxCorrelatedRiskPercent:F2}%");
+            _logger.Warning("⛔ Correlated risk too high for {Symbol} (group: {GroupName}): {CorrelatedRisk:F2}% >= {MaxCorrelatedRisk:F2}%",
+                symbol,
+                groupName,
+                correlatedRisk,
+                _settings.MaxCorrelatedRiskPercent);
             return false;
         }
 
@@ -79,7 +89,9 @@ public class PortfolioRiskManager
         var openPositionsCount = _symbolManagers.Values.Count(m => m.PortfolioHeat > 0);
         if (openPositionsCount >= _settings.MaxConcurrentPositions)
         {
-            Console.WriteLine($"⛔ Max concurrent positions reached: {openPositionsCount} >= {_settings.MaxConcurrentPositions}");
+            _logger.Warning("⛔ Max concurrent positions reached: {OpenPositionsCount} >= {MaxConcurrentPositions}",
+                openPositionsCount,
+                _settings.MaxConcurrentPositions);
             return false;
         }
 
@@ -90,7 +102,7 @@ public class PortfolioRiskManager
         }
 
         // Symbol not registered - allow but warn
-        Console.WriteLine($"⚠️ Warning: Symbol {symbol} not registered in portfolio manager");
+        _logger.Warning("⚠️ Warning: Symbol {Symbol} not registered in portfolio manager", symbol);
         return true;
     }
 

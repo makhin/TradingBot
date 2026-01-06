@@ -617,7 +617,8 @@ public class BinanceLiveTrader : IAsyncDisposable
         decimal quantity,
         decimal price,
         decimal stopLoss,
-        decimal? takeProfit)
+        decimal? takeProfit,
+        CancellationToken cancellationToken = default)
     {
         if (_settings.TradingMode == TradingMode.Spot && direction == TradeDirection.Short)
         {
@@ -676,7 +677,7 @@ public class BinanceLiveTrader : IAsyncDisposable
                     takeProfit,
                     $"{direction} position opened (paper)"
                 );
-                await _telegram.SendTradeOpen(signal, quantity, riskAmt);
+                await _telegram.SendTradeOpen(signal, quantity, riskAmt, cancellationToken);
             }
         }
         else
@@ -761,7 +762,7 @@ public class BinanceLiveTrader : IAsyncDisposable
                         takeProfit,
                         $"{direction} position opened"
                     );
-                    await _telegram.SendTradeOpen(signal, actualQuantity, riskAmt);
+                    await _telegram.SendTradeOpen(signal, actualQuantity, riskAmt, cancellationToken);
                 }
             }
             catch (Exception ex)
@@ -771,7 +772,7 @@ public class BinanceLiveTrader : IAsyncDisposable
         }
     }
 
-    private async Task ClosePositionAsync(string reason)
+    private async Task ClosePositionAsync(string reason, CancellationToken cancellationToken = default)
     {
         if (_currentPosition == 0) return;
 
@@ -862,7 +863,7 @@ public class BinanceLiveTrader : IAsyncDisposable
         {
             var riskAmount = Math.Abs(_entryPrice.Value - (_stopLoss ?? _entryPrice.Value)) * quantity;
             var rMultiple = riskAmount > 0 ? netPnl / riskAmount : 0;
-            await _telegram.SendTradeClose(_settings.Symbol, _entryPrice.Value, exitPrice, netPnl, rMultiple, reason);
+            await _telegram.SendTradeClose(_settings.Symbol, _entryPrice.Value, exitPrice, netPnl, rMultiple, reason, cancellationToken);
         }
 
         if (_entryPrice.HasValue)

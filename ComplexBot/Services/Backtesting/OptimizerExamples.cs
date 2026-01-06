@@ -1,6 +1,7 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
 using ComplexBot.Services.RiskManagement;
+using Serilog;
 
 namespace ComplexBot.Services.Backtesting;
 
@@ -35,13 +36,16 @@ public static class OptimizerExamples
             settings,
             progress: new Progress<GeneticProgress<StrategySettings>>(p =>
             {
-                Console.WriteLine($"Generation {p.CurrentGeneration}/{p.TotalGenerations}: " +
-                    $"Best={p.BestFitness:F2}, Avg={p.AverageFitness:F2}");
+                Log.Information("Generation {CurrentGeneration}/{TotalGenerations}: Best={BestFitness:F2}, Avg={AverageFitness:F2}",
+                    p.CurrentGeneration,
+                    p.TotalGenerations,
+                    p.BestFitness,
+                    p.AverageFitness);
             })
         );
 
-        Console.WriteLine($"Best settings found: {result.BestSettings}");
-        Console.WriteLine($"Best fitness: {result.BestFitness:F2}");
+        Log.Information("Best settings found: {BestSettings}", result.BestSettings);
+        Log.Information("Best fitness: {BestFitness:F2}", result.BestFitness);
     }
 
     /// <summary>
@@ -129,8 +133,10 @@ public static class OptimizerExamples
         // Run optimization
         var result = optimizer.Optimize(evaluateFitness);
 
-        Console.WriteLine($"Best MA settings: Fast={result.BestSettings.FastMaPeriod}, Slow={result.BestSettings.SlowMaPeriod}");
-        Console.WriteLine($"Fitness: {result.BestFitness:F2}");
+        Log.Information("Best MA settings: Fast={FastMaPeriod}, Slow={SlowMaPeriod}",
+            result.BestSettings.FastMaPeriod,
+            result.BestSettings.SlowMaPeriod);
+        Log.Information("Fitness: {BestFitness:F2}", result.BestFitness);
     }
 
     /// <summary>
@@ -155,12 +161,14 @@ public static class OptimizerExamples
             settings: new GeneticOptimizerSettings { PopulationSize = 80, Generations = 40 },
             progress: new Progress<GeneticProgress<MaStrategySettings>>(p =>
             {
-                Console.WriteLine($"Gen {p.CurrentGeneration}: Best={p.BestFitness:F2}");
+                Log.Information("Gen {CurrentGeneration}: Best={BestFitness:F2}", p.CurrentGeneration, p.BestFitness);
             })
         );
 
-        Console.WriteLine($"Best MA settings: Fast={result.BestSettings.FastMaPeriod}, Slow={result.BestSettings.SlowMaPeriod}");
-        Console.WriteLine($"Fitness: {result.BestFitness:F2}");
+        Log.Information("Best MA settings: Fast={FastMaPeriod}, Slow={SlowMaPeriod}",
+            result.BestSettings.FastMaPeriod,
+            result.BestSettings.SlowMaPeriod);
+        Log.Information("Fitness: {BestFitness:F2}", result.BestFitness);
     }
 
     /// <summary>
@@ -233,12 +241,12 @@ public static class OptimizerExamples
             settings: new GeneticOptimizerSettings { PopulationSize = 80, Generations = 40 },
             progress: new Progress<GeneticProgress<RsiStrategySettings>>(p =>
             {
-                Console.WriteLine($"Gen {p.CurrentGeneration}: Best={p.BestFitness:F2}");
+                Log.Information("Gen {CurrentGeneration}: Best={BestFitness:F2}", p.CurrentGeneration, p.BestFitness);
             })
         );
 
-        Console.WriteLine($"Best RSI settings: Period={result.BestSettings.RsiPeriod}");
-        Console.WriteLine($"Fitness: {result.BestFitness:F2}");
+        Log.Information("Best RSI settings: Period={RsiPeriod}", result.BestSettings.RsiPeriod);
+        Log.Information("Fitness: {BestFitness:F2}", result.BestFitness);
     }
 
     // Helper methods
