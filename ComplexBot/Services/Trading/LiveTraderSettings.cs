@@ -13,4 +13,10 @@ public record LiveTraderSettings
     public TradingMode TradingMode { get; init; } = TradingMode.Spot;
     public decimal FeeRate { get; init; } = 0.001m;
     public decimal SlippageBps { get; init; } = 2m;
+    public decimal MinimumOrderUsd { get; init; } = 10m;
+    public int QuantityPrecision { get; init; } = 5;
+    public decimal LimitOrderOffsetBps { get; init; } = 5m;
+    public int LimitOrderTimeoutSeconds { get; init; } = 5;
+    public int StatusLogIntervalMinutes { get; init; } = 5;
+    public int BalanceLogIntervalHours { get; init; } = 4;
 }

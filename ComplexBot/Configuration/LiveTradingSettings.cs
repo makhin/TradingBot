@@ -14,6 +14,12 @@ public class LiveTradingSettings
     public TradingMode TradingMode { get; set; } = TradingMode.Spot;
     public decimal FeeRate { get; set; } = 0.001m;
     public decimal SlippageBps { get; set; } = 2m;
+    public decimal MinimumOrderUsd { get; set; } = 10m;
+    public int QuantityPrecision { get; set; } = 5;
+    public decimal LimitOrderOffsetBps { get; set; } = 5m;
+    public int LimitOrderTimeoutSeconds { get; set; } = 5;
+    public int StatusLogIntervalMinutes { get; set; } = 5;
+    public int BalanceLogIntervalHours { get; set; } = 4;
 
     public LiveTraderSettings ToLiveTraderSettings() => new()
     {
@@ -25,6 +31,12 @@ public class LiveTradingSettings
         WarmupCandles = WarmupCandles,
         TradingMode = TradingMode,
         FeeRate = FeeRate,
-        SlippageBps = SlippageBps
+        SlippageBps = SlippageBps,
+        MinimumOrderUsd = MinimumOrderUsd,
+        QuantityPrecision = QuantityPrecision,
+        LimitOrderOffsetBps = LimitOrderOffsetBps,
+        LimitOrderTimeoutSeconds = LimitOrderTimeoutSeconds,
+        StatusLogIntervalMinutes = StatusLogIntervalMinutes,
+        BalanceLogIntervalHours = BalanceLogIntervalHours
     };
 }

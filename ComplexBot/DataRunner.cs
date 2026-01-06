@@ -1,4 +1,5 @@
 using Spectre.Console;
+using ComplexBot.Configuration;
 using ComplexBot.Models;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Utils;
@@ -7,6 +8,15 @@ namespace ComplexBot;
 
 class DataRunner
 {
+    private readonly string _dataDirectory;
+    private readonly IReadOnlyList<KlineInterval> _allowedIntervals;
+
+    public DataRunner(AppSettings appSettings)
+    {
+        _dataDirectory = ResolvePath(appSettings.Paths.DataDirectory);
+        _allowedIntervals = appSettings.AllowedIntervals;
+    }
+
     public async Task<(List<Candle> candles, string symbol)> LoadData()
     {
         var symbol = AnsiConsole.Ask("Symbol:", "BTCUSDT");
@@ -14,7 +24,7 @@ class DataRunner
             new SelectionPrompt<KlineInterval>()
                 .Title("Interval (recommended [green]4h[/] or [green]1d[/] for medium-term):")
                 .UseConverter(UiMappings.GetIntervalLabel)
-                .AddChoices(UiMappings.IntervalModes)
+                .AddChoices(_allowedIntervals)
         );
 
         var startDate = AnsiConsole.Ask("Start date [green](yyyy-MM-dd)[/]:",
@@ -27,7 +37,7 @@ class DataRunner
         var start = DateTime.Parse(startDate);
         var end = DateTime.Parse(endDate);
         var intervalLabel = UiMappings.GetIntervalLabel(interval);
-        var filename = $"Data/{symbol}_{intervalLabel}_{start:yyyyMMdd}_{end:yyyyMMdd}.csv";
+        var filename = Path.Combine(_dataDirectory, $"{symbol}_{intervalLabel}_{start:yyyyMMdd}_{end:yyyyMMdd}.csv");
 
         if (File.Exists(filename))
         {
@@ -51,7 +61,7 @@ class DataRunner
                 );
             });
 
-        Directory.CreateDirectory("Data");
+        Directory.CreateDirectory(_dataDirectory);
         await loader.SaveToCsvAsync(candles, filename);
         AnsiConsole.MarkupLine($"[green]✓[/] Downloaded {candles.Count} candles and cached to [blue]{filename}[/]");
         return (candles, symbol);
@@ -64,7 +74,7 @@ class DataRunner
             new SelectionPrompt<KlineInterval>()
                 .Title("Interval:")
                 .UseConverter(UiMappings.GetIntervalLabel)
-                .AddChoices(UiMappings.IntervalModes)
+                .AddChoices(_allowedIntervals)
         );
 
         var startDate = AnsiConsole.Ask("Start date [green](yyyy-MM-dd)[/]:",
@@ -91,10 +101,17 @@ class DataRunner
             });
 
         var intervalLabel = UiMappings.GetIntervalLabel(interval);
-        var filename = $"Data/{symbol}_{intervalLabel}_{startDate}_{endDate}.csv";
-        Directory.CreateDirectory("Data");
+        var filename = Path.Combine(_dataDirectory, $"{symbol}_{intervalLabel}_{startDate}_{endDate}.csv");
+        Directory.CreateDirectory(_dataDirectory);
         await loader.SaveToCsvAsync(candles, filename);
 
         AnsiConsole.MarkupLine($"\n[green]✓[/] Saved {candles.Count} candles to [blue]{filename}[/]");
+    }
+
+    private static string ResolvePath(string path)
+    {
+        return Path.IsPathRooted(path)
+            ? path
+            : Path.Combine(Directory.GetCurrentDirectory(), path);
     }
 }
