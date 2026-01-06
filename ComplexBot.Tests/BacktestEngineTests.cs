@@ -20,19 +20,11 @@ public class BacktestEngineTests
             SlowEmaPeriod = 5
         });
 
-        var riskSettings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var riskSettings = RiskSettingsFactory.CreateDefault();
 
         var settings = new BacktestSettings { InitialCapital = 10000m };
         var engine = new BacktestEngine(strategy, riskSettings, settings);
-        var candles = GenerateUptrendCandles(50);
+        var candles = TestDataFactory.GenerateUptrendCandles(50);
 
         // Act
         var result = engine.Run(candles, "BTCUSDT");
@@ -57,19 +49,11 @@ public class BacktestEngineTests
             SlowEmaPeriod = 5
         });
 
-        var riskSettings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var riskSettings = RiskSettingsFactory.CreateDefault();
 
         var settings = new BacktestSettings { InitialCapital = 10000m };
         var engine = new BacktestEngine(strategy, riskSettings, settings);
-        var candles = GenerateRangingCandles(50);
+        var candles = TestDataFactory.GenerateRangingCandles(50);
 
         // Act
         var result = engine.Run(candles, "BTCUSDT");
@@ -85,15 +69,7 @@ public class BacktestEngineTests
     {
         // Arrange
         var strategy = new AdxTrendStrategy();
-        var riskSettings = new RiskSettings
-        {
-            RiskPerTradePercent = 2.0m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var riskSettings = RiskSettingsFactory.CreateDefault() with { RiskPerTradePercent = 2.0m };
 
         var settings = new BacktestSettings
         {
@@ -102,7 +78,7 @@ public class BacktestEngineTests
             SlippagePercent = 0.05m
         };
         var engine = new BacktestEngine(strategy, riskSettings, settings);
-        var candles = GenerateDowntrendCandles(30);
+        var candles = TestDataFactory.GenerateDowntrendCandles(30);
 
         // Act
         var result = engine.Run(candles, "BTCUSDT");
@@ -119,19 +95,11 @@ public class BacktestEngineTests
     {
         // Arrange
         var strategy = new AdxTrendStrategy();
-        var riskSettings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var riskSettings = RiskSettingsFactory.CreateDefault();
 
         var settings = new BacktestSettings { InitialCapital = 10000m };
         var engine = new BacktestEngine(strategy, riskSettings, settings);
-        var candles = GenerateUptrendCandles(30);
+        var candles = TestDataFactory.GenerateUptrendCandles(30);
 
         // Act
         var result = engine.Run(candles, "BTCUSDT");
@@ -149,19 +117,11 @@ public class BacktestEngineTests
     {
         // Arrange
         var strategy = new AdxTrendStrategy();
-        var riskSettings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var riskSettings = RiskSettingsFactory.CreateDefault();
 
         var settings = new BacktestSettings { InitialCapital = 10000m };
         var engine = new BacktestEngine(strategy, riskSettings, settings);
-        var candles = GenerateUptrendCandles(50);
+        var candles = TestDataFactory.GenerateUptrendCandles(50);
 
         // Act
         var result = engine.Run(candles, "BTCUSDT");
@@ -185,15 +145,7 @@ public class BacktestEngineTests
     {
         // Arrange
         var strategy = new AdxTrendStrategy();
-        var riskSettings = new RiskSettings
-        {
-            RiskPerTradePercent = 1.5m,
-            MaxDrawdownPercent = 20m,
-            MaxDailyDrawdownPercent = 3m,
-            MaxPortfolioHeatPercent = 6m,
-            MinimumEquityUsd = 100m,
-            AtrStopMultiplier = 2.0m
-        };
+        var riskSettings = RiskSettingsFactory.CreateDefault();
 
         var settingsNoComm = new BacktestSettings { InitialCapital = 10000m, CommissionPercent = 0m };
         var engineNoComm = new BacktestEngine(strategy, riskSettings, settingsNoComm);
@@ -201,7 +153,7 @@ public class BacktestEngineTests
         var settingsWithComm = new BacktestSettings { InitialCapital = 10000m, CommissionPercent = 0.1m };
         var engineWithComm = new BacktestEngine(strategy, riskSettings, settingsWithComm);
 
-        var candles = GenerateUptrendCandles(50);
+        var candles = TestDataFactory.GenerateUptrendCandles(50);
 
         // Act
         var resultNoComm = engineNoComm.Run(candles, "BTCUSDT");
@@ -216,86 +168,4 @@ public class BacktestEngineTests
         }
     }
 
-    private List<Candle> GenerateUptrendCandles(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 100m;
-        var baseTime = DateTime.UtcNow.AddDays(-count);
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 1.02m;
-            var open = price * 0.99m;
-            var high = price * 1.02m;
-            var low = price * 0.98m;
-            var close = price;
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddDays(i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: 1000 + i * 10,
-                CloseTime: baseTime.AddDays(i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
-    private List<Candle> GenerateDowntrendCandles(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 100m;
-        var baseTime = DateTime.UtcNow.AddDays(-count);
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 0.98m;
-            var open = price * 1.01m;
-            var high = price * 1.02m;
-            var low = price * 0.98m;
-            var close = price;
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddDays(i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: 1000,
-                CloseTime: baseTime.AddDays(i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
-    private List<Candle> GenerateRangingCandles(int count)
-    {
-        var candles = new List<Candle>();
-        decimal basePrice = 100m;
-        var baseTime = DateTime.UtcNow.AddDays(-count);
-
-        for (int i = 0; i < count; i++)
-        {
-            decimal offset = (decimal)Math.Sin(i * Math.PI / count) * 2;
-            var price = basePrice + offset;
-            var high = basePrice + 2.5m;
-            var low = basePrice - 2.5m;
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddDays(i),
-                Open: price,
-                High: high,
-                Low: low,
-                Close: price,
-                Volume: 1000,
-                CloseTime: baseTime.AddDays(i + 1)
-            ));
-        }
-
-        return candles;
-    }
 }

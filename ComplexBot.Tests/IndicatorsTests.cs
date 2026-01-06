@@ -72,42 +72,16 @@ public class IndicatorsTests
         Assert.True(Math.Abs(result5!.Value - 23.33m) < 0.01m);
     }
 
-    [Fact]
-    public void Atr_WithGapUp_IncludesTrueRange()
+    [Theory]
+    [MemberData(nameof(TestDataFactory.AtrCandleCases), MemberType = typeof(TestDataFactory))]
+    public void Atr_WithTwoCandles_CalculatesTrueRange(Candle first, Candle second)
     {
         // Arrange
         var atr = new Atr(period: 2);
-        var candles = new[]
-        {
-            new Candle(DateTime.UtcNow, 100m, 105m, 98m, 102m, 1000, DateTime.UtcNow),
-            new Candle(DateTime.UtcNow.AddHours(1), 103m, 108m, 101m, 107m, 1000, DateTime.UtcNow.AddHours(1))
-        };
 
         // Act
-        var result1 = atr.Update(candles[0]);  // null
-        var result2 = atr.Update(candles[1]);  // Should calculate TR including gap
-
-        // Assert
-        Assert.Null(result1);
-        Assert.NotNull(result2);
-        // True Range for second candle = max(108-101, |108-102|, |101-102|) = max(7, 6, 1) = 7
-        Assert.True(result2.Value > 0);
-    }
-
-    [Fact]
-    public void Atr_WithNormalCandles_CalculatesCorrectly()
-    {
-        // Arrange
-        var atr = new Atr(period: 2);
-        var candles = new[]
-        {
-            new Candle(DateTime.UtcNow, 100m, 105m, 98m, 102m, 1000, DateTime.UtcNow),
-            new Candle(DateTime.UtcNow.AddHours(1), 101m, 106m, 99m, 104m, 1000, DateTime.UtcNow.AddHours(1))
-        };
-
-        // Act
-        var result1 = atr.Update(candles[0]);  // null
-        var result2 = atr.Update(candles[1]);  // Should calculate TR
+        var result1 = atr.Update(first);  // null
+        var result2 = atr.Update(second);  // Should calculate TR
 
         // Assert
         Assert.Null(result1);
@@ -121,7 +95,7 @@ public class IndicatorsTests
     {
         // Arrange
         var adx = new Adx(period: 3);
-        var candles = GenerateUptrendCandles(10);
+        var candles = TestDataFactory.GenerateUptrendCandles(10);
 
         // Act
         decimal? result = null;
@@ -141,7 +115,7 @@ public class IndicatorsTests
     {
         // Arrange
         var adx = new Adx(period: 3);
-        var candles = GenerateDowntrendCandles(10);
+        var candles = TestDataFactory.GenerateDowntrendCandles(10);
 
         // Act
         decimal? result = null;
@@ -161,7 +135,7 @@ public class IndicatorsTests
     {
         // Arrange
         var adx = new Adx(period: 3);
-        var candles = GenerateRangingCandles(15);  // More candles needed for ADX to become ready
+        var candles = TestDataFactory.GenerateRangingCandles(15);  // More candles needed for ADX to become ready
 
         // Act
         decimal? result = null;
@@ -190,7 +164,7 @@ public class IndicatorsTests
     {
         // Arrange
         var adx = new Adx(period: 3);
-        var candles = GenerateUptrendCandles(10);
+        var candles = TestDataFactory.GenerateUptrendCandles(10);
 
         foreach (var candle in candles)
         {
@@ -207,89 +181,4 @@ public class IndicatorsTests
         Assert.Null(adx.MinusDi);
     }
 
-    private List<Candle> GenerateUptrendCandles(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 100m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 1.02m;  // 2% daily increase
-            var open = price * 0.99m;
-            var high = price * 1.01m;
-            var low = price * 0.98m;
-            var close = price;
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddDays(-count + i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: 1000,
-                CloseTime: baseTime.AddDays(-count + i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
-    private List<Candle> GenerateDowntrendCandles(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 100m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 0.98m;  // 2% daily decrease
-            var open = price * 1.01m;
-            var high = price * 1.02m;
-            var low = price * 0.99m;
-            var close = price;
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddDays(-count + i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: 1000,
-                CloseTime: baseTime.AddDays(-count + i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
-    private List<Candle> GenerateRangingCandles(int count)
-    {
-        var candles = new List<Candle>();
-        decimal basePrice = 100m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            // Oscillate around basePrice
-            decimal offset = (decimal)Math.Sin(i * Math.PI / count) * 2;
-            var price = basePrice + offset;
-            var open = price * 0.99m;
-            var high = basePrice + 2;
-            var low = basePrice - 2;
-            var close = price;
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddDays(-count + i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: 1000,
-                CloseTime: baseTime.AddDays(-count + i + 1)
-            ));
-        }
-
-        return candles;
-    }
 }

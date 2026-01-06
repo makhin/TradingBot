@@ -11,7 +11,15 @@ public class AdxTrendStrategyTests
     {
         // Arrange
         var strategy = new AdxTrendStrategy();
-        var candle = new Candle(DateTime.UtcNow, 100, 105, 95, 102, 1000, DateTime.UtcNow);
+        var candle = new Candle(
+            TestDataFactory.BaseTime,
+            100,
+            105,
+            95,
+            102,
+            1000,
+            TestDataFactory.BaseTime.AddMinutes(1)
+        );
 
         // Act
         var signal = strategy.Analyze(candle, currentPosition: null, symbol: "BTCUSDT");
@@ -41,7 +49,7 @@ public class AdxTrendStrategyTests
             MaxAtrPercent = 100m                // No maximum ATR limit
         };
         var strategy = new AdxTrendStrategy(settings);
-        var candles = GenerateStrongUptrend(50);  // MACD needs 26+9 periods, plus warmup
+        var candles = TestDataFactory.GenerateStrongUptrend(50);  // MACD needs 26+9 periods, plus warmup
 
         // Act
         TradeSignal? lastSignal = null;
@@ -61,35 +69,6 @@ public class AdxTrendStrategyTests
         Assert.True(gotBuySignal, "Expected at least one buy signal in bullish setup");
     }
 
-    private List<Candle> GenerateStrongUptrend(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 100m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 1.05m;  // 5% daily increase for strong trend
-            var open = price * 0.97m;
-            var high = price * 1.03m;
-            var low = price * 0.96m;
-            var close = price;
-            var volume = 2000m + i * 200m;  // Increasing volume
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddHours(-count + i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: volume,
-                CloseTime: baseTime.AddHours(-count + i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
     [Fact]
     public void Analyze_WithLowAdx_ReturnsNoEntrySignal()
     {
@@ -105,7 +84,7 @@ public class AdxTrendStrategyTests
             RequireObvConfirmation = false
         };
         var strategy = new AdxTrendStrategy(settings);
-        var candles = GenerateRangingMarket(10);
+        var candles = TestDataFactory.GenerateRangingMarket(10);
 
         // Act
         TradeSignal? signal = null;
@@ -139,7 +118,7 @@ public class AdxTrendStrategyTests
             AtrStopMultiplier = 1.0m  // Tight stop for testing
         };
         var strategy = new AdxTrendStrategy(settings);
-        var candlesBullish = GenerateBullishSetup(20);
+        var candlesBullish = TestDataFactory.GenerateBullishSetup(20);
 
         // Setup: Create bullish scenario and get entry
         TradeSignal? entrySignal = null;
@@ -156,7 +135,7 @@ public class AdxTrendStrategyTests
         // If we got an entry, continue with position and test exit
         if (entrySignal != null)
         {
-            var candlesBearish = GenerateBearishSetup(10);
+            var candlesBearish = TestDataFactory.GenerateBearishSetup(10);
 
             // Act: Now switch to bearish with position
             bool gotExitSignal = false;
@@ -186,7 +165,7 @@ public class AdxTrendStrategyTests
     {
         // Arrange
         var strategy = new AdxTrendStrategy();
-        var candles = GenerateBullishSetup(10);
+        var candles = TestDataFactory.GenerateBullishSetup(10);
 
         foreach (var candle in candles)
         {
@@ -216,7 +195,7 @@ public class AdxTrendStrategyTests
             SlowEmaPeriod = 5
         };
         var strategy = new AdxTrendStrategy(settings);
-        var candles = GenerateUptrendCandles(15);
+        var candles = TestDataFactory.GenerateUptrendCandles(15);
 
         // Act
         int signalCount = 0;
@@ -250,7 +229,7 @@ public class AdxTrendStrategyTests
             RequireAdxRising = false
         };
         var strategy = new AdxTrendStrategy(settings);
-        var candlesLowVolume = GenerateBullishSetupLowVolume(20);
+        var candlesLowVolume = TestDataFactory.GenerateBullishSetupLowVolume(20);
 
         // Act
         bool gotBuySignal = false;
@@ -266,147 +245,4 @@ public class AdxTrendStrategyTests
         Assert.False(gotBuySignal, "Should not generate buy signal with low volume when RequireVolumeConfirmation is true");
     }
 
-    private List<Candle> GenerateBullishSetup(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 100m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 1.02m;  // 2% daily increase
-            var open = price * 0.98m;
-            var high = price * 1.02m;
-            var low = price * 0.97m;
-            var close = price;
-            var volume = (i % 3 == 0) ? 2000m : 1000m;  // Volume spikes occasionally
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddHours(-count + i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: volume,
-                CloseTime: baseTime.AddHours(-count + i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
-    private List<Candle> GenerateBearishSetup(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 120m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 0.97m;  // 3% daily decrease
-            var open = price * 1.02m;
-            var high = price * 1.03m;
-            var low = price * 0.98m;
-            var close = price;
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddHours(i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: 1000,
-                CloseTime: baseTime.AddHours(i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
-    private List<Candle> GenerateRangingMarket(int count)
-    {
-        var candles = new List<Candle>();
-        decimal basePrice = 100m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            decimal offset = (decimal)Math.Sin(i * Math.PI / count) * 2;
-            var price = basePrice + offset;
-            var high = basePrice + 2.5m;
-            var low = basePrice - 2.5m;
-            var open = price;
-            var close = price;
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddHours(-count + i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: 1000,
-                CloseTime: baseTime.AddHours(-count + i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
-    private List<Candle> GenerateUptrendCandles(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 100m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 1.03m;  // 3% daily increase
-            var open = price * 0.99m;
-            var high = price * 1.03m;
-            var low = price * 0.98m;
-            var close = price;
-            var volume = 1500m + i * 100m;  // Increasing volume
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddHours(-count + i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: volume,
-                CloseTime: baseTime.AddHours(-count + i + 1)
-            ));
-        }
-
-        return candles;
-    }
-
-    private List<Candle> GenerateBullishSetupLowVolume(int count)
-    {
-        var candles = new List<Candle>();
-        decimal price = 100m;
-        var baseTime = DateTime.UtcNow;
-
-        for (int i = 0; i < count; i++)
-        {
-            price *= 1.02m;  // 2% daily increase
-            var open = price * 0.98m;
-            var high = price * 1.02m;
-            var low = price * 0.97m;
-            var close = price;
-            var volume = 500m;  // Low volume
-
-            candles.Add(new Candle(
-                OpenTime: baseTime.AddHours(-count + i),
-                Open: open,
-                High: high,
-                Low: low,
-                Close: close,
-                Volume: volume,
-                CloseTime: baseTime.AddHours(-count + i + 1)
-            ));
-        }
-
-        return candles;
-    }
 }

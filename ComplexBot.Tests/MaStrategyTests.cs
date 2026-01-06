@@ -20,7 +20,7 @@ public class MaStrategyTests
             RequireVolumeConfirmation = false
         };
         var strategy = new MaStrategy(settings);
-        var candles = BuildCrossoverCandles();
+        var candles = TestDataFactory.BuildCrossoverCandles();
 
         TradeSignal? entrySignal = null;
         int entryIndex = -1;
@@ -46,27 +46,4 @@ public class MaStrategyTests
         Assert.True(strategy.CurrentStopLoss >= initialStop, "Trailing stop should not decrease after favorable move.");
     }
 
-    private static List<Candle> BuildCrossoverCandles()
-    {
-        var candles = new List<Candle>();
-        var baseTime = DateTime.UtcNow;
-        var closes = new[] { 100m, 98m, 96m, 101m, 105m, 108m, 110m };
-
-        for (int i = 0; i < closes.Length; i++)
-        {
-            candles.Add(CreateCandle(baseTime.AddMinutes(i), closes[i]));
-        }
-
-        return candles;
-    }
-
-    private static Candle CreateCandle(DateTime time, decimal close)
-    {
-        var open = close * 0.99m;
-        var high = close * 1.01m;
-        var low = close * 0.98m;
-        var volume = 1000m;
-
-        return new Candle(time, open, high, low, close, volume, time.AddMinutes(1));
-    }
 }

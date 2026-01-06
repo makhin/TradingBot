@@ -127,26 +127,7 @@ public void Test_Description()
 ### Генерация тестовых свечей
 
 ```csharp
-private List<Candle> GenerateUptrendCandles(int count)
-{
-    var candles = new List<Candle>();
-    decimal price = 100m;
-
-    for (int i = 0; i < count; i++)
-    {
-        price *= 1.02m;  // 2% прирост
-        candles.Add(new Candle(
-            OpenTime: DateTime.UtcNow.AddDays(-count + i),
-            Open: price * 0.99m,
-            High: price * 1.02m,
-            Low: price * 0.98m,
-            Close: price,
-            Volume: 1000,
-            CloseTime: DateTime.UtcNow.AddDays(-count + i + 1)
-        ));
-    }
-    return candles;
-}
+var candles = TestDataFactory.GenerateUptrendCandles(10);
 ```
 
 ## Текущее состояние тестов

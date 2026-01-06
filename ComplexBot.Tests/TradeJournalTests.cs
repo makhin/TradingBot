@@ -54,7 +54,7 @@ public class TradeJournalTests : IDisposable
         // Arrange
         var entry = new TradeJournalEntry
         {
-            EntryTime = DateTime.UtcNow,
+            EntryTime = TestDataFactory.BaseTime,
             Symbol = "BTCUSDT",
             Direction = SignalType.Buy,
             EntryPrice = 45000m,
@@ -83,7 +83,7 @@ public class TradeJournalTests : IDisposable
         // Arrange
         var openEntry = new TradeJournalEntry
         {
-            EntryTime = DateTime.UtcNow,
+            EntryTime = TestDataFactory.BaseTime,
             Symbol = "BTCUSDT",
             Direction = SignalType.Buy,
             EntryPrice = 45000m,
@@ -100,7 +100,7 @@ public class TradeJournalTests : IDisposable
 
         var closeEntry = new TradeJournalEntry
         {
-            ExitTime = DateTime.UtcNow.AddHours(2),
+            ExitTime = TestDataFactory.BaseTime.AddHours(2),
             ExitPrice = 46500m,
             GrossPnL = 150m,
             NetPnL = 141m,
@@ -129,7 +129,7 @@ public class TradeJournalTests : IDisposable
         // Arrange
         var openEntry = new TradeJournalEntry
         {
-            EntryTime = DateTime.UtcNow,
+            EntryTime = TestDataFactory.BaseTime,
             Symbol = "BTCUSDT",
             Direction = SignalType.Buy,
             EntryPrice = 45000m,
@@ -146,7 +146,7 @@ public class TradeJournalTests : IDisposable
 
         var closeEntry = new TradeJournalEntry
         {
-            ExitTime = DateTime.UtcNow.AddHours(2),
+            ExitTime = TestDataFactory.BaseTime.AddHours(2),
             ExitPrice = 46500m,
             GrossPnL = 150m,
             NetPnL = 141m,
@@ -175,7 +175,7 @@ public class TradeJournalTests : IDisposable
         // Trade 1: Win
         var winEntry = new TradeJournalEntry
         {
-            EntryTime = DateTime.UtcNow,
+            EntryTime = TestDataFactory.BaseTime,
             Symbol = "BTCUSDT",
             Direction = SignalType.Buy,
             EntryPrice = 45000m,
@@ -191,7 +191,7 @@ public class TradeJournalTests : IDisposable
         int winId = _journal.OpenTrade(winEntry);
         _journal.CloseTrade(winId, new TradeJournalEntry
         {
-            ExitTime = DateTime.UtcNow.AddHours(2),
+            ExitTime = TestDataFactory.BaseTime.AddHours(2),
             ExitPrice = 46500m,
             GrossPnL = 150m,
             NetPnL = 141m,
@@ -204,7 +204,7 @@ public class TradeJournalTests : IDisposable
         // Trade 2: Loss
         var lossEntry = new TradeJournalEntry
         {
-            EntryTime = DateTime.UtcNow.AddHours(3),
+            EntryTime = TestDataFactory.BaseTime.AddHours(3),
             Symbol = "ETHUSDT",
             Direction = SignalType.Buy,
             EntryPrice = 3000m,
@@ -220,7 +220,7 @@ public class TradeJournalTests : IDisposable
         int lossId = _journal.OpenTrade(lossEntry);
         _journal.CloseTrade(lossId, new TradeJournalEntry
         {
-            ExitTime = DateTime.UtcNow.AddHours(4),
+            ExitTime = TestDataFactory.BaseTime.AddHours(4),
             ExitPrice = 2850m,
             GrossPnL = -150m,
             NetPnL = -142m,
@@ -245,7 +245,7 @@ public class TradeJournalTests : IDisposable
         // Arrange
         var entry = new TradeJournalEntry
         {
-            EntryTime = DateTime.UtcNow,
+            EntryTime = TestDataFactory.BaseTime,
             Symbol = "BTCUSDT",
             Direction = SignalType.Buy,
             EntryPrice = 45000m,
@@ -278,7 +278,7 @@ public class TradeJournalTests : IDisposable
         // Arrange
         var entry = new TradeJournalEntry
         {
-            EntryTime = DateTime.UtcNow,
+            EntryTime = TestDataFactory.BaseTime,
             Symbol = "BTCUSDT",
             Direction = SignalType.Buy,
             EntryPrice = 45000m,
@@ -309,7 +309,7 @@ public class TradeJournalTests : IDisposable
         {
             new TradeJournalEntry
             {
-                EntryTime = DateTime.UtcNow,
+                EntryTime = TestDataFactory.BaseTime,
                 Symbol = "BTCUSDT",
                 Direction = SignalType.Buy,
                 EntryPrice = 45000m,
@@ -320,7 +320,7 @@ public class TradeJournalTests : IDisposable
             },
             new TradeJournalEntry
             {
-                EntryTime = DateTime.UtcNow.AddHours(1),
+                EntryTime = TestDataFactory.BaseTime.AddHours(1),
                 Symbol = "ETHUSDT",
                 Direction = SignalType.Sell,
                 EntryPrice = 3000m,
@@ -349,7 +349,7 @@ public class TradeJournalTests : IDisposable
         // Arrange
         var entry = new TradeJournalEntry
         {
-            EntryTime = DateTime.UtcNow,
+            EntryTime = TestDataFactory.BaseTime,
             Symbol = "BTCUSDT",
             Direction = SignalType.Buy,
             EntryPrice = 45000m,
