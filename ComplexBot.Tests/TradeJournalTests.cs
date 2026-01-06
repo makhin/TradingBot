@@ -15,6 +15,30 @@ public class TradeJournalTests : IDisposable
         _journal = new TradeJournal(_testOutputPath);
     }
 
+    private static IndicatorSnapshot CreateIndicators(
+        decimal adx,
+        decimal plusDi,
+        decimal minusDi,
+        decimal fastEma,
+        decimal slowEma,
+        decimal atr,
+        decimal macdHistogram,
+        decimal volumeRatio,
+        decimal obvSlope)
+    {
+        return IndicatorSnapshot.FromPairs(
+            ("ADX", adx),
+            ("+DI", plusDi),
+            ("-DI", minusDi),
+            ("FastEMA", fastEma),
+            ("SlowEMA", slowEma),
+            ("ATR", atr),
+            ("MACD_Hist", macdHistogram),
+            ("VolumeRatio", volumeRatio),
+            ("OBV_Slope", obvSlope)
+        );
+    }
+
     public void Dispose()
     {
         // Clean up test files
@@ -39,15 +63,7 @@ public class TradeJournalTests : IDisposable
             Quantity = 0.1m,
             PositionValueUsd = 4500m,
             RiskAmount = 150m,
-            AdxValue = 28.5m,
-            PlusDi = 25m,
-            MinusDi = 15m,
-            FastEma = 45000m,
-            SlowEma = 44500m,
-            Atr = 300m,
-            MacdHistogram = 100m,
-            VolumeRatio = 1.8m,
-            ObvSlope = 50m,
+            Indicators = CreateIndicators(28.5m, 25m, 15m, 45000m, 44500m, 300m, 100m, 1.8m, 50m),
             EntryReason = "ADX>25, EMA cross, Volume spike"
         };
 
@@ -76,15 +92,7 @@ public class TradeJournalTests : IDisposable
             Quantity = 0.1m,
             PositionValueUsd = 4500m,
             RiskAmount = 150m,
-            AdxValue = 28.5m,
-            PlusDi = 25m,
-            MinusDi = 15m,
-            FastEma = 45000m,
-            SlowEma = 44500m,
-            Atr = 300m,
-            MacdHistogram = 100m,
-            VolumeRatio = 1.8m,
-            ObvSlope = 50m,
+            Indicators = CreateIndicators(28.5m, 25m, 15m, 45000m, 44500m, 300m, 100m, 1.8m, 50m),
             EntryReason = "ADX>25"
         };
 
@@ -130,15 +138,7 @@ public class TradeJournalTests : IDisposable
             Quantity = 0.1m,
             PositionValueUsd = 4500m,
             RiskAmount = 150m,
-            AdxValue = 28.5m,
-            PlusDi = 25m,
-            MinusDi = 15m,
-            FastEma = 45000m,
-            SlowEma = 44500m,
-            Atr = 300m,
-            MacdHistogram = 100m,
-            VolumeRatio = 1.8m,
-            ObvSlope = 50m,
+            Indicators = CreateIndicators(28.5m, 25m, 15m, 45000m, 44500m, 300m, 100m, 1.8m, 50m),
             EntryReason = "ADX>25"
         };
 
@@ -184,15 +184,7 @@ public class TradeJournalTests : IDisposable
             Quantity = 0.1m,
             PositionValueUsd = 4500m,
             RiskAmount = 150m,
-            AdxValue = 28.5m,
-            PlusDi = 25m,
-            MinusDi = 15m,
-            FastEma = 45000m,
-            SlowEma = 44500m,
-            Atr = 300m,
-            MacdHistogram = 100m,
-            VolumeRatio = 1.8m,
-            ObvSlope = 50m,
+            Indicators = CreateIndicators(28.5m, 25m, 15m, 45000m, 44500m, 300m, 100m, 1.8m, 50m),
             EntryReason = "ADX>25"
         };
 
@@ -221,15 +213,7 @@ public class TradeJournalTests : IDisposable
             Quantity = 1m,
             PositionValueUsd = 3000m,
             RiskAmount = 150m,
-            AdxValue = 20m,
-            PlusDi = 18m,
-            MinusDi = 12m,
-            FastEma = 3000m,
-            SlowEma = 2950m,
-            Atr = 50m,
-            MacdHistogram = 20m,
-            VolumeRatio = 1.2m,
-            ObvSlope = 30m,
+            Indicators = CreateIndicators(20m, 18m, 12m, 3000m, 2950m, 50m, 20m, 1.2m, 30m),
             EntryReason = "ADX>20"
         };
 
@@ -270,15 +254,7 @@ public class TradeJournalTests : IDisposable
             Quantity = 0.1m,
             PositionValueUsd = 4500m,
             RiskAmount = 150m,
-            AdxValue = 28.5m,
-            PlusDi = 25m,
-            MinusDi = 15m,
-            FastEma = 45000m,
-            SlowEma = 44500m,
-            Atr = 300m,
-            MacdHistogram = 100m,
-            VolumeRatio = 1.8m,
-            ObvSlope = 50m,
+            Indicators = CreateIndicators(28.5m, 25m, 15m, 45000m, 44500m, 300m, 100m, 1.8m, 50m),
             EntryReason = "ADX>25"
         };
 
@@ -311,15 +287,7 @@ public class TradeJournalTests : IDisposable
             Quantity = 0.1m,
             PositionValueUsd = 4500m,
             RiskAmount = 150m,
-            AdxValue = 28.5m,
-            PlusDi = 25m,
-            MinusDi = 15m,
-            FastEma = 45000m,
-            SlowEma = 44500m,
-            Atr = 300m,
-            MacdHistogram = 100m,
-            VolumeRatio = 1.8m,
-            ObvSlope = 50m,
+            Indicators = CreateIndicators(28.5m, 25m, 15m, 45000m, 44500m, 300m, 100m, 1.8m, 50m),
             EntryReason = "ADX>25"
         };
 
@@ -348,15 +316,7 @@ public class TradeJournalTests : IDisposable
                 Quantity = 0.1m,
                 PositionValueUsd = 4500m,
                 RiskAmount = 150m,
-                AdxValue = 28.5m,
-                PlusDi = 25m,
-                MinusDi = 15m,
-                FastEma = 45000m,
-                SlowEma = 44500m,
-                Atr = 300m,
-                MacdHistogram = 100m,
-                VolumeRatio = 1.8m,
-                ObvSlope = 50m
+                Indicators = CreateIndicators(28.5m, 25m, 15m, 45000m, 44500m, 300m, 100m, 1.8m, 50m)
             },
             new TradeJournalEntry
             {
@@ -367,15 +327,7 @@ public class TradeJournalTests : IDisposable
                 Quantity = 1m,
                 PositionValueUsd = 3000m,
                 RiskAmount = 150m,
-                AdxValue = 20m,
-                PlusDi = 18m,
-                MinusDi = 12m,
-                FastEma = 3000m,
-                SlowEma = 2950m,
-                Atr = 50m,
-                MacdHistogram = 20m,
-                VolumeRatio = 1.2m,
-                ObvSlope = 30m
+                Indicators = CreateIndicators(20m, 18m, 12m, 3000m, 2950m, 50m, 20m, 1.2m, 30m)
             }
         };
 
@@ -404,15 +356,7 @@ public class TradeJournalTests : IDisposable
             Quantity = 0.1m,
             PositionValueUsd = 4500m,
             RiskAmount = 150m,
-            AdxValue = 28.5m,
-            PlusDi = 25m,
-            MinusDi = 15m,
-            FastEma = 45000m,
-            SlowEma = 44500m,
-            Atr = 300m,
-            MacdHistogram = 100m,
-            VolumeRatio = 1.8m,
-            ObvSlope = 50m
+            Indicators = CreateIndicators(28.5m, 25m, 15m, 45000m, 44500m, 300m, 100m, 1.8m, 50m)
         };
 
         _journal.OpenTrade(entry);  // Don't close it
