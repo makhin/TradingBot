@@ -12,7 +12,12 @@ public class Ema : SkenderIndicatorBase<decimal, EmaResult>
         : base(
             (series, price) => series.AddPrice(price),
             quotes => quotes.GetEma(period).LastOrDefault(),
-            result => Value = IndicatorValueConverter.ToDecimal(result?.Ema))
+            _ => { })
     {
+    }
+
+    protected override void OnUpdate(EmaResult? result)
+    {
+        Value = IndicatorValueConverter.ToDecimal(result?.Ema);
     }
 }

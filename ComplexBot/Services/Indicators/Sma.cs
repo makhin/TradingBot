@@ -12,7 +12,12 @@ public class Sma : SkenderIndicatorBase<decimal, SmaResult>
         : base(
             (series, price) => series.AddPrice(price),
             quotes => quotes.GetSma(period).LastOrDefault(),
-            result => Value = IndicatorValueConverter.ToDecimal(result?.Sma))
+            _ => { })
     {
+    }
+
+    protected override void OnUpdate(SmaResult? result)
+    {
+        Value = IndicatorValueConverter.ToDecimal(result?.Sma);
     }
 }

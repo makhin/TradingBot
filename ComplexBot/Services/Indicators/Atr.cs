@@ -13,7 +13,12 @@ public class Atr : SkenderIndicatorBase<Candle, AtrResult>
         : base(
             (series, candle) => series.AddCandle(candle),
             quotes => quotes.GetAtr(period).LastOrDefault(),
-            result => Value = IndicatorValueConverter.ToDecimal(result?.Atr))
+            _ => { })
     {
+    }
+
+    protected override void OnUpdate(AtrResult? result)
+    {
+        Value = IndicatorValueConverter.ToDecimal(result?.Atr);
     }
 }

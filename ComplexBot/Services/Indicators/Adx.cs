@@ -14,17 +14,19 @@ public class Adx : SkenderIndicatorBase<Candle, AdxResult>, IMultiValueIndicator
         : base(
             (series, candle) => series.AddCandle(candle),
             quotes => quotes.GetAdx(period).LastOrDefault(),
-            result =>
-            {
-                Value = IndicatorValueConverter.ToDecimal(result?.Adx);
-                PlusDi = IndicatorValueConverter.ToDecimal(result?.Pdi);
-                MinusDi = IndicatorValueConverter.ToDecimal(result?.Mdi);
-            })
+            _ => { })
     {
     }
 
     public decimal? PlusDi { get; private set; }
     public decimal? MinusDi { get; private set; }
+
+    protected override void OnUpdate(AdxResult? result)
+    {
+        Value = IndicatorValueConverter.ToDecimal(result?.Adx);
+        PlusDi = IndicatorValueConverter.ToDecimal(result?.Pdi);
+        MinusDi = IndicatorValueConverter.ToDecimal(result?.Mdi);
+    }
 
     public IReadOnlyDictionary<IndicatorValueKey, decimal?> Values => new Dictionary<IndicatorValueKey, decimal?>
     {

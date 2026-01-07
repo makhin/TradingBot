@@ -12,7 +12,12 @@ public class Rsi : SkenderIndicatorBase<decimal, RsiResult>
         : base(
             (series, price) => series.AddPrice(price),
             quotes => quotes.GetRsi(period).LastOrDefault(),
-            result => Value = IndicatorValueConverter.ToDecimal(result?.Rsi))
+            _ => { })
     {
+    }
+
+    protected override void OnUpdate(RsiResult? result)
+    {
+        Value = IndicatorValueConverter.ToDecimal(result?.Rsi);
     }
 }

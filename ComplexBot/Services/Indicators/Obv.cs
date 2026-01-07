@@ -15,12 +15,7 @@ public class Obv : SkenderIndicatorBase<Candle, ObvResult>
         : base(
             (series, candle) => series.AddCandle(candle),
             quotes => quotes.GetObv().LastOrDefault(),
-            result =>
-            {
-                Value = IndicatorValueConverter.ToDecimal(result?.Obv);
-                if (Value.HasValue)
-                    _obvSma.Update(Value.Value);
-            })
+            _ => { })
     {
         _obvSma = new Sma(signalPeriod);
     }
@@ -30,6 +25,13 @@ public class Obv : SkenderIndicatorBase<Candle, ObvResult>
 
     public bool IsBullish => _obvSma.Value.HasValue && Value.HasValue && Value.Value > _obvSma.Value;
     public bool IsBearish => _obvSma.Value.HasValue && Value.HasValue && Value.Value < _obvSma.Value;
+
+    protected override void OnUpdate(ObvResult? result)
+    {
+        Value = IndicatorValueConverter.ToDecimal(result?.Obv);
+        if (Value.HasValue)
+            _obvSma.Update(Value.Value);
+    }
 
     protected override void ResetValues()
     {

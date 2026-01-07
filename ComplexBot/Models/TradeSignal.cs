@@ -2,8 +2,8 @@ namespace ComplexBot.Models;
 
 public record TradeSignal
 {
-    private decimal _price;
-    private decimal? _partialExitQuantity;
+    private readonly decimal _price;
+    private readonly decimal? _partialExitQuantity;
 
     private TradeSignal(
         string symbol,

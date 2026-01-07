@@ -14,13 +14,7 @@ public class Macd : SkenderIndicatorBase<decimal, MacdResult>, IMultiValueIndica
         : base(
             (series, price) => series.AddPrice(price),
             quotes => quotes.GetMacd(fastPeriod, slowPeriod, signalPeriod).LastOrDefault(),
-            result =>
-            {
-                MacdLine = IndicatorValueConverter.ToDecimal(result?.Macd);
-                SignalLine = IndicatorValueConverter.ToDecimal(result?.Signal);
-                Histogram = IndicatorValueConverter.ToDecimal(result?.Histogram);
-                Value = MacdLine;
-            })
+            _ => { })
     {
     }
 
@@ -28,6 +22,14 @@ public class Macd : SkenderIndicatorBase<decimal, MacdResult>, IMultiValueIndica
     public decimal? SignalLine { get; private set; }
     public decimal? Histogram { get; private set; }
     public override bool IsReady => MacdLine.HasValue && SignalLine.HasValue;
+
+    protected override void OnUpdate(MacdResult? result)
+    {
+        MacdLine = IndicatorValueConverter.ToDecimal(result?.Macd);
+        SignalLine = IndicatorValueConverter.ToDecimal(result?.Signal);
+        Histogram = IndicatorValueConverter.ToDecimal(result?.Histogram);
+        Value = MacdLine;
+    }
 
     public IReadOnlyDictionary<IndicatorValueKey, decimal?> Values => new Dictionary<IndicatorValueKey, decimal?>
     {

@@ -4,7 +4,7 @@ using Skender.Stock.Indicators;
 
 namespace ComplexBot.Services.Indicators;
 
-internal abstract class SkenderIndicatorBase<TInput, TResult> : IIndicator<TInput>
+public abstract class SkenderIndicatorBase<TInput, TResult> : IIndicator<TInput>
 {
     private readonly QuoteSeries _series = new();
     private readonly Action<QuoteSeries, TInput> _appendInput;
@@ -29,8 +29,13 @@ internal abstract class SkenderIndicatorBase<TInput, TResult> : IIndicator<TInpu
         _appendInput(_series, input);
 
         var result = _calculate(_series.Quotes);
-        _applyResult(result);
+        OnUpdate(result);
         return Value;
+    }
+
+    protected virtual void OnUpdate(TResult? result)
+    {
+        _applyResult(result);
     }
 
     public void Reset()

@@ -5,7 +5,7 @@ using Skender.Stock.Indicators;
 
 namespace ComplexBot.Services.Indicators;
 
-internal sealed class QuoteSeries
+public sealed class QuoteSeries
 {
     private readonly List<Quote> _quotes = new();
     private DateTime _nextTimestamp = DateTime.UnixEpoch;

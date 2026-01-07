@@ -4,8 +4,8 @@ namespace ComplexBot.Models;
 
 public record Trade
 {
-    private decimal _entryPrice;
-    private decimal _quantity;
+    private readonly decimal _entryPrice;
+    private readonly decimal _quantity;
 
     private Trade(
         string symbol,

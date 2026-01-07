@@ -37,11 +37,6 @@ class StrategyFactory
             .UseConverter(StrategyRegistry.GetStrategyLabel)
             .AddChoices(StrategyRegistry.StrategyOrder);
 
-        if (defaultKind.HasValue)
-        {
-            prompt.DefaultValue(defaultKind.Value);
-        }
-
         return AnsiConsole.Prompt(prompt);
     }
 
