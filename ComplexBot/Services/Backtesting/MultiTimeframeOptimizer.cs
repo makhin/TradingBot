@@ -29,12 +29,51 @@ public class MultiTimeframeOptimizer
         MultiTimeframeOptimizationSettings settings,
         RiskSettings riskSettings,
         BacktestSettings backtestSettings,
+        IProgress<(int current, int total)>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var results = new List<MultiTimeframeOptimizationResult>();
 
         if (primaryCandles.Count == 0)
             return results;
+
+        var filterIntervals = (settings.FilterIntervalCandidates ?? Array.Empty<string>())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var start = primaryCandles.First().OpenTime;
+        var end = primaryCandles.Last().CloseTime;
+        var filterCandlesByInterval = new Dictionary<string, List<Candle>>(StringComparer.OrdinalIgnoreCase);
+        var intervalsWithData = new List<string>();
+
+        if (settings.OptimizeFilters && filterIntervals.Length > 0)
+        {
+            filterCandlesByInterval = await LoadFilterCandlesAsync(
+                symbol,
+                filterIntervals,
+                start,
+                end,
+                cancellationToken);
+
+            intervalsWithData = filterIntervals
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(interval =>
+                    filterCandlesByInterval.TryGetValue(interval, out var candles) && candles.Count > 0)
+                .ToList();
+        }
+
+        var totalSteps = 0;
+        if (settings.TestNoFilterBaseline)
+        {
+            totalSteps++;
+        }
+
+        if (settings.OptimizeFilters && intervalsWithData.Count > 0)
+        {
+            totalSteps += CountFilterCombinations(intervalsWithData, settings);
+        }
+
+        var completedSteps = 0;
+        progress?.Report((completedSteps, totalSteps));
 
         if (settings.TestNoFilterBaseline)
         {
@@ -55,41 +94,32 @@ public class MultiTimeframeOptimizer
                 baseline,
                 settings.OptimizeFor,
                 isBaseline: true));
+
+            completedSteps++;
+            progress?.Report((completedSteps, totalSteps));
         }
 
-        if (!settings.OptimizeFilters)
+        if (!settings.OptimizeFilters || intervalsWithData.Count == 0)
             return results;
 
-        var filterIntervals = settings.FilterIntervalCandidates ?? Array.Empty<string>();
-        if (filterIntervals.Length == 0)
-            return results;
-
-        var start = primaryCandles.First().OpenTime;
-        var end = primaryCandles.Last().CloseTime;
-
-        var filterCandlesByInterval = await LoadFilterCandlesAsync(
-            symbol,
-            filterIntervals,
-            start,
-            end,
-            cancellationToken);
-
-        foreach (var interval in filterIntervals)
+        foreach (var interval in intervalsWithData)
         {
-            if (!filterCandlesByInterval.TryGetValue(interval, out var intervalCandles))
-                continue;
+            var intervalCandles = filterCandlesByInterval[interval];
 
-            if (intervalCandles.Count == 0)
-                continue;
+            var rsiOverboughtRange = (settings.RsiOverboughtRange ?? Array.Empty<decimal>()).Distinct().ToArray();
+            var rsiOversoldRange = (settings.RsiOversoldRange ?? Array.Empty<decimal>()).Distinct().ToArray();
+            var filterModes = (settings.FilterModesToTest ?? Array.Empty<FilterMode>()).Distinct().ToArray();
+            var adxMinRange = (settings.AdxMinThresholdRange ?? Array.Empty<decimal>()).Distinct().ToArray();
+            var adxStrongRange = (settings.AdxStrongThresholdRange ?? Array.Empty<decimal>()).Distinct().ToArray();
 
-            foreach (var overbought in settings.RsiOverboughtRange)
+            foreach (var overbought in rsiOverboughtRange)
             {
-                foreach (var oversold in settings.RsiOversoldRange)
+                foreach (var oversold in rsiOversoldRange)
                 {
                     if (oversold >= overbought)
                         continue;
 
-                    foreach (var mode in settings.FilterModesToTest)
+                    foreach (var mode in filterModes)
                     {
                         var filter = new RsiSignalFilter(
                             overboughtThreshold: overbought,
@@ -126,14 +156,17 @@ public class MultiTimeframeOptimizer
                             backtest,
                             settings.OptimizeFor,
                             isBaseline: false));
+
+                        completedSteps++;
+                        progress?.Report((completedSteps, totalSteps));
                     }
                 }
             }
 
-            foreach (var minTrend in settings.AdxMinThresholdRange)
+            foreach (var minTrend in adxMinRange)
             {
-                var strongRange = settings.AdxStrongThresholdRange?.Length > 0
-                    ? settings.AdxStrongThresholdRange
+                var strongRange = adxStrongRange.Length > 0
+                    ? adxStrongRange
                     : [minTrend + 10m];
 
                 foreach (var strongTrend in strongRange)
@@ -141,7 +174,7 @@ public class MultiTimeframeOptimizer
                     if (strongTrend < minTrend)
                         continue;
 
-                    foreach (var mode in settings.FilterModesToTest)
+                    foreach (var mode in filterModes)
                     {
                         var filter = new AdxSignalFilter(
                             minTrendStrength: minTrend,
@@ -178,6 +211,9 @@ public class MultiTimeframeOptimizer
                             backtest,
                             settings.OptimizeFor,
                             isBaseline: false));
+
+                        completedSteps++;
+                        progress?.Report((completedSteps, totalSteps));
                     }
                 }
             }
@@ -205,7 +241,7 @@ public class MultiTimeframeOptimizer
                 continue;
 
             KlineInterval parsed = KlineIntervalExtensions.Parse(interval);
-            var candles = await _loader.LoadAsync(symbol, parsed, start, end);
+            var candles = await _loader.LoadFromDiskOrDownloadAsync(symbol, parsed, start, end);
             results[interval] = candles;
         }
 
@@ -250,5 +286,74 @@ public class MultiTimeframeOptimizer
                 metrics.AnnualizedReturn / (metrics.MaxDrawdownPercent + 1) * (metrics.SharpeRatio + 1),
             _ => metrics.SharpeRatio
         };
+    }
+
+    private static int CountFilterCombinations(
+        IReadOnlyCollection<string> intervalsWithData,
+        MultiTimeframeOptimizationSettings settings)
+    {
+        if (intervalsWithData.Count == 0)
+            return 0;
+
+        var modeCount = settings.FilterModesToTest?.Distinct().Count() ?? 0;
+        if (modeCount == 0)
+            return 0;
+
+        var rsiCombos = CountRsiCombinations(settings) * modeCount;
+        var adxCombos = CountAdxCombinations(settings, modeCount);
+        return intervalsWithData.Count * (rsiCombos + adxCombos);
+    }
+
+    private static int CountRsiCombinations(MultiTimeframeOptimizationSettings settings)
+    {
+        var overboughtRange = settings.RsiOverboughtRange?.Distinct().ToArray() ?? Array.Empty<decimal>();
+        var oversoldRange = settings.RsiOversoldRange?.Distinct().ToArray() ?? Array.Empty<decimal>();
+        if (overboughtRange.Length == 0 || oversoldRange.Length == 0)
+            return 0;
+
+        var combos = 0;
+        foreach (var overbought in overboughtRange)
+        {
+            foreach (var oversold in oversoldRange)
+            {
+                if (oversold < overbought)
+                {
+                    combos++;
+                }
+            }
+        }
+
+        return combos;
+    }
+
+    private static int CountAdxCombinations(
+        MultiTimeframeOptimizationSettings settings,
+        int modeCount)
+    {
+        var minRange = settings.AdxMinThresholdRange?.Distinct().ToArray() ?? Array.Empty<decimal>();
+        if (minRange.Length == 0)
+            return 0;
+
+        var strongRange = settings.AdxStrongThresholdRange?.Distinct().ToArray() ?? Array.Empty<decimal>();
+        var combos = 0;
+
+        foreach (var minTrend in minRange)
+        {
+            if (strongRange.Length == 0)
+            {
+                combos += modeCount;
+                continue;
+            }
+
+            foreach (var strongTrend in strongRange)
+            {
+                if (strongTrend >= minTrend)
+                {
+                    combos += modeCount;
+                }
+            }
+        }
+
+        return combos;
     }
 }

@@ -8,6 +8,7 @@ namespace ComplexBot.Services.Backtesting;
 public class HistoricalDataLoader
 {
     private readonly BinanceRestClient _client;
+    private const string DefaultDataDirectory = "Data";
     
     public HistoricalDataLoader(string? apiKey = null, string? apiSecret = null)
     {
@@ -77,6 +78,35 @@ public class HistoricalDataLoader
 
         progress?.Report(100);
         return candles.OrderBy(c => c.OpenTime).ToList();
+    }
+
+    /// <summary>
+    /// Load candles from CSV cache if available; otherwise download and persist.
+    /// </summary>
+    public async Task<List<Candle>> LoadFromDiskOrDownloadAsync(
+        string symbol,
+        KlineInterval interval,
+        DateTime startTime,
+        DateTime endTime,
+        string? dataDirectory = null,
+        IProgress<int>? progress = null)
+    {
+        var directory = string.IsNullOrWhiteSpace(dataDirectory) ? DefaultDataDirectory : dataDirectory;
+        var cached = FindCachedFile(directory, symbol, interval, startTime, endTime);
+
+        if (cached != null)
+        {
+            var cachedCandles = await LoadFromCsvAsync(cached.Path);
+            Console.WriteLine($"[Data] Using cached CSV: {cached.Path}");
+            return FilterCandlesByRange(cachedCandles, startTime, endTime);
+        }
+
+        var candles = await LoadAsync(symbol, interval, startTime, endTime, progress);
+        Directory.CreateDirectory(directory);
+        var filePath = BuildDataFilePath(directory, symbol, interval, startTime, endTime);
+        await SaveToCsvAsync(candles, filePath);
+        Console.WriteLine($"[Data] Saved CSV: {filePath}");
+        return FilterCandlesByRange(candles, startTime, endTime);
     }
 
     /// <summary>
@@ -155,6 +185,92 @@ public class HistoricalDataLoader
         return candles;
     }
 
+    private static List<Candle> FilterCandlesByRange(List<Candle> candles, DateTime startTime, DateTime endTime)
+    {
+        return candles
+            .Where(c => c.OpenTime >= startTime && c.CloseTime <= endTime)
+            .OrderBy(c => c.OpenTime)
+            .ToList();
+    }
+
+    private sealed record CachedCsvInfo(
+        string Path,
+        string Symbol,
+        KlineInterval Interval,
+        DateTime Start,
+        DateTime End);
+
+    private static CachedCsvInfo? FindCachedFile(
+        string directory,
+        string symbol,
+        KlineInterval interval,
+        DateTime startTime,
+        DateTime endTime)
+    {
+        if (!Directory.Exists(directory))
+            return null;
+
+        CachedCsvInfo? bestMatch = null;
+        foreach (var file in Directory.GetFiles(directory, "*.csv"))
+        {
+            if (!TryParseCachedFile(file, out var info))
+                continue;
+
+            if (!info.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (info.Interval != interval)
+                continue;
+
+            if (info.Start > startTime || info.End < endTime)
+                continue;
+
+            if (bestMatch == null || (info.End - info.Start) < (bestMatch.End - bestMatch.Start))
+            {
+                bestMatch = info;
+            }
+        }
+
+        return bestMatch;
+    }
+
+    private static bool TryParseCachedFile(string filePath, out CachedCsvInfo info)
+    {
+        info = null!;
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        var parts = name.Split('_');
+        if (parts.Length < 4)
+            return false;
+
+        var symbol = parts[0];
+        var intervalRaw = parts[1];
+        var startRaw = parts[2];
+        var endRaw = parts[3];
+
+        if (!DateTime.TryParse(startRaw, out var start))
+            return false;
+        if (!DateTime.TryParse(endRaw, out var end))
+            return false;
+
+        var interval = KlineIntervalExtensions.Parse(intervalRaw);
+        info = new CachedCsvInfo(filePath, symbol, interval, start, end);
+        return true;
+    }
+
+    private static string BuildDataFilePath(
+        string directory,
+        string symbol,
+        KlineInterval interval,
+        DateTime startTime,
+        DateTime endTime)
+    {
+        var intervalToken = interval.ToShortString();
+        var startToken = startTime.ToString("yyyy-MM-dd");
+        var endToken = endTime.ToString("yyyy-MM-dd");
+        var fileName = $"{symbol}_{intervalToken}_{startToken}_{endToken}.csv";
+        return Path.Combine(directory, fileName);
+    }
+
     /// <summary>
     /// Get available trading pairs
     /// </summary>
@@ -193,5 +309,25 @@ public static class KlineIntervalExtensions
         "1w" or "oneweek" => KlineInterval.OneWeek,
         "1mo" or "onemonth" => KlineInterval.OneMonth,
         _ => KlineInterval.OneDay
+    };
+
+    public static string ToShortString(this KlineInterval interval) => interval switch
+    {
+        KlineInterval.OneMinute => "1m",
+        KlineInterval.ThreeMinutes => "3m",
+        KlineInterval.FiveMinutes => "5m",
+        KlineInterval.FifteenMinutes => "15m",
+        KlineInterval.ThirtyMinutes => "30m",
+        KlineInterval.OneHour => "1h",
+        KlineInterval.TwoHour => "2h",
+        KlineInterval.FourHour => "4h",
+        KlineInterval.SixHour => "6h",
+        KlineInterval.EightHour => "8h",
+        KlineInterval.TwelveHour => "12h",
+        KlineInterval.OneDay => "1d",
+        KlineInterval.ThreeDay => "3d",
+        KlineInterval.OneWeek => "1w",
+        KlineInterval.OneMonth => "1mo",
+        _ => "1d"
     };
 }

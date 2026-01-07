@@ -38,7 +38,7 @@ public class AdxSignalFilter : ISignalFilter
         if (!filterState.IndicatorValue.HasValue)
         {
             return new FilterResult(
-                Approved: _mode == FilterMode.Veto,
+                Approved: _mode != FilterMode.Confirm,
                 Reason: "No ADX value available",
                 ConfidenceAdjustment: _mode == FilterMode.Score ? 0.5m : null
             );
@@ -52,7 +52,52 @@ public class AdxSignalFilter : ISignalFilter
             return new FilterResult(true, "Exit signals not filtered", ConfidenceAdjustment: 1.0m);
         }
 
-        // Check trend strength
+        if (_mode == FilterMode.Confirm)
+        {
+            if (adx >= _strongTrendThreshold)
+            {
+                return new FilterResult(
+                    Approved: true,
+                    Reason: $"Strong trend confirmation (ADX {adx:F1} >= {_strongTrendThreshold})",
+                    ConfidenceAdjustment: 1.2m
+                );
+            }
+
+            return new FilterResult(
+                Approved: false,
+                Reason: $"ADX below confirm threshold ({adx:F1} < {_strongTrendThreshold})",
+                ConfidenceAdjustment: 0.2m
+            );
+        }
+
+        if (_mode == FilterMode.Score)
+        {
+            if (adx < _minTrendStrength)
+            {
+                return new FilterResult(
+                    Approved: true,
+                    Reason: $"Trend weak (ADX {adx:F1} < {_minTrendStrength})",
+                    ConfidenceAdjustment: CalculateConfidence(adx)
+                );
+            }
+
+            if (adx >= _strongTrendThreshold)
+            {
+                return new FilterResult(
+                    Approved: true,
+                    Reason: $"Strong trend (ADX {adx:F1} >= {_strongTrendThreshold})",
+                    ConfidenceAdjustment: 1.2m
+                );
+            }
+
+            return new FilterResult(
+                Approved: true,
+                Reason: $"Moderate trend (ADX {adx:F1})",
+                ConfidenceAdjustment: CalculateConfidence(adx)
+            );
+        }
+
+        // Veto mode: block only on weak trends
         if (adx < _minTrendStrength)
         {
             return new FilterResult(

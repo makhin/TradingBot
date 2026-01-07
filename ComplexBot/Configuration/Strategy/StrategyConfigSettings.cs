@@ -63,4 +63,30 @@ public class StrategyConfigSettings
         PartialExitRMultiple = PartialExitRMultiple,
         PartialExitFraction = PartialExitFraction
     };
+
+    public static StrategyConfigSettings FromSettings(StrategySettings settings) => new()
+    {
+        AdxPeriod = settings.AdxPeriod,
+        AdxThreshold = settings.AdxThreshold,
+        AdxExitThreshold = settings.AdxExitThreshold,
+        RequireFreshTrend = settings.RequireFreshTrend,
+        RequireAdxRising = settings.RequireAdxRising,
+        AdxSlopeLookback = settings.AdxSlopeLookback,
+        AdxFallingExitBars = settings.AdxFallingExitBars,
+        MaxBarsInTrade = settings.MaxBarsInTrade,
+        FastEmaPeriod = settings.FastEmaPeriod,
+        SlowEmaPeriod = settings.SlowEmaPeriod,
+        AtrPeriod = settings.AtrPeriod,
+        AtrStopMultiplier = settings.AtrStopMultiplier,
+        TakeProfitMultiplier = settings.TakeProfitMultiplier,
+        MinAtrPercent = settings.MinAtrPercent,
+        MaxAtrPercent = settings.MaxAtrPercent,
+        VolumePeriod = settings.VolumePeriod,
+        VolumeThreshold = settings.VolumeThreshold,
+        RequireVolumeConfirmation = settings.RequireVolumeConfirmation,
+        ObvPeriod = settings.ObvPeriod,
+        RequireObvConfirmation = settings.RequireObvConfirmation,
+        PartialExitRMultiple = settings.PartialExitRMultiple,
+        PartialExitFraction = settings.PartialExitFraction
+    };
 }

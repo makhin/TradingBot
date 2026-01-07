@@ -76,15 +76,17 @@ public static class TraderFactory
             "ADX" => new AdxTrendStrategy(strategySettings),
 
             "RSI" => new RsiStrategy(
-                config.StrategyOverrides != null
+                config.RsiOverrides?.ToRsiStrategySettings()
+                ?? (config.StrategyOverrides != null
                     ? ConvertToRsiSettings(config.StrategyOverrides)
-                    : botConfig.RsiStrategy.ToRsiStrategySettings()
+                    : botConfig.RsiStrategy.ToRsiStrategySettings())
             ),
 
             "MA" => new MaStrategy(
-                config.StrategyOverrides != null
+                config.MaOverrides?.ToMaStrategySettings()
+                ?? (config.StrategyOverrides != null
                     ? ConvertToMaSettings(config.StrategyOverrides)
-                    : botConfig.MaStrategy.ToMaStrategySettings()
+                    : botConfig.MaStrategy.ToMaStrategySettings())
             ),
 
             "ENSEMBLE" => StrategyEnsemble.CreateDefault(

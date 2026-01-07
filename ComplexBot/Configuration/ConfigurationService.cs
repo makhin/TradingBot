@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Spectre.Console;
 using DotNetEnv;
 using ComplexBot.Utils;
+using ComplexBot.Services.Trading;
 using Serilog;
 
 namespace ComplexBot.Configuration;
@@ -191,6 +192,9 @@ public class ConfigurationService
             case "api":
                 EditApiKeys();
                 break;
+            case "multipair":
+                EditMultiPairFilters();
+                break;
             default:
                 AnsiConsole.MarkupLine($"[red]Unknown section: {section}[/]");
                 break;
@@ -324,5 +328,167 @@ public class ConfigurationService
         };
 
         UpdateSection("BinanceApi", updated);
+    }
+
+    private void EditMultiPairFilters()
+    {
+        var settings = _currentConfig.MultiPairLiveTrading;
+
+        var action = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Multi-pair filters:")
+                .AddChoices("Edit existing filter", "Add filter", "Remove filter", "Back")
+        );
+
+        if (action == "Back")
+            return;
+
+        var filters = settings.TradingPairs
+            .Where(p => p.Role == StrategyRole.Filter)
+            .ToList();
+
+        if (action != "Add filter" && filters.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No filter pairs configured yet.[/]");
+            return;
+        }
+
+        if (action == "Remove filter")
+        {
+            var selected = SelectFilter(filters);
+            if (selected == null)
+                return;
+
+            settings.TradingPairs.Remove(selected);
+            UpdateSection("MultiPairLiveTrading", settings);
+            return;
+        }
+
+        var target = action == "Add filter"
+            ? new TradingPairConfig { Role = StrategyRole.Filter }
+            : SelectFilter(filters);
+
+        if (target == null)
+            return;
+
+        ConfigureFilter(target);
+
+        if (action == "Add filter")
+        {
+            settings.TradingPairs.Add(target);
+        }
+
+        UpdateSection("MultiPairLiveTrading", settings);
+    }
+
+    private static TradingPairConfig? SelectFilter(List<TradingPairConfig> filters)
+    {
+        var options = filters
+            .Select((p, index) => new
+            {
+                Pair = p,
+                Label = $"{index + 1}. {p.Symbol} | {p.Strategy} | {p.Interval} | {p.FilterMode?.ToString() ?? "-"}"
+            })
+            .ToList();
+
+        var selectedLabel = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Select filter:")
+                .AddChoices(options.Select(o => o.Label))
+        );
+
+        return options.First(o => o.Label == selectedLabel).Pair;
+    }
+
+    private static void ConfigureFilter(TradingPairConfig config)
+    {
+        config.Role = StrategyRole.Filter;
+        config.Symbol = AnsiConsole.Ask("Symbol:", config.Symbol);
+        config.Interval = AnsiConsole.Ask("Interval (e.g., OneHour, FourHour):", config.Interval);
+
+        var strategy = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Filter strategy:")
+                .AddChoices("RSI", "ADX", "TRENDALIGNMENT")
+        );
+
+        config.Strategy = strategy;
+
+        var mode = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Filter mode:")
+                .AddChoices("Confirm", "Veto", "Score")
+        );
+
+        config.FilterMode = Enum.Parse<FilterMode>(mode, ignoreCase: true);
+
+        if (strategy == "RSI")
+        {
+            ConfigureRsiThresholds(config);
+        }
+        else if (strategy == "ADX")
+        {
+            ConfigureAdxThresholds(config);
+        }
+        else
+        {
+            config.RsiOverbought = null;
+            config.RsiOversold = null;
+            config.AdxMinThreshold = null;
+            config.AdxStrongThreshold = null;
+        }
+    }
+
+    private static void ConfigureRsiThresholds(TradingPairConfig config)
+    {
+        var overbought = SpectreHelpers.AskDecimal(
+            "RSI overbought",
+            config.RsiOverbought ?? 70m,
+            min: 50m,
+            max: 95m);
+
+        var oversold = SpectreHelpers.AskDecimal(
+            "RSI oversold",
+            config.RsiOversold ?? 30m,
+            min: 5m,
+            max: 50m);
+
+        if (oversold >= overbought)
+        {
+            oversold = Math.Max(5m, overbought - 1m);
+            AnsiConsole.MarkupLine("[yellow]RSI oversold adjusted to be below overbought.[/]");
+        }
+
+        config.RsiOverbought = overbought;
+        config.RsiOversold = oversold;
+        config.AdxMinThreshold = null;
+        config.AdxStrongThreshold = null;
+    }
+
+    private static void ConfigureAdxThresholds(TradingPairConfig config)
+    {
+        var minAdx = SpectreHelpers.AskDecimal(
+            "ADX min threshold",
+            config.AdxMinThreshold ?? 20m,
+            min: 5m,
+            max: 60m);
+
+        var strongDefault = config.AdxStrongThreshold ?? Math.Max(minAdx + 10m, minAdx);
+        var strongAdx = SpectreHelpers.AskDecimal(
+            "ADX strong threshold",
+            strongDefault,
+            min: minAdx,
+            max: 80m);
+
+        if (strongAdx < minAdx)
+        {
+            strongAdx = minAdx;
+            AnsiConsole.MarkupLine("[yellow]ADX strong threshold adjusted to min value.[/]");
+        }
+
+        config.AdxMinThreshold = minAdx;
+        config.AdxStrongThreshold = strongAdx;
+        config.RsiOverbought = null;
+        config.RsiOversold = null;
     }
 }

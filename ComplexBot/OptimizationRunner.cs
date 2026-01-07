@@ -6,23 +6,21 @@ using ComplexBot.Services.Analytics;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.RiskManagement;
 using ComplexBot.Services.Strategies;
+using ComplexBot.Services.Trading;
 
 namespace ComplexBot;
 
 class OptimizationRunner
 {
-    private readonly DataRunner _dataRunner;
     private readonly SettingsService _settingsService;
     private readonly ResultsRenderer _resultsRenderer;
     private readonly ConfigurationService _configService;
 
     public OptimizationRunner(
-        DataRunner dataRunner,
         SettingsService settingsService,
         ResultsRenderer resultsRenderer,
         ConfigurationService configService)
     {
-        _dataRunner = dataRunner;
         _settingsService = settingsService;
         _resultsRenderer = resultsRenderer;
         _configService = configService;
@@ -30,9 +28,6 @@ class OptimizationRunner
 
     public async Task RunOptimization()
     {
-        var (candles, symbol) = await _dataRunner.LoadData();
-        if (candles.Count == 0) return;
-
         var strategyChoice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("Select strategy to optimize:")
@@ -50,6 +45,15 @@ class OptimizationRunner
         var riskSettings = _settingsService.GetRiskSettings();
         var backtestSettings = new BacktestSettings { InitialCapital = 10000m };
 
+        if (strategyChoice == "Multi-Timeframe Optimization (Primary + Filters)")
+        {
+            if (await RunMultiTimeframeOptimizationFromConfig(riskSettings, backtestSettings))
+                return;
+        }
+
+        var (candles, symbol, interval) = await LoadOptimizationCandles();
+        if (candles.Count == 0) return;
+
         if (strategyChoice == "Strategy Ensemble (Weights Only)")
         {
             var optimizeFor = PromptOptimizationTarget();
@@ -66,21 +70,21 @@ class OptimizationRunner
 
         if (strategyChoice == "Multi-Timeframe Optimization (Primary + Filters)")
         {
-            await RunMultiTimeframeOptimization(candles, symbol, riskSettings, backtestSettings);
+            await RunMultiTimeframeOptimizationInteractive(candles, symbol, interval, riskSettings, backtestSettings);
             return;
         }
 
         if (strategyChoice == "MA Crossover (Genetic)")
         {
             var optimizeFor = PromptOptimizationTarget();
-            await RunMaOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            await RunMaOptimization(candles, symbol, interval, riskSettings, backtestSettings, optimizeFor);
             return;
         }
 
         if (strategyChoice == "RSI Mean Reversion (Genetic)")
         {
             var optimizeFor = PromptOptimizationTarget();
-            await RunRsiOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+            await RunRsiOptimization(candles, symbol, interval, riskSettings, backtestSettings, optimizeFor);
             return;
         }
 
@@ -152,10 +156,10 @@ class OptimizationRunner
             });
 
         _resultsRenderer.DisplayOptimizationResults(result);
-        PromptSaveAdxSettings(result);
+        PromptSaveAdxSettings(result, symbol, interval);
     }
 
-    private void PromptSaveAdxSettings(OptimizationResult result)
+    private void PromptSaveAdxSettings(OptimizationResult result, string symbol, string primaryInterval)
     {
         if (result.BestRobustParameters == null && result.BestInSampleParameters == null)
             return;
@@ -171,17 +175,16 @@ class OptimizationRunner
         if (!AnsiConsole.Confirm("Save best ADX parameters to appsettings.user.json?", defaultValue: true))
             return;
 
-        var strategySettings = new StrategyConfigSettings
+        var strategySettings = StrategyConfigSettings.FromSettings(best);
+        if (TrySavePerSymbolOverrides(
+            symbol,
+            "ADX",
+            primaryInterval,
+            pair => pair.StrategyOverrides = strategySettings,
+            "ADX overrides saved for symbol"))
         {
-            AdxPeriod = best.AdxPeriod,
-            AdxThreshold = best.AdxThreshold,
-            AdxExitThreshold = best.AdxExitThreshold,
-            FastEmaPeriod = best.FastEmaPeriod,
-            SlowEmaPeriod = best.SlowEmaPeriod,
-            AtrStopMultiplier = best.AtrStopMultiplier,
-            VolumeThreshold = best.VolumeThreshold,
-            RequireVolumeConfirmation = best.RequireVolumeConfirmation
-        };
+            return;
+        }
 
         _configService.UpdateSection("Strategy", strategySettings);
         AnsiConsole.MarkupLine("[green]✓ ADX settings saved to appsettings.user.json[/]");
@@ -342,6 +345,7 @@ class OptimizationRunner
     private async Task RunMaOptimization(
         List<Candle> candles,
         string symbol,
+        string interval,
         RiskSettings riskSettings,
         BacktestSettings backtestSettings,
         OptimizationTarget optimizeFor)
@@ -363,12 +367,13 @@ class OptimizationRunner
         var backtestResult = engine.Run(candles, symbol);
 
         _resultsRenderer.DisplayMaOptimizationResults(result, backtestResult);
-        PromptSaveMaSettings(bestSettings);
+        PromptSaveMaSettings(bestSettings, symbol, interval);
     }
 
     private async Task RunRsiOptimization(
         List<Candle> candles,
         string symbol,
+        string interval,
         RiskSettings riskSettings,
         BacktestSettings backtestSettings,
         OptimizationTarget optimizeFor)
@@ -390,17 +395,17 @@ class OptimizationRunner
         var backtestResult = engine.Run(candles, symbol);
 
         _resultsRenderer.DisplayRsiOptimizationResults(result, backtestResult);
-        PromptSaveRsiSettings(bestSettings);
+        PromptSaveRsiSettings(bestSettings, symbol, interval);
     }
 
-    private async Task RunMultiTimeframeOptimization(
+    private async Task RunMultiTimeframeOptimizationInteractive(
         List<Candle> candles,
         string symbol,
+        string primaryInterval,
         RiskSettings riskSettings,
         BacktestSettings backtestSettings)
     {
         var config = _configService.GetConfiguration();
-        var settings = config.MultiTimeframeOptimizer.ToSettings();
 
         var primaryChoice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -412,6 +417,7 @@ class OptimizationRunner
                     "Strategy Ensemble")
         );
 
+        var primaryStrategyCode = MapPrimaryStrategyChoice(primaryChoice);
         Func<IStrategy> primaryStrategyFactory = primaryChoice switch
         {
             "MA Crossover" => () => new MaStrategy(config.MaStrategy.ToMaStrategySettings()),
@@ -419,6 +425,130 @@ class OptimizationRunner
             "Strategy Ensemble" => () => StrategyEnsemble.CreateDefault(config.Ensemble.ToEnsembleSettings()),
             _ => () => new AdxTrendStrategy(config.Strategy.ToStrategySettings())
         };
+
+        await RunMultiTimeframeOptimizationForSymbol(
+            candles,
+            symbol,
+            primaryStrategyFactory,
+            primaryStrategyCode,
+            primaryInterval,
+            riskSettings,
+            backtestSettings);
+    }
+
+    private async Task<bool> RunMultiTimeframeOptimizationFromConfig(
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings)
+    {
+        var config = _configService.GetConfiguration();
+        var primaryPairs = GetPrimaryPairs(config);
+        if (primaryPairs.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No primary pairs in MultiPairLiveTrading. Falling back to single-symbol mode.[/]");
+            return false;
+        }
+
+        var (start, end) = PromptOptimizationRange();
+        var loader = new HistoricalDataLoader(config.BinanceApi.ApiKey, config.BinanceApi.ApiSecret);
+
+        foreach (var pair in primaryPairs)
+        {
+            var interval = KlineIntervalExtensions.Parse(pair.Interval);
+            var candles = await loader.LoadFromDiskOrDownloadAsync(pair.Symbol, interval, start, end);
+
+            if (candles.Count == 0)
+            {
+                AnsiConsole.MarkupLine($"[red]No candles loaded for {pair.Symbol} ({pair.Interval}).[/]");
+                continue;
+            }
+
+            var strategyCode = string.IsNullOrWhiteSpace(pair.Strategy)
+                ? "ADX"
+                : pair.Strategy.ToUpperInvariant();
+
+            Func<IStrategy> primaryStrategyFactory = () => TraderFactory.CreateStrategy(pair, config);
+
+            AnsiConsole.MarkupLine($"\n[yellow]Multi-timeframe optimization for {pair.Symbol} ({pair.Interval})[/]");
+
+            await RunMultiTimeframeOptimizationForSymbol(
+                candles,
+                pair.Symbol,
+                primaryStrategyFactory,
+                strategyCode,
+                pair.Interval,
+                riskSettings,
+                backtestSettings);
+        }
+
+        return true;
+    }
+
+    private async Task<(List<Candle> candles, string symbol, string interval)> LoadOptimizationCandles()
+    {
+        var config = _configService.GetConfiguration();
+        var tradingModeEnv = Environment.GetEnvironmentVariable("TRADING_MODE");
+        var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
+
+        var symbol = config.LiveTrading.Symbol;
+        var interval = config.LiveTrading.Interval;
+
+        if (isInteractive)
+        {
+            symbol = AnsiConsole.Ask("Symbol:", symbol);
+
+            var intervalChoices = new List<string> { "15m", "30m", "1h", "2h", "4h", "1d" };
+            if (!intervalChoices.Contains(interval, StringComparer.OrdinalIgnoreCase))
+            {
+                intervalChoices.Insert(0, interval);
+            }
+
+            interval = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("Interval:")
+                    .AddChoices(intervalChoices)
+            );
+        }
+
+        var (start, end) = PromptOptimizationRange();
+        var loader = new HistoricalDataLoader(config.BinanceApi.ApiKey, config.BinanceApi.ApiSecret);
+        var parsedInterval = KlineIntervalExtensions.Parse(interval);
+
+        List<Candle> candles = new();
+        await AnsiConsole.Progress()
+            .AutoClear(true)
+            .Columns(
+                new TaskDescriptionColumn(),
+                new ProgressBarColumn(),
+                new PercentageColumn(),
+                new RemainingTimeColumn(),
+                new SpinnerColumn())
+            .StartAsync(async ctx =>
+            {
+                var task = ctx.AddTask($"Loading {symbol} {interval}");
+                var progress = new Progress<int>(p => task.Value = p);
+
+                candles = await loader.LoadFromDiskOrDownloadAsync(
+                    symbol,
+                    parsedInterval,
+                    start,
+                    end,
+                    progress: progress);
+            });
+
+        return (candles, symbol, interval);
+    }
+
+    private async Task RunMultiTimeframeOptimizationForSymbol(
+        List<Candle> candles,
+        string symbol,
+        Func<IStrategy> primaryStrategyFactory,
+        string primaryStrategyCode,
+        string primaryInterval,
+        RiskSettings riskSettings,
+        BacktestSettings backtestSettings)
+    {
+        var config = _configService.GetConfiguration();
+        var settings = config.MultiTimeframeOptimizer.ToSettings();
 
         var baseAdxSettings = config.Strategy.ToStrategySettings();
         var baseRsiSettings = config.RsiStrategy.ToRsiStrategySettings();
@@ -438,18 +568,46 @@ class OptimizationRunner
         var optimizer = new MultiTimeframeOptimizer();
 
         AnsiConsole.MarkupLine("\n[yellow]Running multi-timeframe optimization...[/]");
-        var results = await optimizer.OptimizeAsync(
-            symbol,
-            candles,
-            primaryStrategyFactory,
-            adxFilterFactory,
-            rsiFilterFactory,
-            settings,
-            riskSettings,
-            backtestSettings);
+        List<MultiTimeframeOptimizationResult> results = new();
+
+        await AnsiConsole.Progress()
+            .AutoClear(true)
+            .Columns(
+                new TaskDescriptionColumn(),
+                new ProgressBarColumn(),
+                new PercentageColumn(),
+                new RemainingTimeColumn(),
+                new SpinnerColumn())
+            .StartAsync(async ctx =>
+            {
+                var task = ctx.AddTask("Optimizing filters", maxValue: 1);
+
+                var progress = new Progress<(int current, int total)>(update =>
+                {
+                    var total = update.total > 0 ? update.total : 1;
+                    if (task.MaxValue != total)
+                    {
+                        task.MaxValue = total;
+                    }
+
+                    task.Value = Math.Min(update.current, task.MaxValue);
+                    task.Description = $"Optimizing filters ({update.current}/{total})";
+                });
+
+                results = await optimizer.OptimizeAsync(
+                    symbol,
+                    candles,
+                    primaryStrategyFactory,
+                    adxFilterFactory,
+                    rsiFilterFactory,
+                    settings,
+                    riskSettings,
+                    backtestSettings,
+                    progress);
+            });
 
         DisplayMultiTimeframeOptimizationResults(results, settings);
-        PromptSaveMultiTimeframeBestConfig(results, symbol);
+        PromptSaveMultiTimeframeBestConfig(results, symbol, primaryStrategyCode, primaryInterval);
     }
 
     private void DisplayMultiTimeframeOptimizationResults(
@@ -528,7 +686,9 @@ class OptimizationRunner
 
     private void PromptSaveMultiTimeframeBestConfig(
         List<MultiTimeframeOptimizationResult> results,
-        string symbol)
+        string symbol,
+        string primaryStrategy,
+        string primaryInterval)
     {
         var best = results
             .Where(r => !r.IsBaseline && !string.IsNullOrWhiteSpace(r.FilterStrategy))
@@ -593,7 +753,159 @@ class OptimizationRunner
             filterConfig.RsiOversold = null;
         }
 
+        var primaryConfig = settings.TradingPairs.FirstOrDefault(p =>
+            p.Role == StrategyRole.Primary
+            && p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
+
+        if (primaryConfig == null)
+        {
+            primaryConfig = new TradingPairConfig
+            {
+                Symbol = symbol,
+                Role = StrategyRole.Primary
+            };
+            settings.TradingPairs.Add(primaryConfig);
+        }
+
+        primaryConfig.Role = StrategyRole.Primary;
+        primaryConfig.Strategy = primaryStrategy;
+        primaryConfig.Interval = primaryInterval;
+        primaryConfig.FilterMode = null;
+
         _configService.UpdateSection("MultiPairLiveTrading", settings);
+    }
+
+    private static string MapPrimaryStrategyChoice(string choice) => choice switch
+    {
+        "MA Crossover" => "MA",
+        "RSI Mean Reversion" => "RSI",
+        "Strategy Ensemble" => "ENSEMBLE",
+        _ => "ADX"
+    };
+
+    private static string GuessPrimaryInterval(List<Candle> candles, string fallback)
+    {
+        if (candles.Count < 2)
+            return fallback;
+
+        long totalTicks = 0;
+        int intervalCount = 0;
+
+        for (int i = 1; i < candles.Count; i++)
+        {
+            var interval = candles[i].OpenTime - candles[i - 1].OpenTime;
+            if (interval.Ticks > 0)
+            {
+                totalTicks += interval.Ticks;
+                intervalCount++;
+            }
+        }
+
+        if (intervalCount == 0)
+            return fallback;
+
+        var average = TimeSpan.FromTicks(totalTicks / intervalCount);
+        var minutes = average.TotalMinutes;
+
+        if (minutes >= 10 && minutes <= 20) return "FifteenMinutes";
+        if (minutes > 20 && minutes <= 40) return "ThirtyMinutes";
+        if (minutes > 50 && minutes <= 80) return "OneHour";
+        if (minutes > 90 && minutes <= 150) return "TwoHour";
+        if (minutes > 200 && minutes <= 300) return "FourHour";
+        if (minutes > 1000 && minutes <= 1600) return "OneDay";
+        if (minutes > 6000 && minutes <= 11000) return "OneWeek";
+
+        return fallback;
+    }
+
+    private bool TrySavePerSymbolOverrides(
+        string symbol,
+        string primaryStrategy,
+        string primaryInterval,
+        Action<TradingPairConfig> applyOverrides,
+        string successMessage)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+            return false;
+
+        var config = _configService.GetConfiguration();
+        var settings = config.MultiPairLiveTrading;
+        var existing = settings.TradingPairs.FirstOrDefault(p =>
+            p.Role == StrategyRole.Primary
+            && p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
+
+        var prompt = existing == null
+            ? $"No primary pair for {symbol}. Create and save per-symbol settings?"
+            : $"Save per-symbol settings for {symbol} in MultiPairLiveTrading?";
+
+        var defaultChoice = existing != null;
+        if (!AnsiConsole.Confirm(prompt, defaultValue: defaultChoice))
+            return false;
+
+        var pair = existing ?? new TradingPairConfig
+        {
+            Symbol = symbol,
+            Role = StrategyRole.Primary
+        };
+
+        if (existing == null)
+            settings.TradingPairs.Add(pair);
+
+        pair.Symbol = symbol;
+        pair.Role = StrategyRole.Primary;
+        pair.Strategy = primaryStrategy;
+        if (!string.IsNullOrWhiteSpace(primaryInterval))
+        {
+            pair.Interval = primaryInterval;
+        }
+        pair.FilterMode = null;
+        pair.RsiOverbought = null;
+        pair.RsiOversold = null;
+        pair.AdxMinThreshold = null;
+        pair.AdxStrongThreshold = null;
+
+        applyOverrides(pair);
+
+        _configService.UpdateSection("MultiPairLiveTrading", settings);
+        AnsiConsole.MarkupLine($"[green]✓ {successMessage}[/]");
+        return true;
+    }
+
+    private static List<TradingPairConfig> GetPrimaryPairs(BotConfiguration config)
+    {
+        var pairs = config.MultiPairLiveTrading?.TradingPairs ?? new List<TradingPairConfig>();
+        return pairs
+            .Where(p => p.Role == StrategyRole.Primary)
+            .GroupBy(p => p.Symbol, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+    }
+
+    private static (DateTime start, DateTime end) PromptOptimizationRange()
+    {
+        var defaultStart = DateTime.UtcNow.Date.AddMonths(-12);
+        var defaultEnd = DateTime.UtcNow.Date;
+
+        var tradingModeEnv = Environment.GetEnvironmentVariable("TRADING_MODE");
+        var isInteractive = string.IsNullOrEmpty(tradingModeEnv) && AnsiConsole.Profile.Capabilities.Interactive;
+
+        if (!isInteractive)
+            return (defaultStart, defaultEnd);
+
+        var startInput = AnsiConsole.Ask("Start date [green](yyyy-MM-dd)[/]:", defaultStart.ToString("yyyy-MM-dd"));
+        var endInput = AnsiConsole.Ask("End date [green](yyyy-MM-dd)[/]:", defaultEnd.ToString("yyyy-MM-dd"));
+
+        if (!DateTime.TryParse(startInput, out var start))
+            start = defaultStart;
+        if (!DateTime.TryParse(endInput, out var end))
+            end = defaultEnd;
+
+        if (end < start)
+        {
+            (start, end) = (end, start);
+        }
+
+        return (start, end);
     }
 
     private static string FormatFilterParameters(Dictionary<string, decimal> parameters)
@@ -626,21 +938,41 @@ class OptimizationRunner
         _configService.UpdateSection("Ensemble", updated);
     }
 
-    private void PromptSaveMaSettings(MaStrategySettings settings)
+    private void PromptSaveMaSettings(MaStrategySettings settings, string symbol, string primaryInterval)
     {
         if (!AnsiConsole.Confirm("Save best MA settings to appsettings.user.json?", defaultValue: true))
             return;
 
         var updated = MaStrategyConfigSettings.FromSettings(settings);
+        if (TrySavePerSymbolOverrides(
+            symbol,
+            "MA",
+            primaryInterval,
+            pair => pair.MaOverrides = updated,
+            "MA overrides saved for symbol"))
+        {
+            return;
+        }
+
         _configService.UpdateSection("MaStrategy", updated);
     }
 
-    private void PromptSaveRsiSettings(RsiStrategySettings settings)
+    private void PromptSaveRsiSettings(RsiStrategySettings settings, string symbol, string primaryInterval)
     {
         if (!AnsiConsole.Confirm("Save best RSI settings to appsettings.user.json?", defaultValue: true))
             return;
 
         var updated = RsiStrategyConfigSettings.FromSettings(settings);
+        if (TrySavePerSymbolOverrides(
+            symbol,
+            "RSI",
+            primaryInterval,
+            pair => pair.RsiOverrides = updated,
+            "RSI overrides saved for symbol"))
+        {
+            return;
+        }
+
         _configService.UpdateSection("RsiStrategy", updated);
     }
 

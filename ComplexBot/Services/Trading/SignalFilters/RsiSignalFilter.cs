@@ -38,7 +38,7 @@ public class RsiSignalFilter : ISignalFilter
         if (!filterState.IndicatorValue.HasValue)
         {
             return new FilterResult(
-                Approved: _mode == FilterMode.Veto, // Veto mode: approve if can't determine, Confirm mode: reject
+                Approved: _mode != FilterMode.Confirm, // Confirm rejects when uncertain; Veto/Score allow
                 Reason: "No RSI value available",
                 ConfidenceAdjustment: _mode == FilterMode.Score ? 0.5m : null
             );
@@ -66,6 +66,29 @@ public class RsiSignalFilter : ISignalFilter
 
     private FilterResult EvaluateBuySignal(decimal rsi)
     {
+        if (_mode == FilterMode.Confirm)
+        {
+            if (rsi <= _oversoldThreshold)
+            {
+                return new FilterResult(
+                    Approved: true,
+                    Reason: $"RSI oversold confirmation ({rsi:F1} <= {_oversoldThreshold})",
+                    ConfidenceAdjustment: 1.2m
+                );
+            }
+
+            return new FilterResult(
+                Approved: false,
+                Reason: $"RSI not oversold for confirm ({rsi:F1} > {_oversoldThreshold})",
+                ConfidenceAdjustment: 0.2m
+            );
+        }
+
+        if (_mode == FilterMode.Score)
+        {
+            return ScoreBuySignal(rsi);
+        }
+
         // Buying into overbought is risky
         if (rsi >= _overboughtThreshold)
         {
@@ -100,6 +123,29 @@ public class RsiSignalFilter : ISignalFilter
 
     private FilterResult EvaluateSellSignal(decimal rsi)
     {
+        if (_mode == FilterMode.Confirm)
+        {
+            if (rsi >= _overboughtThreshold)
+            {
+                return new FilterResult(
+                    Approved: true,
+                    Reason: $"RSI overbought confirmation ({rsi:F1} >= {_overboughtThreshold})",
+                    ConfidenceAdjustment: 1.2m
+                );
+            }
+
+            return new FilterResult(
+                Approved: false,
+                Reason: $"RSI not overbought for confirm ({rsi:F1} < {_overboughtThreshold})",
+                ConfidenceAdjustment: 0.2m
+            );
+        }
+
+        if (_mode == FilterMode.Score)
+        {
+            return ScoreSellSignal(rsi);
+        }
+
         // Selling into oversold is risky (might reverse soon)
         if (rsi <= _oversoldThreshold)
         {
@@ -124,6 +170,68 @@ public class RsiSignalFilter : ISignalFilter
         var distanceFromOversold = rsi - _oversoldThreshold;
         var neutralRange = _overboughtThreshold - _oversoldThreshold;
         var confidence = distanceFromOversold / neutralRange; // 0.0 (oversold) to 1.0 (overbought)
+
+        return new FilterResult(
+            Approved: true,
+            Reason: $"RSI neutral ({rsi:F1})",
+            ConfidenceAdjustment: 0.5m + (confidence * 0.5m)
+        );
+    }
+
+    private FilterResult ScoreBuySignal(decimal rsi)
+    {
+        if (rsi >= _overboughtThreshold)
+        {
+            return new FilterResult(
+                Approved: true,
+                Reason: $"RSI overbought ({rsi:F1} >= {_overboughtThreshold})",
+                ConfidenceAdjustment: 0.2m
+            );
+        }
+
+        if (rsi <= _oversoldThreshold)
+        {
+            return new FilterResult(
+                Approved: true,
+                Reason: $"RSI oversold ({rsi:F1} <= {_oversoldThreshold})",
+                ConfidenceAdjustment: 1.2m
+            );
+        }
+
+        var distanceFromOverbought = _overboughtThreshold - rsi;
+        var neutralRange = _overboughtThreshold - _oversoldThreshold;
+        var confidence = distanceFromOverbought / neutralRange;
+
+        return new FilterResult(
+            Approved: true,
+            Reason: $"RSI neutral ({rsi:F1})",
+            ConfidenceAdjustment: 0.5m + (confidence * 0.5m)
+        );
+    }
+
+    private FilterResult ScoreSellSignal(decimal rsi)
+    {
+        if (rsi <= _oversoldThreshold)
+        {
+            return new FilterResult(
+                Approved: true,
+                Reason: $"RSI oversold ({rsi:F1} <= {_oversoldThreshold})",
+                ConfidenceAdjustment: 0.2m
+            );
+        }
+
+        if (rsi >= _overboughtThreshold)
+        {
+            return new FilterResult(
+                Approved: true,
+                Reason: $"RSI overbought ({rsi:F1} >= {_overboughtThreshold})",
+                ConfidenceAdjustment: 1.2m
+            );
+        }
+
+        var distanceFromOversold = rsi - _oversoldThreshold;
+        var neutralRange = _overboughtThreshold - _oversoldThreshold;
+        var confidence = distanceFromOversold / neutralRange;
 
         return new FilterResult(
             Approved: true,

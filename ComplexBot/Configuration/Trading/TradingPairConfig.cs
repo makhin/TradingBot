@@ -20,4 +20,6 @@ public class TradingPairConfig
 
     // Optional per-pair strategy overrides
     public StrategyConfigSettings? StrategyOverrides { get; set; }
+    public MaStrategyConfigSettings? MaOverrides { get; set; }
+    public RsiStrategyConfigSettings? RsiOverrides { get; set; }
 }

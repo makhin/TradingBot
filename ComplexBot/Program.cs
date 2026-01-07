@@ -26,7 +26,7 @@ class Program
             var dataRunner = new DataRunner();
 
             var backtestRunner = new BacktestRunner(dataRunner, settingsService, strategyFactory, resultsRenderer);
-            var optimizationRunner = new OptimizationRunner(dataRunner, settingsService, resultsRenderer, configService);
+            var optimizationRunner = new OptimizationRunner(settingsService, resultsRenderer, configService);
             var analysisRunner = new AnalysisRunner(dataRunner, settingsService, strategyFactory, resultsRenderer);
             var liveTradingRunner = new LiveTradingRunner(configService, settingsService);
 

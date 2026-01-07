@@ -119,6 +119,7 @@ class SettingsService
                     "Risk Management",
                     "Strategy Parameters",
                     "Correlation Groups",
+                    "Multi-Pair Filters",
                     "Telegram Notifications",
                     "API Keys",
                     "Back to Menu")
@@ -134,6 +135,9 @@ class SettingsService
                 break;
             case "Correlation Groups":
                 _configService.EditInteractive("correlation");
+                break;
+            case "Multi-Pair Filters":
+                _configService.EditInteractive("multipair");
                 break;
             case "Telegram Notifications":
                 _configService.EditInteractive("telegram");
