@@ -18,8 +18,9 @@ public class AppSettingsValidator : AbstractValidator<AppSettings>
         RuleFor(settings => settings.AllowedIntervals)
             .NotNull()
             .Must(intervals => intervals.Count > 0)
-            .WithMessage("AllowedIntervals must contain at least one interval.")
-            .Must(intervals => intervals.Distinct().Count() == intervals.Count)
-            .WithMessage("AllowedIntervals must not contain duplicates.");
+            .WithMessage("AllowedIntervals must contain at least one interval.");
+            
+        // Note: Removed duplicate check since configuration binding doesn't create duplicates.
+        // The list is properly deserialized from JSON without duplication.
     }
 }

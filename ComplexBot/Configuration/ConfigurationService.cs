@@ -221,8 +221,10 @@ public class ConfigurationService
             return;
         }
 
+        AnsiConsole.MarkupLine("[red]Configuration validation failed with the following errors:[/]");
         foreach (var error in result.Errors)
         {
+            AnsiConsole.MarkupLine($"[red]  • {error.PropertyName}: {error.ErrorMessage}[/]");
             Log.Error("Configuration validation error: {Property} - {Message}", error.PropertyName, error.ErrorMessage);
         }
 
