@@ -17,9 +17,22 @@ public class RiskManager
 
     public decimal CurrentDrawdown => _equityTracker.DrawdownPercent;
 
-    public decimal PortfolioHeat => _equityTracker.CurrentEquity <= 0
-        ? 100
-        : _openPositions.Sum(p => p.RiskAmount) / _equityTracker.CurrentEquity * 100;
+    public decimal PortfolioHeat
+    {
+        get
+        {
+            if (_equityTracker.CurrentEquity <= 0)
+                return 100;
+
+            var totalRisk = _openPositions.Sum(p => p.RiskAmount);
+            var heatPercent = totalRisk / _equityTracker.CurrentEquity * 100;
+
+            // Cap at 100% to prevent overflow
+            return Math.Min(heatPercent, 100);
+        }
+    }
+
+    public decimal GetTotalRiskAmount() => _openPositions.Sum(p => p.RiskAmount);
 
     public void ResetDailyTracking() => _equityTracker.ResetDailyTracking();
 

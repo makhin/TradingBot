@@ -34,8 +34,10 @@ public class BinanceLiveTrader : IAsyncDisposable
     private decimal? _stopLoss;
     private decimal? _takeProfit;
     private decimal _paperEquity;
-    private bool _isRunning;
+    private volatile bool _isRunning;
     private UpdateSubscription? _subscription;
+    private int _reconnectAttempts = 0;
+    private const int MaxReconnectAttempts = 10;
     private long? _currentOcoOrderListId;
     private readonly ILogger _logger = Serilog.Log.ForContext<BinanceLiveTrader>();
     private DateTime _lastStatusLogUtc = DateTime.MinValue;
@@ -385,20 +387,8 @@ public class BinanceLiveTrader : IAsyncDisposable
         // Load historical candles for indicator warmup
         await WarmupIndicatorsAsync();
 
-        // Subscribe to kline updates
-        var subscribeResult = await _socketClient.SpotApi.ExchangeData.SubscribeToKlineUpdatesAsync(
-            _settings.Symbol,
-            _settings.Interval.ToBinanceInterval(),
-            async data => await OnKlineUpdateAsync(data.Data)
-        );
-
-        if (!subscribeResult.Success)
-        {
-            Log($"Failed to subscribe: {subscribeResult.Error?.Message}", LogEventLevel.Error);
-            return;
-        }
-
-        _subscription = subscribeResult.Data;
+        // Subscribe to kline updates with retry logic
+        await SubscribeToKlineWithRetryAsync(cancellationToken);
         Log("Subscribed to kline updates. Waiting for signals...", LogEventLevel.Information);
 
         // Keep running until cancelled
@@ -474,56 +464,127 @@ public class BinanceLiveTrader : IAsyncDisposable
         Log($"Warmed up with {klines.Data.Count()} candles", LogEventLevel.Information);
     }
 
+    private async Task SubscribeToKlineWithRetryAsync(CancellationToken cancellationToken)
+    {
+        while (_isRunning && !cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                var subscribeResult = await _socketClient.SpotApi.ExchangeData.SubscribeToKlineUpdatesAsync(
+                    _settings.Symbol,
+                    _settings.Interval.ToBinanceInterval(),
+                    async data => await OnKlineUpdateAsync(data.Data)
+                );
+
+                if (subscribeResult.Success)
+                {
+                    _subscription = subscribeResult.Data;
+                    _reconnectAttempts = 0;
+                    Log("WebSocket subscription successful", LogEventLevel.Information);
+                    return;
+                }
+                else
+                {
+                    _reconnectAttempts++;
+                    var errorMsg = subscribeResult.Error?.Message ?? "Unknown error";
+                    Log($"WebSocket subscription failed (attempt {_reconnectAttempts}/{MaxReconnectAttempts}): {errorMsg}", LogEventLevel.Error);
+
+                    if (_reconnectAttempts >= MaxReconnectAttempts)
+                    {
+                        Log($"Max reconnection attempts reached. Stopping trader.", LogEventLevel.Error);
+                        throw new Exception($"Failed to subscribe after {MaxReconnectAttempts} attempts: {errorMsg}");
+                    }
+
+                    // Exponential backoff: 2^attempt seconds (capped at 60s)
+                    var delaySeconds = Math.Min(Math.Pow(2, _reconnectAttempts), 60);
+                    Log($"Retrying in {delaySeconds:F0} seconds...", LogEventLevel.Warning);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Log("WebSocket subscription cancelled", LogEventLevel.Information);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _reconnectAttempts++;
+                Log($"WebSocket subscription exception (attempt {_reconnectAttempts}/{MaxReconnectAttempts}): {ex.Message}", LogEventLevel.Error);
+
+                if (_reconnectAttempts >= MaxReconnectAttempts)
+                {
+                    Log($"Max reconnection attempts reached. Stopping trader.", LogEventLevel.Error);
+                    throw;
+                }
+
+                var delaySeconds = Math.Min(Math.Pow(2, _reconnectAttempts), 60);
+                Log($"Retrying in {delaySeconds:F0} seconds...", LogEventLevel.Warning);
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+            }
+        }
+    }
+
     private async Task OnKlineUpdateAsync(IBinanceStreamKlineData data)
     {
-        if (!_isRunning) return;
-
-        var kline = data.Data;
-        
-        // Only process closed candles for the main strategy
-        if (!kline.Final) return;
-
-        var candle = new Candle(
-            kline.OpenTime,
-            kline.OpenPrice,
-            kline.HighPrice,
-            kline.LowPrice,
-            kline.ClosePrice,
-            kline.Volume,
-            kline.CloseTime
-        );
-
-        _candleBuffer.Add(candle);
-
-        // Keep buffer size manageable
-        while (_candleBuffer.Count > _settings.WarmupCandles * 2)
-            _candleBuffer.RemoveAt(0);
-
-        // Update position price for unrealized P&L tracking
-        if (_currentPosition != 0)
+        try
         {
-            _riskManager.UpdatePositionPrice(_settings.Symbol, candle.Close);
+            if (!_isRunning) return;
+
+            var kline = data.Data;
+
+            // Only process closed candles for the main strategy
+            if (!kline.Final) return;
+
+            var candle = new Candle(
+                kline.OpenTime,
+                kline.OpenPrice,
+                kline.HighPrice,
+                kline.LowPrice,
+                kline.ClosePrice,
+                kline.Volume,
+                kline.CloseTime
+            );
+
+            _candleBuffer.Add(candle);
+
+            // Keep buffer size manageable
+            while (_candleBuffer.Count > _settings.WarmupCandles * 2)
+                _candleBuffer.RemoveAt(0);
+
+            // Update position price for unrealized P&L tracking
+            if (_currentPosition != 0)
+            {
+                _riskManager.UpdatePositionPrice(_settings.Symbol, candle.Close);
+            }
+
+            // Check stop loss/take profit on current candle
+            await CheckExitConditionsAsync(candle);
+
+            // Analyze for signals
+            var signal = _strategy.Analyze(candle, _currentPosition, _settings.Symbol);
+
+            if (signal != null)
+            {
+                Log($"Signal: {signal.Type} at {signal.Price:F2} - {signal.Reason}", LogEventLevel.Information);
+                OnSignal?.Invoke(signal);
+
+                await ProcessSignalAsync(signal, candle);
+            }
+            else
+            {
+                LogWaitingStatus(candle);
+            }
+
+            await LogBalanceSnapshotAsync();
         }
-
-        // Check stop loss/take profit on current candle
-        await CheckExitConditionsAsync(candle);
-
-        // Analyze for signals
-        var signal = _strategy.Analyze(candle, _currentPosition, _settings.Symbol);
-
-        if (signal != null)
+        catch (Exception ex)
         {
-            Log($"Signal: {signal.Type} at {signal.Price:F2} - {signal.Reason}", LogEventLevel.Information);
-            OnSignal?.Invoke(signal);
-            
-            await ProcessSignalAsync(signal, candle);
-        }
-        else
-        {
-            LogWaitingStatus(candle);
-        }
+            Log($"Error in OnKlineUpdateAsync: {ex.Message}", LogEventLevel.Error);
+            Log($"Stack trace: {ex.StackTrace}", LogEventLevel.Debug);
 
-        await LogBalanceSnapshotAsync();
+            // Continue running - don't crash the trading session
+            // The error is logged and the system will try to process the next candle
+        }
     }
 
     private async Task CheckExitConditionsAsync(Candle candle)

@@ -125,7 +125,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
             var stopLoss = candle.Close - atr * Settings.AtrStopMultiplier;
             var takeProfit = candle.Close + atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
-            _positionManager.EnterLong(candle.Close, stopLoss, candle.Close);
+            _positionManager.EnterLong(candle.Close, stopLoss, candle.High);
 
             return TradeSignal.Create(
                 symbol,
@@ -150,7 +150,7 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
             var stopLoss = candle.Close + atr * Settings.AtrStopMultiplier;
             var takeProfit = candle.Close - atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
-            _positionManager.EnterShort(candle.Close, stopLoss, candle.Close);
+            _positionManager.EnterShort(candle.Close, stopLoss, candle.Low);
 
             return TradeSignal.Create(
                 symbol,

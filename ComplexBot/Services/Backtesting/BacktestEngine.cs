@@ -11,6 +11,7 @@ public class BacktestEngine
     private readonly RiskManager _riskManager;
     private readonly BacktestSettings _settings;
     private readonly TradeJournal? _journal;
+    private TradeSignal? _pendingSignal;
 
     public BacktestEngine(IStrategy strategy, RiskSettings riskSettings, BacktestSettings? settings = null, TradeJournal? journal = null)
     {
@@ -22,8 +23,15 @@ public class BacktestEngine
 
     public BacktestResult Run(List<Candle> candles, string symbol)
     {
+        // Validate input
+        if (candles == null || candles.Count == 0)
+        {
+            throw new ArgumentException("Candle list cannot be null or empty", nameof(candles));
+        }
+
         _strategy.Reset();
         _riskManager.ClearPositions();
+        _pendingSignal = null;
 
         decimal capital = _settings.InitialCapital;
         var position = new PositionState();
@@ -34,16 +42,23 @@ public class BacktestEngine
         {
             var candle = candles[i];
 
-            // Update equity curve with unrealized PnL
-            decimal unrealizedPnl = position.CalculateUnrealizedPnL(candle.Close);
-            if (position.HasPosition)
+            // Execute pending signal from previous bar at current bar's open (fixes look-ahead bias)
+            if (_pendingSignal != null && i > 0)
             {
-                position.UpdateExcursions(unrealizedPnl);
+                var entryCandle = new Candle(
+                    candle.OpenTime,
+                    candle.Open,
+                    candle.Open,
+                    candle.Open,
+                    candle.Open,
+                    0,
+                    candle.OpenTime
+                );
+                capital += ProcessSignal(_pendingSignal, entryCandle, position, symbol, trades);
+                _pendingSignal = null;
             }
-            equityCurve.Add(capital + unrealizedPnl);
-            _riskManager.UpdateEquity(capital + unrealizedPnl);
 
-            // Check exit conditions
+            // Check exit conditions BEFORE updating unrealized PnL (fixes look-ahead bias)
             if (position.HasPosition)
             {
                 var result = ExitConditionChecker.CheckExit(
@@ -61,11 +76,20 @@ public class BacktestEngine
                 if (result.ShouldExit)
                 {
                     capital += ExecuteExit(position, result.ExitPrice, candle.OpenTime, result.Reason, symbol, trades);
-                    continue;
+                    _pendingSignal = null; // Cancel any pending signal if position was closed
                 }
             }
 
-            // Get strategy signal
+            // Update equity curve with unrealized PnL AFTER exit check
+            decimal unrealizedPnl = position.CalculateUnrealizedPnL(candle.Close);
+            if (position.HasPosition)
+            {
+                position.UpdateExcursions(unrealizedPnl);
+            }
+            equityCurve.Add(capital + unrealizedPnl);
+            _riskManager.UpdateEquity(capital + unrealizedPnl);
+
+            // Get strategy signal - will be executed at NEXT bar's open
             var signal = _strategy.Analyze(candle, position.Position, symbol);
 
             // Sync trailing stop from strategy to position
@@ -74,9 +98,19 @@ public class BacktestEngine
                 position.UpdateStopLoss(_strategy.CurrentStopLoss);
             }
 
+            // Store signal for next bar execution (except Exit/PartialExit which execute immediately)
             if (signal != null)
             {
-                capital += ProcessSignal(signal, candle, position, symbol, trades);
+                if (signal.Type == SignalType.Exit || signal.Type == SignalType.PartialExit)
+                {
+                    // Exit signals execute immediately on current bar
+                    capital += ProcessSignal(signal, candle, position, symbol, trades);
+                }
+                else
+                {
+                    // Entry signals execute at next bar's open
+                    _pendingSignal = signal;
+                }
             }
         }
 

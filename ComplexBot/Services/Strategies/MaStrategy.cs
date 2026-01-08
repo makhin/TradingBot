@@ -56,6 +56,10 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
         if (!_fastMa.Value.HasValue || !_slowMa.Value.HasValue)
             return 0m;
 
+        // Prevent division by zero
+        if (_slowMa.Value.Value == 0)
+            return 0m;
+
         var separation = Math.Abs(_fastMa.Value.Value - _slowMa.Value.Value) / _slowMa.Value.Value * 100;
 
         // Confidence based on MA separation (0-2% maps to 0.5-1.0)
@@ -108,7 +112,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
             var stopLoss = candle.Close - atr * Settings.AtrStopMultiplier;
             var takeProfit = candle.Close + atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
-            _positionManager.EnterLong(candle.Close, stopLoss, candle.Close);
+            _positionManager.EnterLong(candle.Close, stopLoss, candle.High);
 
             return TradeSignal.Create(
                 symbol,
@@ -127,7 +131,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
             var stopLoss = candle.Close + atr * Settings.AtrStopMultiplier;
             var takeProfit = candle.Close - atr * Settings.AtrStopMultiplier * Settings.TakeProfitMultiplier;
 
-            _positionManager.EnterShort(candle.Close, stopLoss, candle.Close);
+            _positionManager.EnterShort(candle.Close, stopLoss, candle.Low);
 
             return TradeSignal.Create(
                 symbol,
@@ -157,7 +161,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
         if (isLong && _positionManager.StopLoss.HasValue)
         {
             var newStop = candle.Close - atr * Settings.AtrStopMultiplier;
-            _positionManager.UpdateLongStop(newStop, candle.Close);
+            _positionManager.UpdateLongStop(newStop, candle.High);
 
             // Stop loss hit
             if (candle.Low <= _positionManager.StopLoss.Value)
@@ -171,7 +175,7 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
         else if (!isLong && _positionManager.StopLoss.HasValue)
         {
             var newStop = candle.Close + atr * Settings.AtrStopMultiplier;
-            _positionManager.UpdateShortStop(newStop, candle.Close);
+            _positionManager.UpdateShortStop(newStop, candle.Low);
 
             // Stop loss hit
             if (candle.High >= _positionManager.StopLoss.Value)

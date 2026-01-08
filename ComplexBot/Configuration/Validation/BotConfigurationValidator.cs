@@ -11,6 +11,18 @@ public class BotConfigurationValidator : AbstractValidator<BotConfiguration>
             .NotNull()
             .SetValidator(new AppSettingsValidator());
 
+        RuleFor(config => config.BinanceApi)
+            .NotNull()
+            .SetValidator(new BinanceApiSettingsValidator());
+
+        RuleFor(config => config.Telegram)
+            .NotNull()
+            .SetValidator(new TelegramSettingsValidator());
+
+        RuleFor(config => config.RiskManagement)
+            .NotNull()
+            .SetValidator(new RiskManagementSettingsValidator());
+
         RuleFor(config => config.LiveTrading)
             .NotNull()
             .SetValidator(new LiveTradingSettingsValidator());

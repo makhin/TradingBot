@@ -49,17 +49,24 @@ public class PortfolioRiskManager
             return 0;
         }
 
-        // Sum up portfolio heat across all symbols in the group
-        decimal totalRisk = 0;
+        // Sum up absolute risk amounts and equity across all symbols in the group
+        decimal totalRiskAmount = 0;
+        decimal totalEquity = 0;
+
         foreach (var correlatedSymbol in group.Value)
         {
             if (_symbolManagers.TryGetValue(correlatedSymbol, out var manager))
             {
-                totalRisk += manager.PortfolioHeat;
+                totalRiskAmount += manager.GetTotalRiskAmount();
+                totalEquity += manager.GetTotalEquity();
             }
         }
 
-        return totalRisk;
+        // Calculate correlated risk as percentage of total equity
+        if (totalEquity <= 0)
+            return 0;
+
+        return Math.Min(totalRiskAmount / totalEquity * 100, 100);
     }
 
     public bool CanOpenPosition(string symbol)

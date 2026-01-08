@@ -20,6 +20,16 @@ public class AggregatedEquityTracker
         {
             tracker = new EquityTracker(initialCapital);
             _trackers[symbol] = tracker;
+
+            // Initialize total peak equity if this is the first tracker
+            if (_trackers.Count == 1 && initialCapital > 0)
+            {
+                _totalPeakEquity = initialCapital;
+            }
+            else if (initialCapital > 0)
+            {
+                RecalculateTotals();
+            }
         }
         return tracker;
     }

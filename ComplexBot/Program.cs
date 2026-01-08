@@ -13,13 +13,10 @@ class Program
     static async Task Main(string[] args)
     {
         var configService = new ConfigurationService();
-        ConfigureLogging(configService.GetConfiguration().App.Paths);
+        ConfigureLogging(configService.GetConfiguration().App.Paths, enableConsole: false);
 
         try
         {
-            Log.Information("=== TradingBot Starting ===");
-            Log.Information("Environment: {Environment}", Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production");
-
             var menu = new AppMenu();
             var settingsService = new SettingsService(configService);
             var strategyRegistry = new StrategyRegistry(configService);
@@ -64,6 +61,15 @@ class Program
                 mode = menu.PromptMode();
             }
 
+            if (ShouldEnableConsoleLogging(mode))
+            {
+                Log.CloseAndFlush();
+                ConfigureLogging(configService.GetConfiguration().App.Paths, enableConsole: true);
+            }
+
+            Log.Information("=== TradingBot Starting ===");
+            Log.Information("Environment: {Environment}", Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production");
+
             await dispatcher.DispatchAsync(mode);
 
             Log.Information("=== TradingBot Completed Successfully ===");
@@ -80,7 +86,7 @@ class Program
         }
     }
 
-    private static void ConfigureLogging(PathSettings paths)
+    private static void ConfigureLogging(PathSettings paths, bool enableConsole)
     {
         // Ensure logs directory exists
         var logDirectory = ResolvePath(AppContext.BaseDirectory, paths.LogsDirectory);
@@ -88,17 +94,22 @@ class Program
 
         var logFilePath = Path.Combine(logDirectory, "tradingbot-.log");
 
-        Log.Logger = new LoggerConfiguration()
+        var loggerConfig = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
             .MinimumLevel.Override("System", LogEventLevel.Information)
             .Enrich.FromLogContext()
             .Enrich.WithThreadId()
-            .Enrich.WithMachineName()
-            .WriteTo.Console(
+            .Enrich.WithMachineName();
+
+        if (enableConsole)
+        {
+            loggerConfig = loggerConfig.WriteTo.Console(
                 restrictedToMinimumLevel: LogEventLevel.Information,
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .WriteTo.File(
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+        }
+
+        Log.Logger = loggerConfig.WriteTo.File(
                 logFilePath,
                 rollingInterval: RollingInterval.Day,
                 restrictedToMinimumLevel: LogEventLevel.Debug,
@@ -111,6 +122,12 @@ class Program
 
         Log.Debug("Logging configured - File: {LogFilePath}, MinLevel: DEBUG", logFilePath);
     }
+
+    private static bool ShouldEnableConsoleLogging(AppMode mode)
+        => mode != AppMode.Backtest
+            && mode != AppMode.ParameterOptimization
+            && mode != AppMode.WalkForwardAnalysis
+            && mode != AppMode.MonteCarloSimulation;
 
     private static string ResolvePath(string basePath, string configuredPath)
     {
