@@ -1,5 +1,6 @@
 using ComplexBot.Models;
 using ComplexBot.Services.Trading;
+using ComplexBot.Services.Lifecycle;
 
 namespace ComplexBot.Configuration;
 
@@ -21,6 +22,10 @@ public class LiveTradingSettings
     public int LimitOrderTimeoutSeconds { get; set; } = 5;
     public int StatusLogIntervalMinutes { get; set; } = 5;
     public int BalanceLogIntervalHours { get; set; } = 4;
+
+    // State persistence settings
+    public bool EnableStatePersistence { get; set; } = true;
+    public ShutdownAction DefaultShutdownAction { get; set; } = ShutdownAction.KeepPositionsAndOrders;
 
     public LiveTraderSettings ToLiveTraderSettings() => new()
     {

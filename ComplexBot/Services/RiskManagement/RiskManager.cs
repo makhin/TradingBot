@@ -199,4 +199,25 @@ public class RiskManager
     }
 
     public void ClearPositions() => _openPositions.Clear();
+
+    /// <summary>
+    /// Restores equity state from saved data
+    /// </summary>
+    public void RestoreEquityState(decimal currentEquity, decimal peakEquity, decimal dayStartEquity)
+    {
+        _equityTracker.RestoreState(currentEquity, peakEquity, dayStartEquity);
+    }
+
+    /// <summary>
+    /// Gets a snapshot of current equity state for persistence
+    /// </summary>
+    public EquitySnapshot GetEquitySnapshot()
+    {
+        return new EquitySnapshot
+        {
+            CurrentEquity = _equityTracker.CurrentEquity,
+            PeakEquity = _equityTracker.PeakEquity,
+            DayStartEquity = _equityTracker.DayStartEquity
+        };
+    }
 }

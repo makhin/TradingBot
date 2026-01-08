@@ -1229,8 +1229,70 @@ public class BinanceLiveTrader : IAsyncDisposable
             CurrentTradingDay = DateTime.UtcNow.Date,
             OpenPositions = openPositions,
             ActiveOcoOrders = activeOcoOrders,
-            NextTradeId = 1
+            NextTradeId = 1,
+            Symbol = _settings.Symbol,
+            Version = "1.0"
         };
+    }
+
+    /// <summary>
+    /// Restores trader state from saved BotState
+    /// </summary>
+    public async Task RestoreFromStateAsync(BotState state, CancellationToken ct = default)
+    {
+        _logger.Information("🔄 Restoring bot state...");
+
+        try
+        {
+            // Restore positions
+            foreach (var pos in state.OpenPositions)
+            {
+                _currentPosition = pos.Direction == SignalType.Buy
+                    ? pos.RemainingQuantity
+                    : -pos.RemainingQuantity;
+                _entryPrice = pos.EntryPrice;
+                _stopLoss = pos.StopLoss;
+                _takeProfit = pos.TakeProfit > 0 ? pos.TakeProfit : null;
+                _entryTime = pos.EntryTime;
+
+                // Restore in risk manager
+                _riskManager.AddPosition(
+                    pos.Symbol,
+                    pos.Direction,
+                    pos.RemainingQuantity,
+                    pos.RiskAmount,
+                    pos.EntryPrice,
+                    pos.StopLoss,
+                    pos.CurrentPrice
+                );
+
+                _logger.Information("Restored position: {Symbol} {Dir} {Qty:F5} @ ${Entry:F2}",
+                    pos.Symbol, pos.Direction, pos.RemainingQuantity, pos.EntryPrice);
+            }
+
+            // Restore OCO orders
+            foreach (var oco in state.ActiveOcoOrders)
+            {
+                _currentOcoOrderListId = oco.OrderListId;
+                _logger.Information("Restored OCO order: {Symbol} #{OrderListId}",
+                    oco.Symbol, oco.OrderListId);
+            }
+
+            // Restore equity
+            if (_settings.PaperTrade)
+            {
+                _paperEquity = state.CurrentEquity;
+            }
+            _riskManager.RestoreEquityState(state.CurrentEquity, state.PeakEquity, state.DayStartEquity);
+
+            _logger.Information("✅ State restored: Equity ${Equity:F2}, Positions: {Count}",
+                state.CurrentEquity, state.OpenPositions.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to restore state");
+            throw;
+        }
     }
 
     public async Task<List<SavedPosition>> GetOpenPositions()

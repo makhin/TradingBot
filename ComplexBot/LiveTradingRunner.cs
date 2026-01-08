@@ -4,7 +4,11 @@ using ComplexBot.Configuration;
 using ComplexBot.Services.Trading;
 using ComplexBot.Services.Notifications;
 using ComplexBot.Services.Strategies;
+using ComplexBot.Services.State;
+using ComplexBot.Services.Lifecycle;
 using ComplexBot.Utils;
+using Binance.Net.Clients;
+using CryptoExchange.Net.Authentication;
 using Serilog;
 
 namespace ComplexBot;
@@ -217,6 +221,88 @@ class LiveTradingRunner
         await using var trader = new BinanceLiveTrader(
             apiKey, apiSecret, strategy, riskSettings, liveSettings, telegram);
 
+        // Initialize state manager
+        var stateManager = new StateManager("bot_state.json");
+
+        // Check for existing state and restore if needed
+        BotState? savedState = null;
+        if (config.LiveTrading.EnableStatePersistence && stateManager.StateExists())
+        {
+            savedState = await stateManager.LoadStateAsync();
+
+            if (savedState != null && isInteractive)
+            {
+                var resume = AnsiConsole.Confirm(
+                    $"[yellow]Found saved state from {savedState.LastUpdate:yyyy-MM-dd HH:mm:ss}. " +
+                    $"Resume with {savedState.OpenPositions.Count} position(s)?[/]",
+                    defaultValue: true);
+
+                if (!resume)
+                {
+                    await stateManager.DeleteStateAsync();
+                    savedState = null;
+                }
+            }
+            else if (savedState != null)
+            {
+                Log.Information("Resuming from saved state (non-interactive mode)");
+            }
+        }
+
+        // Reconcile with exchange if state exists
+        if (savedState != null)
+        {
+            var restClient = new BinanceRestClient(options =>
+            {
+                options.ApiCredentials = new ApiCredentials(apiKey, apiSecret);
+                if (useTestnet)
+                {
+                    options.Environment = Binance.Net.BinanceEnvironment.Testnet;
+                }
+            });
+
+            var reconciler = new StateReconciler(restClient);
+            var reconciliation = await reconciler.ReconcileAsync(savedState, symbol);
+
+            if (reconciliation.HasMismatches)
+            {
+                // Send Telegram notification
+                if (telegram != null)
+                {
+                    var message = string.Format("⚠️ State reconciliation: {0} position mismatches, {1} missing OCO orders",
+                        reconciliation.PositionsMismatch.Count,
+                        reconciliation.OcoOrdersMissing.Count);
+                    await telegram.SendMessageAsync(message);
+                }
+
+                if (isInteractive)
+                {
+                    DisplayReconciliationResults(reconciliation);
+                    var continueAnyway = AnsiConsole.Confirm("Continue with exchange state?", defaultValue: true);
+                    if (!continueAnyway)
+                    {
+                        Log.Warning("User aborted due to state mismatches");
+                        return;
+                    }
+                }
+                else
+                {
+                    Log.Warning("State mismatches detected in non-interactive mode, accepting exchange state");
+                }
+            }
+
+            // Restore state into trader
+            await trader.RestoreFromStateAsync(savedState);
+
+            // Send Telegram notification
+            if (telegram != null)
+            {
+                await telegram.SendMessageAsync(
+                    $"🔄 State restored: {savedState.OpenPositions.Count} positions, " +
+                    $"Equity: ${savedState.CurrentEquity:F2}");
+            }
+        }
+
         var signalTable = new Table()
             .Border(TableBorder.Rounded)
             .AddColumn("Time")
@@ -248,7 +334,7 @@ class LiveTradingRunner
             );
         };
 
-        trader.OnTrade += trade =>
+        trader.OnTrade += async trade =>
         {
             trades.Add(trade);
 
@@ -270,17 +356,43 @@ class LiveTradingRunner
                 $"{trade.ExitPrice:F2}",
                 pnlText,
                 trade.ExitReason ?? "");
+
+            // Save state after every trade
+            if (config.LiveTrading.EnableStatePersistence)
+            {
+                try
+                {
+                    var state = await trader.BuildCurrentState();
+                    await stateManager.SaveStateAsync(state);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to save state after trade");
+                }
+            }
         };
 
         AnsiConsole.MarkupLine("\n[green]Starting trader... Press Ctrl+C to stop[/]\n");
         Log.Information("Starting BinanceLiveTrader - Symbol: {Symbol}, Interval: {Interval}, Paper: {PaperTrade}",
             symbol, UiMappings.GetIntervalLabel(interval), paperTrade);
 
+        // Setup graceful shutdown handler
+        var shutdownHandler = new GracefulShutdownHandler(
+            stateManager,
+            trader,
+            isInteractive,
+            config.LiveTrading.DefaultShutdownAction,
+            telegram);
+
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (s, e) =>
         {
-            Log.Warning("Ctrl+C detected - initiating shutdown");
+            Log.Warning("Ctrl+C detected - initiating graceful shutdown");
             e.Cancel = true;
+
+            // Initiate shutdown in background (don't block signal handler)
+            _ = shutdownHandler.InitiateShutdownAsync("User interrupt (Ctrl+C)", cts.Token);
+
             cts.Cancel();
         };
 
@@ -296,11 +408,25 @@ class LiveTradingRunner
         catch (Exception ex)
         {
             Log.Error(ex, "Error during trading session");
+
+            // Save state on crash
+            if (config.LiveTrading.EnableStatePersistence)
+            {
+                try
+                {
+                    var crashState = await trader.BuildCurrentState();
+                    await stateManager.SaveStateAsync(crashState);
+                    Log.Information("State saved after crash");
+                }
+                catch
+                {
+                    // Ignore errors during crash state saving
+                }
+            }
+
             throw;
         }
 
-        Log.Information("Stopping trader");
-        await trader.StopAsync();
         Log.Information("Trader stopped successfully");
 
         if (signalTable.Rows.Count > 0)
@@ -330,4 +456,38 @@ class LiveTradingRunner
         Log.Information("=== RunLiveTrading Completed ===");
     }
 
+    private static void DisplayReconciliationResults(StateReconciliationResult reconciliation)
+    {
+        if (reconciliation.PositionsMismatch.Count > 0)
+        {
+            var table = new Table()
+                .Title("[yellow]Position Mismatches[/]")
+                .AddColumn("Symbol")
+                .AddColumn("Expected Qty")
+                .AddColumn("Actual Qty")
+                .AddColumn("Difference");
+
+            foreach (var (expected, actual) in reconciliation.PositionsMismatch)
+            {
+                var diff = actual - expected.RemainingQuantity;
+                var diffColor = diff >= 0 ? "green" : "red";
+                table.AddRow(
+                    expected.Symbol,
+                    $"{expected.RemainingQuantity:F5}",
+                    $"{actual:F5}",
+                    $"[{diffColor}]{diff:+0.#####;-0.#####}[/]");
+            }
+
+            AnsiConsole.Write(table);
+        }
+
+        if (reconciliation.OcoOrdersMissing.Count > 0)
+        {
+            AnsiConsole.MarkupLine("\n[yellow]Missing OCO Orders (likely filled/cancelled):[/]");
+            foreach (var oco in reconciliation.OcoOrdersMissing)
+            {
+                AnsiConsole.MarkupLine($"  • {oco.Symbol} #{oco.OrderListId}");
+            }
+        }
+    }
 }

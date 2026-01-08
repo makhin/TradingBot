@@ -13,4 +13,6 @@ public record BotState
     public List<SavedPosition> OpenPositions { get; init; } = new();
     public List<SavedOcoOrder> ActiveOcoOrders { get; init; } = new();
     public int NextTradeId { get; init; }
+    public string Symbol { get; init; } = "";
+    public string Version { get; init; } = "1.0";
 }

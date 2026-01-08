@@ -114,6 +114,20 @@ public class EquityTracker
         _currentTradingDay = DateTime.UtcNow.Date;
     }
 
+    /// <summary>
+    /// Restores equity tracker state from saved data
+    /// </summary>
+    public void RestoreState(decimal currentEquity, decimal peakEquity, decimal dayStartEquity)
+    {
+        _currentEquity = currentEquity;
+        _peakEquity = peakEquity;
+        _dayStartEquity = dayStartEquity;
+        _currentTradingDay = DateTime.UtcNow.Date;
+
+        Serilog.Log.Information("Restored equity state: Current ${Current:F2}, Peak ${Peak:F2}, DayStart ${DayStart:F2}",
+            currentEquity, peakEquity, dayStartEquity);
+    }
+
     private void CheckDayRollover()
     {
         var today = DateTime.UtcNow.Date;
