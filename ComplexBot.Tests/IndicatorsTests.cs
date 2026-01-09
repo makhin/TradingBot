@@ -1,5 +1,8 @@
 using ComplexBot.Models;
-using ComplexBot.Services.Indicators;
+using TradingBot.Indicators;
+using TradingBot.Core.Models;
+using TradingBot.Indicators.Trend;
+using TradingBot.Indicators.Volatility;
 
 namespace ComplexBot.Tests;
 

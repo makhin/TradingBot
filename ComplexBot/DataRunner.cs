@@ -1,7 +1,8 @@
 using Spectre.Console;
 using ComplexBot.Configuration;
-using ComplexBot.Models;
+using TradingBot.Core.Models;
 using ComplexBot.Services.Backtesting;
+using TradingBot.Core.Utils;
 using ComplexBot.Utils;
 
 namespace ComplexBot;

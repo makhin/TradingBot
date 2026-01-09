@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ComplexBot.Configuration;
 using ComplexBot.Models;
+using TradingBot.Core.Models;
 
 namespace ComplexBot.Services.Strategies;
 

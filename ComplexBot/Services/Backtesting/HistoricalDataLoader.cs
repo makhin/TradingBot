@@ -1,5 +1,5 @@
 using Binance.Net.Clients;
-using ComplexBot.Models;
+using TradingBot.Core.Models;
 using CryptoExchange.Net.Authentication;
 using CsvHelper;
 using CsvHelper.Configuration;

@@ -1,5 +1,6 @@
 using Spectre.Console;
 using ComplexBot.Configuration;
+using TradingBot.Core.Utils;
 
 namespace ComplexBot.Utils;
 

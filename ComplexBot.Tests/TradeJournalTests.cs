@@ -1,5 +1,6 @@
 using ComplexBot.Models;
-using ComplexBot.Services.Analytics;
+using TradingBot.Core.Analytics;
+using TradingBot.Core.Models;
 using System.IO;
 
 namespace ComplexBot.Tests;
@@ -27,15 +28,15 @@ public class TradeJournalTests : IDisposable
         decimal obvSlope)
     {
         return IndicatorSnapshot.FromPairs(
-            (IndicatorValueKey.Adx, adx),
-            (IndicatorValueKey.PlusDi, plusDi),
-            (IndicatorValueKey.MinusDi, minusDi),
-            (IndicatorValueKey.FastEma, fastEma),
-            (IndicatorValueKey.SlowEma, slowEma),
-            (IndicatorValueKey.Atr, atr),
-            (IndicatorValueKey.MacdHistogram, macdHistogram),
-            (IndicatorValueKey.VolumeRatio, volumeRatio),
-            (IndicatorValueKey.ObvSlope, obvSlope)
+            (nameof(IndicatorValueKey.Adx), adx),
+            (nameof(IndicatorValueKey.PlusDi), plusDi),
+            (nameof(IndicatorValueKey.MinusDi), minusDi),
+            (nameof(IndicatorValueKey.FastEma), fastEma),
+            (nameof(IndicatorValueKey.SlowEma), slowEma),
+            (nameof(IndicatorValueKey.Atr), atr),
+            (nameof(IndicatorValueKey.MacdHistogram), macdHistogram),
+            (nameof(IndicatorValueKey.VolumeRatio), volumeRatio),
+            (nameof(IndicatorValueKey.ObvSlope), obvSlope)
         );
     }
 

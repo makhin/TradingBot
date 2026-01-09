@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TradingBot.Core.Models;
 using ComplexBot.Models;
 
 namespace ComplexBot.Configuration;

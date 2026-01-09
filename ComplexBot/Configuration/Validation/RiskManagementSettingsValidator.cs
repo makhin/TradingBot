@@ -1,4 +1,5 @@
 using FluentValidation;
+using TradingBot.Core.RiskManagement;
 
 namespace ComplexBot.Configuration.Validation;
 
@@ -54,7 +55,7 @@ public class RiskManagementSettingsValidator : AbstractValidator<RiskManagementS
             .WithMessage("RiskManagement.MaxPortfolioHeatPercent should be >= RiskPerTradePercent");
     }
 
-    private static bool AllThresholdsReachable(decimal maxDrawdown, List<Services.RiskManagement.DrawdownRiskPolicy> policies)
+    private static bool AllThresholdsReachable(decimal maxDrawdown, List<DrawdownRiskPolicy> policies)
     {
         return policies.All(p => p.DrawdownThresholdPercent <= maxDrawdown);
     }

@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using ComplexBot.Services.RiskManagement;
+using TradingBot.Core.RiskManagement;
 
 namespace ComplexBot.Configuration;
 

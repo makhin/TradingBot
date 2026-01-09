@@ -1,4 +1,6 @@
 using Spectre.Console;
+using TradingBot.Core.Models;
+using TradingBot.Core.Utils;
 using ComplexBot.Models;
 using ComplexBot.Utils;
 

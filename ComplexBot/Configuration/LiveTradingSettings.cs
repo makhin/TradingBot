@@ -1,6 +1,7 @@
-using ComplexBot.Models;
+using TradingBot.Core.Models;
 using ComplexBot.Services.Trading;
-using ComplexBot.Services.Lifecycle;
+using TradingBot.Core.Lifecycle;
+using ComplexBot.Models;
 
 namespace ComplexBot.Configuration;
 

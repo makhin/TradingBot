@@ -1,4 +1,5 @@
 using Skender.Stock.Indicators;
+using TradingBot.Core.Models;
 
 namespace ComplexBot.Models;
 

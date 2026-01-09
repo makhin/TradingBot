@@ -1,4 +1,6 @@
 using ComplexBot.Models;
+using TradingBot.Core.Models;
+using ComplexBot.Utils;
 
 namespace ComplexBot.Services.Strategies;
 

@@ -1,6 +1,6 @@
-using ComplexBot.Models;
+using TradingBot.Core.Models;
 using ComplexBot.Services.Strategies;
-using ComplexBot.Services.RiskManagement;
+using TradingBot.Core.RiskManagement;
 
 namespace ComplexBot.Services.Backtesting;
 

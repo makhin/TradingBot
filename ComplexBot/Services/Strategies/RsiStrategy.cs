@@ -1,6 +1,11 @@
 using ComplexBot.Models;
-using ComplexBot.Services.Indicators;
+using TradingBot.Core.Models;
+using TradingBot.Indicators;
+using TradingBot.Indicators.Trend;
+using TradingBot.Indicators.Volatility;
+using TradingBot.Indicators.Momentum;
 using ComplexBot.Services.Filters;
+using ComplexBot.Utils;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -44,9 +49,9 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
     public override decimal? CurrentAtr => _atr.Value;
     public IndicatorSnapshot GetIndicatorSnapshot()
         => IndicatorSnapshot.FromPairs(
-            (IndicatorValueKey.Rsi, CurrentRsi),
-            (IndicatorValueKey.Atr, CurrentAtr),
-            (IndicatorValueKey.VolumeRatio, _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : null)
+            (nameof(IndicatorValueKey.Rsi), CurrentRsi),
+            (nameof(IndicatorValueKey.Atr), CurrentAtr),
+            (nameof(IndicatorValueKey.VolumeRatio), _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : null)
         );
 
     /// <summary>

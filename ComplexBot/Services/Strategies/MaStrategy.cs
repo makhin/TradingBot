@@ -1,6 +1,10 @@
 using ComplexBot.Models;
-using ComplexBot.Services.Indicators;
+using TradingBot.Core.Models;
+using TradingBot.Indicators;
+using TradingBot.Indicators.Trend;
+using TradingBot.Indicators.Volatility;
 using ComplexBot.Services.Filters;
+using ComplexBot.Utils;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -42,10 +46,10 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
     public override decimal? CurrentAtr => _atr.Value;
     public IndicatorSnapshot GetIndicatorSnapshot()
         => IndicatorSnapshot.FromPairs(
-            (IndicatorValueKey.FastEma, _currentFastMa),
-            (IndicatorValueKey.SlowEma, _currentSlowMa),
-            (IndicatorValueKey.Atr, CurrentAtr),
-            (IndicatorValueKey.VolumeRatio, _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : null)
+            (nameof(IndicatorValueKey.FastEma), _currentFastMa),
+            (nameof(IndicatorValueKey.SlowEma), _currentSlowMa),
+            (nameof(IndicatorValueKey.Atr), CurrentAtr),
+            (nameof(IndicatorValueKey.VolumeRatio), _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : null)
         );
 
     /// <summary>

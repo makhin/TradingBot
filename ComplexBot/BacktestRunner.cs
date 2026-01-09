@@ -1,10 +1,11 @@
 using Spectre.Console;
 using ComplexBot.Configuration;
-using ComplexBot.Models;
-using ComplexBot.Services.Analytics;
+using TradingBot.Core.Models;
+using TradingBot.Core.Analytics;
 using ComplexBot.Services.Backtesting;
 using ComplexBot.Services.Strategies;
-using ComplexBot.Utils;
+using TradingBot.Core.Utils;
+using ComplexBot.Models;
 
 namespace ComplexBot;
 

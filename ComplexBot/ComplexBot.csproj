@@ -30,4 +30,10 @@
     <PackageReference Include="Skender.Stock.Indicators" Version="2.6.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TradingBot.Core\TradingBot.Core.csproj" />
+    <ProjectReference Include="..\TradingBot.Indicators\TradingBot.Indicators.csproj" />
+    <ProjectReference Include="..\TradingBot.Binance\TradingBot.Binance.csproj" />
+  </ItemGroup>
+
 </Project>

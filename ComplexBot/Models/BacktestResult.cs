@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TradingBot.Core.Models;
 
 namespace ComplexBot.Models;
 

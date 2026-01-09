@@ -1,4 +1,7 @@
-using ComplexBot.Services.Indicators;
+using TradingBot.Indicators;
+using TradingBot.Indicators.Volume;
+using TradingBot.Core.Models;
+using ComplexBot.Models;
 
 namespace ComplexBot.Services.Filters;
 

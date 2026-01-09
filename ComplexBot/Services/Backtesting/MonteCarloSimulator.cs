@@ -1,3 +1,4 @@
+using TradingBot.Core.Models;
 using ComplexBot.Models;
 
 namespace ComplexBot.Services.Backtesting;

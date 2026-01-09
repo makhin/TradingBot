@@ -1,7 +1,13 @@
-using ComplexBot.Models;
-using ComplexBot.Services.Indicators;
+using TradingBot.Core.Models;
+using TradingBot.Indicators;
+using TradingBot.Indicators.Trend;
+using TradingBot.Indicators.Volatility;
+using TradingBot.Indicators.Momentum;
+using TradingBot.Indicators.Volume;
 using ComplexBot.Services.Filters;
 using System.Linq;
+using ComplexBot.Models;
+using ComplexBot.Utils;
 
 namespace ComplexBot.Services.Strategies;
 
@@ -74,15 +80,15 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
     public bool VolumeConfirmation => _obv.IsReady;
     public IndicatorSnapshot GetIndicatorSnapshot()
         => IndicatorSnapshot.FromPairs(
-            (IndicatorValueKey.Adx, CurrentAdx),
-            (IndicatorValueKey.PlusDi, CurrentPlusDi),
-            (IndicatorValueKey.MinusDi, CurrentMinusDi),
-            (IndicatorValueKey.FastEma, CurrentFastEma),
-            (IndicatorValueKey.SlowEma, CurrentSlowEma),
-            (IndicatorValueKey.Atr, CurrentAtr),
-            (IndicatorValueKey.MacdHistogram, CurrentMacdHistogram),
-            (IndicatorValueKey.VolumeRatio, CurrentVolumeRatio),
-            (IndicatorValueKey.ObvSlope, CurrentObvSlope)
+            (nameof(IndicatorValueKey.Adx), CurrentAdx),
+            (nameof(IndicatorValueKey.PlusDi), CurrentPlusDi),
+            (nameof(IndicatorValueKey.MinusDi), CurrentMinusDi),
+            (nameof(IndicatorValueKey.FastEma), CurrentFastEma),
+            (nameof(IndicatorValueKey.SlowEma), CurrentSlowEma),
+            (nameof(IndicatorValueKey.Atr), CurrentAtr),
+            (nameof(IndicatorValueKey.MacdHistogram), CurrentMacdHistogram),
+            (nameof(IndicatorValueKey.VolumeRatio), CurrentVolumeRatio),
+            (nameof(IndicatorValueKey.ObvSlope), CurrentObvSlope)
         );
 
     /// <summary>

@@ -6,18 +6,20 @@ using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Sockets;
 using ComplexBot.Models;
 using ComplexBot.Services.Strategies;
-using ComplexBot.Services.RiskManagement;
-using ComplexBot.Services.Notifications;
-using ComplexBot.Services.State;
 using ComplexBot.Services.Backtesting;
-using ComplexBot.Services.Analytics;
+using TradingBot.Core.Models;
+using TradingBot.Core.RiskManagement;
+using TradingBot.Core.Notifications;
+using TradingBot.Core.State;
+using TradingBot.Core.Analytics;
+using TradingBot.Core.Lifecycle;
 using CryptoExchange.Net.Objects.Sockets;
 using Serilog;
 using Serilog.Events;
 
 namespace ComplexBot.Services.Trading;
 
-public class BinanceLiveTrader : IAsyncDisposable
+public class BinanceLiveTrader : IAsyncDisposable, ILiveTrader
 {
     private readonly BinanceRestClient _restClient;
     private readonly BinanceSocketClient _socketClient;

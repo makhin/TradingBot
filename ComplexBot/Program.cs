@@ -1,10 +1,12 @@
 using ComplexBot.Configuration;
-using ComplexBot.Models;
+using TradingBot.Core.Models;
 using ComplexBot.Services.Strategies;
-using ComplexBot.Utils;
+using TradingBot.Core.Utils;
 using Spectre.Console;
 using Serilog;
 using Serilog.Events;
+using ComplexBot.Models;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 

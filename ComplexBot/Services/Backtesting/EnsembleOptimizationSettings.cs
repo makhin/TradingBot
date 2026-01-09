@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ComplexBot.Models;
+using TradingBot.Core.Models;
 using ComplexBot.Services.Strategies;
 
 namespace ComplexBot.Services.Backtesting;

@@ -1,13 +1,15 @@
 using Spectre.Console;
 using System.Linq;
 using ComplexBot.Configuration;
-using ComplexBot.Models;
-using ComplexBot.Services.Analytics;
+using TradingBot.Core.Models;
+using TradingBot.Core.Analytics;
 using ComplexBot.Services.Backtesting;
-using ComplexBot.Services.RiskManagement;
+using TradingBot.Core.RiskManagement;
 using ComplexBot.Services.Strategies;
-using ComplexBot.Utils;
+using TradingBot.Core.Utils;
 using BacktestSettingsModel = ComplexBot.Services.Backtesting.BacktestSettings;
+using ComplexBot.Models;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 

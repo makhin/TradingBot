@@ -89,7 +89,7 @@ public class ConfigurationIntegrationTests
     public void BacktestingSettings_AreConfigured()
     {
         // Arrange & Act
-        var backtestConfig = _fixture.Config.Backtesting;
+        var backtestConfig = _fixture.Config.Backtest;
 
         // Assert
         Assert.NotNull(backtestConfig);

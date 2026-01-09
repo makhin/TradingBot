@@ -1,15 +1,18 @@
 using Spectre.Console;
-using ComplexBot.Models;
+using TradingBot.Core.Models;
 using ComplexBot.Configuration;
 using ComplexBot.Services.Trading;
-using ComplexBot.Services.Notifications;
+using TradingBot.Core.Notifications;
 using ComplexBot.Services.Strategies;
-using ComplexBot.Services.State;
-using ComplexBot.Services.Lifecycle;
-using ComplexBot.Utils;
+using TradingBot.Core.State;
+using TradingBot.Core.Lifecycle;
+using TradingBot.Core.Utils;
+using TradingBot.Binance.Reconciliation;
 using Binance.Net.Clients;
 using CryptoExchange.Net.Authentication;
 using Serilog;
+using ComplexBot.Models;
+using ComplexBot.Utils;
 
 namespace ComplexBot;
 
@@ -222,7 +225,7 @@ class LiveTradingRunner
             apiKey, apiSecret, strategy, riskSettings, liveSettings, telegram);
 
         // Initialize state manager
-        var stateManager = new StateManager("bot_state.json");
+        var stateManager = new JsonStateManager("bot_state.json");
 
         // Check for existing state and restore if needed
         BotState? savedState = null;
@@ -261,7 +264,7 @@ class LiveTradingRunner
                 }
             });
 
-            var reconciler = new StateReconciler(restClient);
+            var reconciler = new SpotStateReconciler(restClient);
             var reconciliation = await reconciler.ReconcileAsync(savedState, symbol);
 
             if (reconciliation.HasMismatches)

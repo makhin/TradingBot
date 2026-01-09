@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Spectre.Console;
 using DotNetEnv;
 using ComplexBot.Utils;
+using TradingBot.Core.Utils;
 using Serilog;
 using FluentValidation;
 using ComplexBot.Configuration.Validation;
