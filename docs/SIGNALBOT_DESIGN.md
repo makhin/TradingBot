@@ -375,6 +375,33 @@ public record SignalBotState
       "TrailingStopEnabled": false
     },
 
+    "DuplicateHandling": {
+      "SameDirection": "Ignore",
+      "OppositeDirection": "Ignore",
+      "MaxPositionsPerSymbol": 1,
+      "MinTimeBetweenDuplicates": "00:05:00",
+      "AllowDuplicateOnPartialClose": true
+    },
+
+    "PositionSizing": {
+      "DefaultMode": "FixedAmount",
+      "DefaultRiskPercent": 1.0,
+      "DefaultFixedAmount": 100.0,
+      "DefaultFixedMargin": 50.0,
+
+      "SymbolOverrides": {
+        "BTCUSDT": { "FixedAmount": 200.0 },
+        "ETHUSDT": { "FixedAmount": 150.0 }
+      },
+
+      "Limits": {
+        "MinPositionUsdt": 10.0,
+        "MaxPositionUsdt": 1000.0,
+        "MaxPositionPercent": 25.0,
+        "MaxTotalExposurePercent": 80.0
+      }
+    },
+
     "RiskOverride": {
       "Enabled": true,
       "MaxLeverage": 10,
@@ -1239,6 +1266,690 @@ Symbol: ICNTUSDT
 Entry: 0.3710
 Exit: 0.3593
 Total PnL: -3.51 USDT
+```
+
+---
+
+## Обработка дублирующихся сигналов
+
+### Проблема
+
+Что делать, если приходит сигнал по символу, по которому уже есть открытая позиция?
+
+### Режимы обработки (DuplicateSignalHandling)
+
+```csharp
+public enum DuplicateSignalHandling
+{
+    /// <summary>
+    /// Игнорировать новый сигнал, пока есть открытая позиция
+    /// </summary>
+    Ignore,
+
+    /// <summary>
+    /// Открыть дополнительную позицию (DCA/pyramid)
+    /// </summary>
+    OpenNew,
+
+    /// <summary>
+    /// Обновить targets и SL существующей позиции
+    /// </summary>
+    UpdateTargets,
+
+    /// <summary>
+    /// Закрыть существующую позицию по рынку и открыть новую
+    /// </summary>
+    CloseAndReopen
+}
+```
+
+### Логика обработки
+
+```
+                         Новый сигнал получен
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │ Есть открытая позиция │
+                    │    по этому символу?  │
+                    └───────────┬───────────┘
+                                │
+                    ┌───────────┴───────────┐
+                    │                       │
+                   Нет                     Да
+                    │                       │
+                    ▼                       ▼
+              ┌──────────┐       ┌─────────────────────┐
+              │ Открыть  │       │ Направление совпадает│
+              │ позицию  │       │ (Long → Long)?      │
+              └──────────┘       └──────────┬──────────┘
+                                            │
+                              ┌─────────────┴─────────────┐
+                              │                           │
+                             Да                          Нет
+                              │                           │
+                              ▼                           ▼
+                 ┌────────────────────┐      ┌────────────────────┐
+                 │ Применить режим    │      │ Применить режим    │
+                 │ DuplicateHandling  │      │ OppositeSignal     │
+                 │ для same-direction │      │ Handling           │
+                 └────────────────────┘      └────────────────────┘
+```
+
+### Обработка противоположного сигнала (OppositeSignalHandling)
+
+```csharp
+public enum OppositeSignalHandling
+{
+    /// <summary>
+    /// Игнорировать противоположный сигнал
+    /// </summary>
+    Ignore,
+
+    /// <summary>
+    /// Закрыть текущую позицию, но не открывать новую
+    /// </summary>
+    CloseOnly,
+
+    /// <summary>
+    /// Закрыть текущую и открыть в противоположном направлении
+    /// </summary>
+    Reverse
+}
+```
+
+### Примеры сценариев
+
+**Сценарий 1: Ignore (консервативный)**
+```
+Состояние: Открыта Long позиция BTCUSDT
+Приходит:  #BTC/USDT - Long (новые targets)
+Действие:  Игнорируем, логируем "Signal ignored: position already open"
+```
+
+**Сценарий 2: OpenNew (DCA/усреднение)**
+```
+Состояние: Открыта Long позиция BTCUSDT @ 50000, qty: 0.1
+Приходит:  #BTC/USDT - Long @ 48000 (цена упала)
+Действие:  Открываем вторую позицию, теперь 2 позиции по BTC
+Риск:      Увеличенная экспозиция на один актив
+```
+
+**Сценарий 3: UpdateTargets (обновление уровней)**
+```
+Состояние: Открыта Long BTCUSDT, SL: 49000, Targets: [51000, 52000]
+Приходит:  #BTC/USDT - Long, SL: 49500, Targets: [51500, 52500]
+Действие:
+  1. Отменяем старые SL/TP ордера
+  2. Размещаем новые SL: 49500, TP: [51500, 52500]
+  3. Обновляем SignalPosition
+```
+
+**Сценарий 4: CloseAndReopen**
+```
+Состояние: Открыта Long BTCUSDT @ 50000 (в небольшом минусе)
+Приходит:  #BTC/USDT - Long @ 49500 (новый вход)
+Действие:
+  1. Закрываем текущую позицию по рынку
+  2. Фиксируем P&L
+  3. Открываем новую позицию по сигналу
+```
+
+**Сценарий 5: Reverse (противоположный сигнал)**
+```
+Состояние: Открыта Long BTCUSDT @ 50000
+Приходит:  #BTC/USDT - Short @ 49000
+Действие (при OppositeSignalHandling.Reverse):
+  1. Закрываем Long позицию
+  2. Открываем Short позицию
+```
+
+### Конфигурация
+
+```json
+{
+  "SignalBot": {
+    "DuplicateHandling": {
+      "SameDirection": "Ignore",
+      "OppositeDirection": "Ignore",
+      "MaxPositionsPerSymbol": 1,
+      "MinTimeBetweenDuplicates": "00:05:00",
+      "AllowDuplicateOnPartialClose": true
+    }
+  }
+}
+```
+
+### Модель настроек
+
+```csharp
+public record DuplicateHandlingSettings
+{
+    /// <summary>
+    /// Что делать если пришёл сигнал в том же направлении
+    /// </summary>
+    public DuplicateSignalHandling SameDirection { get; init; } = DuplicateSignalHandling.Ignore;
+
+    /// <summary>
+    /// Что делать если пришёл сигнал в противоположном направлении
+    /// </summary>
+    public OppositeSignalHandling OppositeDirection { get; init; } = OppositeSignalHandling.Ignore;
+
+    /// <summary>
+    /// Максимум позиций по одному символу (для режима OpenNew)
+    /// </summary>
+    public int MaxPositionsPerSymbol { get; init; } = 1;
+
+    /// <summary>
+    /// Минимальный интервал между дубликатами
+    /// </summary>
+    public TimeSpan MinTimeBetweenDuplicates { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Разрешить дубликат если позиция частично закрыта (достигнуты targets)
+    /// </summary>
+    public bool AllowDuplicateOnPartialClose { get; init; } = true;
+}
+```
+
+### Реализация в SignalProcessor
+
+```csharp
+public class SignalProcessor
+{
+    private readonly DuplicateHandlingSettings _duplicateSettings;
+    private readonly IPositionStore _positionStore;
+
+    public async Task<SignalProcessingResult> ProcessSignalAsync(
+        TradingSignal signal,
+        CancellationToken ct = default)
+    {
+        // 1. Найти существующие позиции по символу
+        var existingPositions = await _positionStore.GetOpenPositionsBySymbolAsync(signal.Symbol, ct);
+
+        if (!existingPositions.Any())
+        {
+            // Нет открытых позиций - обычная обработка
+            return await ExecuteNewSignalAsync(signal, ct);
+        }
+
+        // 2. Определить направление существующих позиций
+        var existingDirection = existingPositions.First().Direction;
+        bool isSameDirection = existingDirection == signal.Direction;
+
+        if (isSameDirection)
+        {
+            return await HandleSameDirectionDuplicateAsync(signal, existingPositions, ct);
+        }
+        else
+        {
+            return await HandleOppositeDirectionAsync(signal, existingPositions, ct);
+        }
+    }
+
+    private async Task<SignalProcessingResult> HandleSameDirectionDuplicateAsync(
+        TradingSignal signal,
+        IReadOnlyList<SignalPosition> existingPositions,
+        CancellationToken ct)
+    {
+        // Проверить временной интервал
+        var lastPosition = existingPositions.OrderByDescending(p => p.CreatedAt).First();
+        var timeSinceLastSignal = DateTime.UtcNow - lastPosition.CreatedAt;
+
+        if (timeSinceLastSignal < _duplicateSettings.MinTimeBetweenDuplicates)
+        {
+            _logger.LogInformation(
+                "Signal ignored: too soon after previous ({Elapsed} < {Min})",
+                timeSinceLastSignal, _duplicateSettings.MinTimeBetweenDuplicates);
+            return SignalProcessingResult.Skipped("Too soon after previous signal");
+        }
+
+        // Проверить частичное закрытие
+        bool hasPartialClose = existingPositions.Any(p => p.Status == PositionStatus.PartialClosed);
+        if (hasPartialClose && _duplicateSettings.AllowDuplicateOnPartialClose)
+        {
+            _logger.LogInformation("Allowing duplicate signal due to partial close");
+            return await ExecuteNewSignalAsync(signal, ct);
+        }
+
+        // Применить режим обработки
+        return _duplicateSettings.SameDirection switch
+        {
+            DuplicateSignalHandling.Ignore =>
+                SignalProcessingResult.Skipped("Position already open for symbol"),
+
+            DuplicateSignalHandling.OpenNew when existingPositions.Count < _duplicateSettings.MaxPositionsPerSymbol =>
+                await ExecuteNewSignalAsync(signal, ct),
+
+            DuplicateSignalHandling.OpenNew =>
+                SignalProcessingResult.Skipped($"Max positions ({_duplicateSettings.MaxPositionsPerSymbol}) reached"),
+
+            DuplicateSignalHandling.UpdateTargets =>
+                await UpdateExistingPositionAsync(existingPositions.First(), signal, ct),
+
+            DuplicateSignalHandling.CloseAndReopen =>
+                await CloseAndReopenAsync(existingPositions, signal, ct),
+
+            _ => throw new ArgumentOutOfRangeException()
+        };
+    }
+
+    private async Task<SignalProcessingResult> HandleOppositeDirectionAsync(
+        TradingSignal signal,
+        IReadOnlyList<SignalPosition> existingPositions,
+        CancellationToken ct)
+    {
+        return _duplicateSettings.OppositeDirection switch
+        {
+            OppositeSignalHandling.Ignore =>
+                SignalProcessingResult.Skipped("Opposite position already open"),
+
+            OppositeSignalHandling.CloseOnly =>
+                await CloseExistingPositionsAsync(existingPositions, "Opposite signal received", ct),
+
+            OppositeSignalHandling.Reverse =>
+                await ReversePositionAsync(existingPositions, signal, ct),
+
+            _ => throw new ArgumentOutOfRangeException()
+        };
+    }
+
+    private async Task<SignalProcessingResult> UpdateExistingPositionAsync(
+        SignalPosition position,
+        TradingSignal newSignal,
+        CancellationToken ct)
+    {
+        _logger.LogInformation(
+            "Updating existing position {PositionId} with new signal targets",
+            position.Id);
+
+        // 1. Отменить существующие SL/TP ордера
+        await CancelPositionOrdersAsync(position, ct);
+
+        // 2. Создать новые targets
+        var newTargets = CreateTargetLevels(newSignal, position.RemainingQuantity);
+
+        // 3. Разместить новые ордера
+        var newSlOrderId = await PlaceStopLossOrderAsync(
+            position.Symbol,
+            position.Direction,
+            position.RemainingQuantity,
+            newSignal.AdjustedStopLoss,
+            ct);
+
+        var newTpOrderIds = await PlaceTakeProfitOrdersAsync(
+            position.Symbol,
+            position.Direction,
+            newTargets,
+            ct);
+
+        // 4. Обновить позицию
+        var updatedPosition = position with
+        {
+            CurrentStopLoss = newSignal.AdjustedStopLoss,
+            Targets = newTargets,
+            StopLossOrderId = newSlOrderId,
+            TakeProfitOrderIds = newTpOrderIds
+        };
+
+        await _positionStore.SavePositionAsync(updatedPosition, ct);
+
+        return SignalProcessingResult.Success(updatedPosition, "Targets updated");
+    }
+}
+```
+
+---
+
+## Настройка размера позиции
+
+### Режимы расчёта размера
+
+```csharp
+public enum PositionSizingMode
+{
+    /// <summary>
+    /// Процент капитала под риск (с учётом SL)
+    /// Пример: 1% риска при SL -5% = позиция 20% от капитала
+    /// </summary>
+    RiskPercent,
+
+    /// <summary>
+    /// Фиксированная сумма в quote currency (USDT)
+    /// Пример: всегда торговать на $100
+    /// </summary>
+    FixedAmount,
+
+    /// <summary>
+    /// Фиксированный margin с учётом leverage
+    /// Пример: margin $50 при leverage 10x = позиция $500
+    /// </summary>
+    FixedMargin,
+
+    /// <summary>
+    /// Фиксированное количество base currency
+    /// Пример: всегда торговать 0.01 BTC
+    /// </summary>
+    FixedQuantity
+}
+```
+
+### Конфигурация с override по символам
+
+```json
+{
+  "SignalBot": {
+    "PositionSizing": {
+      "DefaultMode": "RiskPercent",
+      "DefaultRiskPercent": 1.0,
+      "DefaultFixedAmount": 100.0,
+      "DefaultFixedMargin": 50.0,
+
+      "SymbolOverrides": {
+        "BTCUSDT": {
+          "Mode": "FixedAmount",
+          "FixedAmount": 200.0
+        },
+        "ETHUSDT": {
+          "Mode": "FixedAmount",
+          "FixedAmount": 150.0
+        },
+        "DOGEUSDT": {
+          "Mode": "RiskPercent",
+          "RiskPercent": 0.5
+        },
+        "*USDT": {
+          "Mode": "FixedAmount",
+          "FixedAmount": 50.0
+        }
+      },
+
+      "Limits": {
+        "MinPositionUsdt": 10.0,
+        "MaxPositionUsdt": 1000.0,
+        "MaxPositionPercent": 25.0,
+        "MaxTotalExposurePercent": 80.0
+      }
+    }
+  }
+}
+```
+
+### Модель настроек
+
+```csharp
+public record PositionSizingSettings
+{
+    /// <summary>
+    /// Режим по умолчанию
+    /// </summary>
+    public PositionSizingMode DefaultMode { get; init; } = PositionSizingMode.RiskPercent;
+
+    /// <summary>
+    /// Процент капитала под риск (для RiskPercent)
+    /// </summary>
+    public decimal DefaultRiskPercent { get; init; } = 1.0m;
+
+    /// <summary>
+    /// Фиксированная сумма в USDT (для FixedAmount)
+    /// </summary>
+    public decimal DefaultFixedAmount { get; init; } = 100m;
+
+    /// <summary>
+    /// Фиксированный margin в USDT (для FixedMargin)
+    /// </summary>
+    public decimal DefaultFixedMargin { get; init; } = 50m;
+
+    /// <summary>
+    /// Override настроек по символам
+    /// Поддерживает wildcards: "BTCUSDT", "*USDT", "BTC*"
+    /// </summary>
+    public Dictionary<string, SymbolSizingOverride> SymbolOverrides { get; init; } = new();
+
+    /// <summary>
+    /// Лимиты безопасности
+    /// </summary>
+    public PositionLimits Limits { get; init; } = new();
+}
+
+public record SymbolSizingOverride
+{
+    public PositionSizingMode? Mode { get; init; }
+    public decimal? RiskPercent { get; init; }
+    public decimal? FixedAmount { get; init; }
+    public decimal? FixedMargin { get; init; }
+    public decimal? FixedQuantity { get; init; }
+    public decimal? MaxLeverage { get; init; }
+}
+
+public record PositionLimits
+{
+    /// <summary>
+    /// Минимальный размер позиции в USDT
+    /// </summary>
+    public decimal MinPositionUsdt { get; init; } = 10m;
+
+    /// <summary>
+    /// Максимальный размер одной позиции в USDT
+    /// </summary>
+    public decimal MaxPositionUsdt { get; init; } = 1000m;
+
+    /// <summary>
+    /// Максимальный размер позиции как % от капитала
+    /// </summary>
+    public decimal MaxPositionPercent { get; init; } = 25m;
+
+    /// <summary>
+    /// Максимальная суммарная экспозиция как % от капитала
+    /// </summary>
+    public decimal MaxTotalExposurePercent { get; init; } = 80m;
+}
+```
+
+### Калькулятор размера позиции
+
+```csharp
+public class PositionSizeCalculator
+{
+    private readonly PositionSizingSettings _settings;
+    private readonly ILogger<PositionSizeCalculator> _logger;
+
+    public PositionSizeResult Calculate(
+        string symbol,
+        decimal entryPrice,
+        decimal stopLoss,
+        int leverage,
+        decimal accountEquity,
+        decimal currentExposure)
+    {
+        // 1. Получить настройки для символа (с учётом override)
+        var symbolSettings = GetSymbolSettings(symbol);
+
+        // 2. Рассчитать базовый размер
+        decimal positionValueUsdt = symbolSettings.Mode switch
+        {
+            PositionSizingMode.RiskPercent =>
+                CalculateFromRisk(accountEquity, symbolSettings.RiskPercent, entryPrice, stopLoss),
+
+            PositionSizingMode.FixedAmount =>
+                symbolSettings.FixedAmount,
+
+            PositionSizingMode.FixedMargin =>
+                symbolSettings.FixedMargin * leverage,
+
+            PositionSizingMode.FixedQuantity =>
+                symbolSettings.FixedQuantity * entryPrice,
+
+            _ => throw new ArgumentOutOfRangeException()
+        };
+
+        // 3. Применить лимиты
+        var (adjustedValue, warnings) = ApplyLimits(
+            positionValueUsdt,
+            accountEquity,
+            currentExposure);
+
+        // 4. Конвертировать в количество
+        decimal quantity = adjustedValue / entryPrice;
+
+        return new PositionSizeResult
+        {
+            Quantity = quantity,
+            PositionValueUsdt = adjustedValue,
+            RequiredMargin = adjustedValue / leverage,
+            RiskAmount = CalculateRiskAmount(adjustedValue, entryPrice, stopLoss),
+            Mode = symbolSettings.Mode,
+            Warnings = warnings
+        };
+    }
+
+    private SymbolSizingOverride GetSymbolSettings(string symbol)
+    {
+        // 1. Точное совпадение
+        if (_settings.SymbolOverrides.TryGetValue(symbol, out var exact))
+        {
+            return MergeWithDefaults(exact);
+        }
+
+        // 2. Wildcard совпадение (например "*USDT", "BTC*")
+        foreach (var (pattern, settings) in _settings.SymbolOverrides)
+        {
+            if (MatchesWildcard(symbol, pattern))
+            {
+                return MergeWithDefaults(settings);
+            }
+        }
+
+        // 3. Defaults
+        return new SymbolSizingOverride
+        {
+            Mode = _settings.DefaultMode,
+            RiskPercent = _settings.DefaultRiskPercent,
+            FixedAmount = _settings.DefaultFixedAmount,
+            FixedMargin = _settings.DefaultFixedMargin
+        };
+    }
+
+    private decimal CalculateFromRisk(
+        decimal equity,
+        decimal riskPercent,
+        decimal entry,
+        decimal stopLoss)
+    {
+        decimal riskAmount = equity * (riskPercent / 100m);
+        decimal slDistance = Math.Abs(entry - stopLoss) / entry;
+
+        if (slDistance <= 0)
+        {
+            _logger.LogWarning("Invalid SL distance, using default position size");
+            return _settings.DefaultFixedAmount;
+        }
+
+        return riskAmount / slDistance;
+    }
+
+    private (decimal Value, List<string> Warnings) ApplyLimits(
+        decimal positionValue,
+        decimal equity,
+        decimal currentExposure)
+    {
+        var warnings = new List<string>();
+        var limits = _settings.Limits;
+        decimal adjusted = positionValue;
+
+        // Минимум
+        if (adjusted < limits.MinPositionUsdt)
+        {
+            warnings.Add($"Position below minimum ({adjusted:F2} < {limits.MinPositionUsdt}), adjusted up");
+            adjusted = limits.MinPositionUsdt;
+        }
+
+        // Максимум абсолютный
+        if (adjusted > limits.MaxPositionUsdt)
+        {
+            warnings.Add($"Position exceeds max ({adjusted:F2} > {limits.MaxPositionUsdt}), capped");
+            adjusted = limits.MaxPositionUsdt;
+        }
+
+        // Максимум как % от капитала
+        decimal maxByPercent = equity * (limits.MaxPositionPercent / 100m);
+        if (adjusted > maxByPercent)
+        {
+            warnings.Add($"Position exceeds {limits.MaxPositionPercent}% of equity, capped to {maxByPercent:F2}");
+            adjusted = maxByPercent;
+        }
+
+        // Проверка общей экспозиции
+        decimal maxExposure = equity * (limits.MaxTotalExposurePercent / 100m);
+        decimal remainingExposure = maxExposure - currentExposure;
+
+        if (adjusted > remainingExposure)
+        {
+            warnings.Add($"Total exposure limit reached, reduced to {remainingExposure:F2}");
+            adjusted = Math.Max(0, remainingExposure);
+        }
+
+        return (adjusted, warnings);
+    }
+
+    private bool MatchesWildcard(string symbol, string pattern)
+    {
+        if (pattern.StartsWith("*"))
+            return symbol.EndsWith(pattern.TrimStart('*'));
+
+        if (pattern.EndsWith("*"))
+            return symbol.StartsWith(pattern.TrimEnd('*'));
+
+        return false;
+    }
+}
+
+public record PositionSizeResult
+{
+    public decimal Quantity { get; init; }
+    public decimal PositionValueUsdt { get; init; }
+    public decimal RequiredMargin { get; init; }
+    public decimal RiskAmount { get; init; }
+    public PositionSizingMode Mode { get; init; }
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
+```
+
+### Примеры расчёта
+
+**Пример 1: RiskPercent**
+```
+Капитал: $10,000
+RiskPercent: 1% ($100 риска)
+Entry: $50,000 (BTC)
+Stop Loss: $48,000 (4% от entry)
+Расчёт: $100 / 0.04 = $2,500 позиция
+Количество: $2,500 / $50,000 = 0.05 BTC
+```
+
+**Пример 2: FixedAmount**
+```
+FixedAmount: $200
+Entry: $50,000
+Количество: $200 / $50,000 = 0.004 BTC
+```
+
+**Пример 3: FixedMargin**
+```
+FixedMargin: $50
+Leverage: 10x
+Позиция: $50 * 10 = $500
+Entry: $50,000
+Количество: $500 / $50,000 = 0.01 BTC
+```
+
+**Пример 4: Symbol Override**
+```
+Config: BTCUSDT.FixedAmount = $200
+        Default.FixedAmount = $100
+
+Signal: BTCUSDT → использует $200
+Signal: ETHUSDT → использует $100 (default)
 ```
 
 ---
