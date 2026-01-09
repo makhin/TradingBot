@@ -49,9 +49,9 @@ public class RsiStrategy : StrategyBase<RsiStrategySettings>, IHasConfidence, IP
     public override decimal? CurrentAtr => _atr.Value;
     public IndicatorSnapshot GetIndicatorSnapshot()
         => IndicatorSnapshot.FromPairs(
-            (nameof(IndicatorValueKey.Rsi), CurrentRsi),
-            (nameof(IndicatorValueKey.Atr), CurrentAtr),
-            (nameof(IndicatorValueKey.VolumeRatio), _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : null)
+            ("RSI", CurrentRsi),
+            ("ATR", CurrentAtr),
+            ("VolumeRatio", _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : (decimal?)null)
         );
 
     /// <summary>

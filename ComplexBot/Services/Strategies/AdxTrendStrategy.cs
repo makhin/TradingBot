@@ -80,15 +80,15 @@ public class AdxTrendStrategy : StrategyBase<StrategySettings>, IHasConfidence, 
     public bool VolumeConfirmation => _obv.IsReady;
     public IndicatorSnapshot GetIndicatorSnapshot()
         => IndicatorSnapshot.FromPairs(
-            (nameof(IndicatorValueKey.Adx), CurrentAdx),
-            (nameof(IndicatorValueKey.PlusDi), CurrentPlusDi),
-            (nameof(IndicatorValueKey.MinusDi), CurrentMinusDi),
-            (nameof(IndicatorValueKey.FastEma), CurrentFastEma),
-            (nameof(IndicatorValueKey.SlowEma), CurrentSlowEma),
-            (nameof(IndicatorValueKey.Atr), CurrentAtr),
-            (nameof(IndicatorValueKey.MacdHistogram), CurrentMacdHistogram),
-            (nameof(IndicatorValueKey.VolumeRatio), CurrentVolumeRatio),
-            (nameof(IndicatorValueKey.ObvSlope), CurrentObvSlope)
+            ("ADX", CurrentAdx),
+            ("+DI", CurrentPlusDi),
+            ("-DI", CurrentMinusDi),
+            ("FastEMA", CurrentFastEma),
+            ("SlowEMA", CurrentSlowEma),
+            ("ATR", CurrentAtr),
+            ("Histogram", CurrentMacdHistogram),
+            ("VolumeRatio", CurrentVolumeRatio),
+            ("OBVSlope", CurrentObvSlope)
         );
 
     /// <summary>

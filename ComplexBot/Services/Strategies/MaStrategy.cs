@@ -46,10 +46,10 @@ public class MaStrategy : StrategyBase<MaStrategySettings>, IHasConfidence, IPro
     public override decimal? CurrentAtr => _atr.Value;
     public IndicatorSnapshot GetIndicatorSnapshot()
         => IndicatorSnapshot.FromPairs(
-            (nameof(IndicatorValueKey.FastEma), _currentFastMa),
-            (nameof(IndicatorValueKey.SlowEma), _currentSlowMa),
-            (nameof(IndicatorValueKey.Atr), CurrentAtr),
-            (nameof(IndicatorValueKey.VolumeRatio), _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : null)
+            ("FastEMA", _currentFastMa),
+            ("SlowEMA", _currentSlowMa),
+            ("ATR", CurrentAtr),
+            ("VolumeRatio", _volumeFilter.IsReady ? _volumeFilter.VolumeRatio : (decimal?)null)
         );
 
     /// <summary>
