@@ -375,6 +375,60 @@ public record SignalBotState
       "TrailingStopEnabled": false
     },
 
+    "DuplicateHandling": {
+      "SameDirection": "Ignore",
+      "OppositeDirection": "Ignore",
+      "MaxPositionsPerSymbol": 1,
+      "MinTimeBetweenDuplicates": "00:05:00",
+      "AllowDuplicateOnPartialClose": true
+    },
+
+    "PositionSizing": {
+      "DefaultMode": "FixedAmount",
+      "DefaultRiskPercent": 1.0,
+      "DefaultFixedAmount": 100.0,
+      "DefaultFixedMargin": 50.0,
+
+      "SymbolOverrides": {
+        "BTCUSDT": { "FixedAmount": 200.0 },
+        "ETHUSDT": { "FixedAmount": 150.0 }
+      },
+
+      "Limits": {
+        "MinPositionUsdt": 10.0,
+        "MaxPositionUsdt": 1000.0,
+        "MaxPositionPercent": 25.0,
+        "MaxTotalExposurePercent": 80.0
+      }
+    },
+
+    "Entry": {
+      "MaxPriceDeviationPercent": 0.5,
+      "DeviationAction": "Skip",
+      "UseLimitOrder": false,
+      "LimitOrderTtl": "00:05:00",
+      "MaxSlippagePercent": 0.3
+    },
+
+    "Cooldown": {
+      "Enabled": true,
+      "CooldownAfterStopLoss": "00:15:00",
+      "CooldownAfterLiquidation": "01:00:00",
+      "ConsecutiveLossesForLongCooldown": 3,
+      "LongCooldownDuration": "02:00:00",
+      "ReduceSizeAfterLosses": true,
+      "SizeMultiplierAfter1Loss": 0.75,
+      "SizeMultiplierAfter2Losses": 0.5,
+      "SizeMultiplierAfter3PlusLosses": 0.25
+    },
+
+    "Emergency": {
+      "MaxDailyLossPercent": 5.0,
+      "MaxSessionLossPercent": 10.0,
+      "MaxLossAction": "StopNewTrades",
+      "CloseAllOnEmergencyStop": true
+    },
+
     "RiskOverride": {
       "Enabled": true,
       "MaxLeverage": 10,
@@ -1239,6 +1293,1744 @@ Symbol: ICNTUSDT
 Entry: 0.3710
 Exit: 0.3593
 Total PnL: -3.51 USDT
+```
+
+---
+
+## Обработка дублирующихся сигналов
+
+### Проблема
+
+Что делать, если приходит сигнал по символу, по которому уже есть открытая позиция?
+
+### Режимы обработки (DuplicateSignalHandling)
+
+```csharp
+public enum DuplicateSignalHandling
+{
+    /// <summary>
+    /// Игнорировать новый сигнал, пока есть открытая позиция
+    /// </summary>
+    Ignore,
+
+    /// <summary>
+    /// Открыть дополнительную позицию (DCA/pyramid)
+    /// </summary>
+    OpenNew,
+
+    /// <summary>
+    /// Обновить targets и SL существующей позиции
+    /// </summary>
+    UpdateTargets,
+
+    /// <summary>
+    /// Закрыть существующую позицию по рынку и открыть новую
+    /// </summary>
+    CloseAndReopen
+}
+```
+
+### Логика обработки
+
+```
+                         Новый сигнал получен
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │ Есть открытая позиция │
+                    │    по этому символу?  │
+                    └───────────┬───────────┘
+                                │
+                    ┌───────────┴───────────┐
+                    │                       │
+                   Нет                     Да
+                    │                       │
+                    ▼                       ▼
+              ┌──────────┐       ┌─────────────────────┐
+              │ Открыть  │       │ Направление совпадает│
+              │ позицию  │       │ (Long → Long)?      │
+              └──────────┘       └──────────┬──────────┘
+                                            │
+                              ┌─────────────┴─────────────┐
+                              │                           │
+                             Да                          Нет
+                              │                           │
+                              ▼                           ▼
+                 ┌────────────────────┐      ┌────────────────────┐
+                 │ Применить режим    │      │ Применить режим    │
+                 │ DuplicateHandling  │      │ OppositeSignal     │
+                 │ для same-direction │      │ Handling           │
+                 └────────────────────┘      └────────────────────┘
+```
+
+### Обработка противоположного сигнала (OppositeSignalHandling)
+
+```csharp
+public enum OppositeSignalHandling
+{
+    /// <summary>
+    /// Игнорировать противоположный сигнал
+    /// </summary>
+    Ignore,
+
+    /// <summary>
+    /// Закрыть текущую позицию, но не открывать новую
+    /// </summary>
+    CloseOnly,
+
+    /// <summary>
+    /// Закрыть текущую и открыть в противоположном направлении
+    /// </summary>
+    Reverse
+}
+```
+
+### Примеры сценариев
+
+**Сценарий 1: Ignore (консервативный)**
+```
+Состояние: Открыта Long позиция BTCUSDT
+Приходит:  #BTC/USDT - Long (новые targets)
+Действие:  Игнорируем, логируем "Signal ignored: position already open"
+```
+
+**Сценарий 2: OpenNew (DCA/усреднение)**
+```
+Состояние: Открыта Long позиция BTCUSDT @ 50000, qty: 0.1
+Приходит:  #BTC/USDT - Long @ 48000 (цена упала)
+Действие:  Открываем вторую позицию, теперь 2 позиции по BTC
+Риск:      Увеличенная экспозиция на один актив
+```
+
+**Сценарий 3: UpdateTargets (обновление уровней)**
+```
+Состояние: Открыта Long BTCUSDT, SL: 49000, Targets: [51000, 52000]
+Приходит:  #BTC/USDT - Long, SL: 49500, Targets: [51500, 52500]
+Действие:
+  1. Отменяем старые SL/TP ордера
+  2. Размещаем новые SL: 49500, TP: [51500, 52500]
+  3. Обновляем SignalPosition
+```
+
+**Сценарий 4: CloseAndReopen**
+```
+Состояние: Открыта Long BTCUSDT @ 50000 (в небольшом минусе)
+Приходит:  #BTC/USDT - Long @ 49500 (новый вход)
+Действие:
+  1. Закрываем текущую позицию по рынку
+  2. Фиксируем P&L
+  3. Открываем новую позицию по сигналу
+```
+
+**Сценарий 5: Reverse (противоположный сигнал)**
+```
+Состояние: Открыта Long BTCUSDT @ 50000
+Приходит:  #BTC/USDT - Short @ 49000
+Действие (при OppositeSignalHandling.Reverse):
+  1. Закрываем Long позицию
+  2. Открываем Short позицию
+```
+
+### Конфигурация
+
+```json
+{
+  "SignalBot": {
+    "DuplicateHandling": {
+      "SameDirection": "Ignore",
+      "OppositeDirection": "Ignore",
+      "MaxPositionsPerSymbol": 1,
+      "MinTimeBetweenDuplicates": "00:05:00",
+      "AllowDuplicateOnPartialClose": true
+    }
+  }
+}
+```
+
+### Модель настроек
+
+```csharp
+public record DuplicateHandlingSettings
+{
+    /// <summary>
+    /// Что делать если пришёл сигнал в том же направлении
+    /// </summary>
+    public DuplicateSignalHandling SameDirection { get; init; } = DuplicateSignalHandling.Ignore;
+
+    /// <summary>
+    /// Что делать если пришёл сигнал в противоположном направлении
+    /// </summary>
+    public OppositeSignalHandling OppositeDirection { get; init; } = OppositeSignalHandling.Ignore;
+
+    /// <summary>
+    /// Максимум позиций по одному символу (для режима OpenNew)
+    /// </summary>
+    public int MaxPositionsPerSymbol { get; init; } = 1;
+
+    /// <summary>
+    /// Минимальный интервал между дубликатами
+    /// </summary>
+    public TimeSpan MinTimeBetweenDuplicates { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Разрешить дубликат если позиция частично закрыта (достигнуты targets)
+    /// </summary>
+    public bool AllowDuplicateOnPartialClose { get; init; } = true;
+}
+```
+
+### Реализация в SignalProcessor
+
+```csharp
+public class SignalProcessor
+{
+    private readonly DuplicateHandlingSettings _duplicateSettings;
+    private readonly IPositionStore _positionStore;
+
+    public async Task<SignalProcessingResult> ProcessSignalAsync(
+        TradingSignal signal,
+        CancellationToken ct = default)
+    {
+        // 1. Найти существующие позиции по символу
+        var existingPositions = await _positionStore.GetOpenPositionsBySymbolAsync(signal.Symbol, ct);
+
+        if (!existingPositions.Any())
+        {
+            // Нет открытых позиций - обычная обработка
+            return await ExecuteNewSignalAsync(signal, ct);
+        }
+
+        // 2. Определить направление существующих позиций
+        var existingDirection = existingPositions.First().Direction;
+        bool isSameDirection = existingDirection == signal.Direction;
+
+        if (isSameDirection)
+        {
+            return await HandleSameDirectionDuplicateAsync(signal, existingPositions, ct);
+        }
+        else
+        {
+            return await HandleOppositeDirectionAsync(signal, existingPositions, ct);
+        }
+    }
+
+    private async Task<SignalProcessingResult> HandleSameDirectionDuplicateAsync(
+        TradingSignal signal,
+        IReadOnlyList<SignalPosition> existingPositions,
+        CancellationToken ct)
+    {
+        // Проверить временной интервал
+        var lastPosition = existingPositions.OrderByDescending(p => p.CreatedAt).First();
+        var timeSinceLastSignal = DateTime.UtcNow - lastPosition.CreatedAt;
+
+        if (timeSinceLastSignal < _duplicateSettings.MinTimeBetweenDuplicates)
+        {
+            _logger.LogInformation(
+                "Signal ignored: too soon after previous ({Elapsed} < {Min})",
+                timeSinceLastSignal, _duplicateSettings.MinTimeBetweenDuplicates);
+            return SignalProcessingResult.Skipped("Too soon after previous signal");
+        }
+
+        // Проверить частичное закрытие
+        bool hasPartialClose = existingPositions.Any(p => p.Status == PositionStatus.PartialClosed);
+        if (hasPartialClose && _duplicateSettings.AllowDuplicateOnPartialClose)
+        {
+            _logger.LogInformation("Allowing duplicate signal due to partial close");
+            return await ExecuteNewSignalAsync(signal, ct);
+        }
+
+        // Применить режим обработки
+        return _duplicateSettings.SameDirection switch
+        {
+            DuplicateSignalHandling.Ignore =>
+                SignalProcessingResult.Skipped("Position already open for symbol"),
+
+            DuplicateSignalHandling.OpenNew when existingPositions.Count < _duplicateSettings.MaxPositionsPerSymbol =>
+                await ExecuteNewSignalAsync(signal, ct),
+
+            DuplicateSignalHandling.OpenNew =>
+                SignalProcessingResult.Skipped($"Max positions ({_duplicateSettings.MaxPositionsPerSymbol}) reached"),
+
+            DuplicateSignalHandling.UpdateTargets =>
+                await UpdateExistingPositionAsync(existingPositions.First(), signal, ct),
+
+            DuplicateSignalHandling.CloseAndReopen =>
+                await CloseAndReopenAsync(existingPositions, signal, ct),
+
+            _ => throw new ArgumentOutOfRangeException()
+        };
+    }
+
+    private async Task<SignalProcessingResult> HandleOppositeDirectionAsync(
+        TradingSignal signal,
+        IReadOnlyList<SignalPosition> existingPositions,
+        CancellationToken ct)
+    {
+        return _duplicateSettings.OppositeDirection switch
+        {
+            OppositeSignalHandling.Ignore =>
+                SignalProcessingResult.Skipped("Opposite position already open"),
+
+            OppositeSignalHandling.CloseOnly =>
+                await CloseExistingPositionsAsync(existingPositions, "Opposite signal received", ct),
+
+            OppositeSignalHandling.Reverse =>
+                await ReversePositionAsync(existingPositions, signal, ct),
+
+            _ => throw new ArgumentOutOfRangeException()
+        };
+    }
+
+    private async Task<SignalProcessingResult> UpdateExistingPositionAsync(
+        SignalPosition position,
+        TradingSignal newSignal,
+        CancellationToken ct)
+    {
+        _logger.LogInformation(
+            "Updating existing position {PositionId} with new signal targets",
+            position.Id);
+
+        // 1. Отменить существующие SL/TP ордера
+        await CancelPositionOrdersAsync(position, ct);
+
+        // 2. Создать новые targets
+        var newTargets = CreateTargetLevels(newSignal, position.RemainingQuantity);
+
+        // 3. Разместить новые ордера
+        var newSlOrderId = await PlaceStopLossOrderAsync(
+            position.Symbol,
+            position.Direction,
+            position.RemainingQuantity,
+            newSignal.AdjustedStopLoss,
+            ct);
+
+        var newTpOrderIds = await PlaceTakeProfitOrdersAsync(
+            position.Symbol,
+            position.Direction,
+            newTargets,
+            ct);
+
+        // 4. Обновить позицию
+        var updatedPosition = position with
+        {
+            CurrentStopLoss = newSignal.AdjustedStopLoss,
+            Targets = newTargets,
+            StopLossOrderId = newSlOrderId,
+            TakeProfitOrderIds = newTpOrderIds
+        };
+
+        await _positionStore.SavePositionAsync(updatedPosition, ct);
+
+        return SignalProcessingResult.Success(updatedPosition, "Targets updated");
+    }
+}
+```
+
+---
+
+## Настройка размера позиции
+
+### Режимы расчёта размера
+
+```csharp
+public enum PositionSizingMode
+{
+    /// <summary>
+    /// Процент капитала под риск (с учётом SL)
+    /// Пример: 1% риска при SL -5% = позиция 20% от капитала
+    /// </summary>
+    RiskPercent,
+
+    /// <summary>
+    /// Фиксированная сумма в quote currency (USDT)
+    /// Пример: всегда торговать на $100
+    /// </summary>
+    FixedAmount,
+
+    /// <summary>
+    /// Фиксированный margin с учётом leverage
+    /// Пример: margin $50 при leverage 10x = позиция $500
+    /// </summary>
+    FixedMargin,
+
+    /// <summary>
+    /// Фиксированное количество base currency
+    /// Пример: всегда торговать 0.01 BTC
+    /// </summary>
+    FixedQuantity
+}
+```
+
+### Конфигурация с override по символам
+
+```json
+{
+  "SignalBot": {
+    "PositionSizing": {
+      "DefaultMode": "RiskPercent",
+      "DefaultRiskPercent": 1.0,
+      "DefaultFixedAmount": 100.0,
+      "DefaultFixedMargin": 50.0,
+
+      "SymbolOverrides": {
+        "BTCUSDT": {
+          "Mode": "FixedAmount",
+          "FixedAmount": 200.0
+        },
+        "ETHUSDT": {
+          "Mode": "FixedAmount",
+          "FixedAmount": 150.0
+        },
+        "DOGEUSDT": {
+          "Mode": "RiskPercent",
+          "RiskPercent": 0.5
+        },
+        "*USDT": {
+          "Mode": "FixedAmount",
+          "FixedAmount": 50.0
+        }
+      },
+
+      "Limits": {
+        "MinPositionUsdt": 10.0,
+        "MaxPositionUsdt": 1000.0,
+        "MaxPositionPercent": 25.0,
+        "MaxTotalExposurePercent": 80.0
+      }
+    }
+  }
+}
+```
+
+### Модель настроек
+
+```csharp
+public record PositionSizingSettings
+{
+    /// <summary>
+    /// Режим по умолчанию
+    /// </summary>
+    public PositionSizingMode DefaultMode { get; init; } = PositionSizingMode.RiskPercent;
+
+    /// <summary>
+    /// Процент капитала под риск (для RiskPercent)
+    /// </summary>
+    public decimal DefaultRiskPercent { get; init; } = 1.0m;
+
+    /// <summary>
+    /// Фиксированная сумма в USDT (для FixedAmount)
+    /// </summary>
+    public decimal DefaultFixedAmount { get; init; } = 100m;
+
+    /// <summary>
+    /// Фиксированный margin в USDT (для FixedMargin)
+    /// </summary>
+    public decimal DefaultFixedMargin { get; init; } = 50m;
+
+    /// <summary>
+    /// Override настроек по символам
+    /// Поддерживает wildcards: "BTCUSDT", "*USDT", "BTC*"
+    /// </summary>
+    public Dictionary<string, SymbolSizingOverride> SymbolOverrides { get; init; } = new();
+
+    /// <summary>
+    /// Лимиты безопасности
+    /// </summary>
+    public PositionLimits Limits { get; init; } = new();
+}
+
+public record SymbolSizingOverride
+{
+    public PositionSizingMode? Mode { get; init; }
+    public decimal? RiskPercent { get; init; }
+    public decimal? FixedAmount { get; init; }
+    public decimal? FixedMargin { get; init; }
+    public decimal? FixedQuantity { get; init; }
+    public decimal? MaxLeverage { get; init; }
+}
+
+public record PositionLimits
+{
+    /// <summary>
+    /// Минимальный размер позиции в USDT
+    /// </summary>
+    public decimal MinPositionUsdt { get; init; } = 10m;
+
+    /// <summary>
+    /// Максимальный размер одной позиции в USDT
+    /// </summary>
+    public decimal MaxPositionUsdt { get; init; } = 1000m;
+
+    /// <summary>
+    /// Максимальный размер позиции как % от капитала
+    /// </summary>
+    public decimal MaxPositionPercent { get; init; } = 25m;
+
+    /// <summary>
+    /// Максимальная суммарная экспозиция как % от капитала
+    /// </summary>
+    public decimal MaxTotalExposurePercent { get; init; } = 80m;
+}
+```
+
+### Калькулятор размера позиции
+
+```csharp
+public class PositionSizeCalculator
+{
+    private readonly PositionSizingSettings _settings;
+    private readonly ILogger<PositionSizeCalculator> _logger;
+
+    public PositionSizeResult Calculate(
+        string symbol,
+        decimal entryPrice,
+        decimal stopLoss,
+        int leverage,
+        decimal accountEquity,
+        decimal currentExposure)
+    {
+        // 1. Получить настройки для символа (с учётом override)
+        var symbolSettings = GetSymbolSettings(symbol);
+
+        // 2. Рассчитать базовый размер
+        decimal positionValueUsdt = symbolSettings.Mode switch
+        {
+            PositionSizingMode.RiskPercent =>
+                CalculateFromRisk(accountEquity, symbolSettings.RiskPercent, entryPrice, stopLoss),
+
+            PositionSizingMode.FixedAmount =>
+                symbolSettings.FixedAmount,
+
+            PositionSizingMode.FixedMargin =>
+                symbolSettings.FixedMargin * leverage,
+
+            PositionSizingMode.FixedQuantity =>
+                symbolSettings.FixedQuantity * entryPrice,
+
+            _ => throw new ArgumentOutOfRangeException()
+        };
+
+        // 3. Применить лимиты
+        var (adjustedValue, warnings) = ApplyLimits(
+            positionValueUsdt,
+            accountEquity,
+            currentExposure);
+
+        // 4. Конвертировать в количество
+        decimal quantity = adjustedValue / entryPrice;
+
+        return new PositionSizeResult
+        {
+            Quantity = quantity,
+            PositionValueUsdt = adjustedValue,
+            RequiredMargin = adjustedValue / leverage,
+            RiskAmount = CalculateRiskAmount(adjustedValue, entryPrice, stopLoss),
+            Mode = symbolSettings.Mode,
+            Warnings = warnings
+        };
+    }
+
+    private SymbolSizingOverride GetSymbolSettings(string symbol)
+    {
+        // 1. Точное совпадение
+        if (_settings.SymbolOverrides.TryGetValue(symbol, out var exact))
+        {
+            return MergeWithDefaults(exact);
+        }
+
+        // 2. Wildcard совпадение (например "*USDT", "BTC*")
+        foreach (var (pattern, settings) in _settings.SymbolOverrides)
+        {
+            if (MatchesWildcard(symbol, pattern))
+            {
+                return MergeWithDefaults(settings);
+            }
+        }
+
+        // 3. Defaults
+        return new SymbolSizingOverride
+        {
+            Mode = _settings.DefaultMode,
+            RiskPercent = _settings.DefaultRiskPercent,
+            FixedAmount = _settings.DefaultFixedAmount,
+            FixedMargin = _settings.DefaultFixedMargin
+        };
+    }
+
+    private decimal CalculateFromRisk(
+        decimal equity,
+        decimal riskPercent,
+        decimal entry,
+        decimal stopLoss)
+    {
+        decimal riskAmount = equity * (riskPercent / 100m);
+        decimal slDistance = Math.Abs(entry - stopLoss) / entry;
+
+        if (slDistance <= 0)
+        {
+            _logger.LogWarning("Invalid SL distance, using default position size");
+            return _settings.DefaultFixedAmount;
+        }
+
+        return riskAmount / slDistance;
+    }
+
+    private (decimal Value, List<string> Warnings) ApplyLimits(
+        decimal positionValue,
+        decimal equity,
+        decimal currentExposure)
+    {
+        var warnings = new List<string>();
+        var limits = _settings.Limits;
+        decimal adjusted = positionValue;
+
+        // Минимум
+        if (adjusted < limits.MinPositionUsdt)
+        {
+            warnings.Add($"Position below minimum ({adjusted:F2} < {limits.MinPositionUsdt}), adjusted up");
+            adjusted = limits.MinPositionUsdt;
+        }
+
+        // Максимум абсолютный
+        if (adjusted > limits.MaxPositionUsdt)
+        {
+            warnings.Add($"Position exceeds max ({adjusted:F2} > {limits.MaxPositionUsdt}), capped");
+            adjusted = limits.MaxPositionUsdt;
+        }
+
+        // Максимум как % от капитала
+        decimal maxByPercent = equity * (limits.MaxPositionPercent / 100m);
+        if (adjusted > maxByPercent)
+        {
+            warnings.Add($"Position exceeds {limits.MaxPositionPercent}% of equity, capped to {maxByPercent:F2}");
+            adjusted = maxByPercent;
+        }
+
+        // Проверка общей экспозиции
+        decimal maxExposure = equity * (limits.MaxTotalExposurePercent / 100m);
+        decimal remainingExposure = maxExposure - currentExposure;
+
+        if (adjusted > remainingExposure)
+        {
+            warnings.Add($"Total exposure limit reached, reduced to {remainingExposure:F2}");
+            adjusted = Math.Max(0, remainingExposure);
+        }
+
+        return (adjusted, warnings);
+    }
+
+    private bool MatchesWildcard(string symbol, string pattern)
+    {
+        if (pattern.StartsWith("*"))
+            return symbol.EndsWith(pattern.TrimStart('*'));
+
+        if (pattern.EndsWith("*"))
+            return symbol.StartsWith(pattern.TrimEnd('*'));
+
+        return false;
+    }
+}
+
+public record PositionSizeResult
+{
+    public decimal Quantity { get; init; }
+    public decimal PositionValueUsdt { get; init; }
+    public decimal RequiredMargin { get; init; }
+    public decimal RiskAmount { get; init; }
+    public PositionSizingMode Mode { get; init; }
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
+```
+
+### Примеры расчёта
+
+**Пример 1: RiskPercent**
+```
+Капитал: $10,000
+RiskPercent: 1% ($100 риска)
+Entry: $50,000 (BTC)
+Stop Loss: $48,000 (4% от entry)
+Расчёт: $100 / 0.04 = $2,500 позиция
+Количество: $2,500 / $50,000 = 0.05 BTC
+```
+
+**Пример 2: FixedAmount**
+```
+FixedAmount: $200
+Entry: $50,000
+Количество: $200 / $50,000 = 0.004 BTC
+```
+
+**Пример 3: FixedMargin**
+```
+FixedMargin: $50
+Leverage: 10x
+Позиция: $50 * 10 = $500
+Entry: $50,000
+Количество: $500 / $50,000 = 0.01 BTC
+```
+
+**Пример 4: Symbol Override**
+```
+Config: BTCUSDT.FixedAmount = $200
+        Default.FixedAmount = $100
+
+Signal: BTCUSDT → использует $200
+Signal: ETHUSDT → использует $100 (default)
+```
+
+---
+
+## Entry Timing / Price Deviation
+
+### Проблема
+
+Сигнал пришёл с Entry: 0.3709, но пока мы его обработали, цена уже 0.3750 (+1.1%). Входить по рынку? Ставить лимитку? Пропускать?
+
+### Настройки
+
+```csharp
+public record EntrySettings
+{
+    /// <summary>
+    /// Максимальное отклонение цены от Entry для входа по рынку (%)
+    /// Если цена ушла дальше - применяется DeviationAction
+    /// </summary>
+    public decimal MaxPriceDeviationPercent { get; init; } = 0.5m;
+
+    /// <summary>
+    /// Что делать если цена отклонилась больше допустимого
+    /// </summary>
+    public PriceDeviationAction DeviationAction { get; init; } = PriceDeviationAction.Skip;
+
+    /// <summary>
+    /// Использовать Limit ордер вместо Market для входа
+    /// </summary>
+    public bool UseLimitOrder { get; init; } = false;
+
+    /// <summary>
+    /// Цена лимитного ордера относительно Entry
+    /// </summary>
+    public LimitOrderPricing LimitPricing { get; init; } = LimitOrderPricing.AtEntry;
+
+    /// <summary>
+    /// Время жизни лимитного ордера перед отменой
+    /// </summary>
+    public TimeSpan LimitOrderTtl { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Максимальный slippage при Market ордере (%)
+    /// </summary>
+    public decimal MaxSlippagePercent { get; init; } = 0.3m;
+}
+
+public enum PriceDeviationAction
+{
+    /// <summary>
+    /// Пропустить сигнал полностью
+    /// </summary>
+    Skip,
+
+    /// <summary>
+    /// Войти по рынку несмотря на отклонение
+    /// </summary>
+    EnterAtMarket,
+
+    /// <summary>
+    /// Поставить лимитный ордер на цену Entry из сигнала
+    /// </summary>
+    PlaceLimitAtEntry,
+
+    /// <summary>
+    /// Войти по рынку, но пересчитать targets пропорционально
+    /// </summary>
+    EnterAndAdjustTargets
+}
+
+public enum LimitOrderPricing
+{
+    /// <summary>
+    /// Ставить лимитку точно на Entry из сигнала
+    /// </summary>
+    AtEntry,
+
+    /// <summary>
+    /// Ставить лимитку на текущую цену (aggressive)
+    /// </summary>
+    AtCurrentPrice,
+
+    /// <summary>
+    /// Ставить между Entry и текущей ценой
+    /// </summary>
+    MidPoint
+}
+```
+
+### Логика обработки
+
+```
+                    Получен сигнал с Entry price
+                              │
+                              ▼
+                    ┌─────────────────────┐
+                    │ Получить текущую    │
+                    │ рыночную цену       │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ deviation =         │
+                    │ |current - entry|   │
+                    │ / entry * 100%      │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┴────────────────┐
+              │                                 │
+    deviation <= MaxDeviation          deviation > MaxDeviation
+              │                                 │
+              ▼                                 ▼
+    ┌─────────────────┐              ┌─────────────────────┐
+    │ UseLimitOrder?  │              │ Применить           │
+    └────────┬────────┘              │ DeviationAction     │
+             │                       └──────────┬──────────┘
+     ┌───────┴───────┐                          │
+     │               │               ┌──────────┼──────────┐
+    Yes             No               │          │          │
+     │               │               ▼          ▼          ▼
+     ▼               ▼             Skip    EnterAtMarket  PlaceLimit
+┌─────────┐   ┌──────────┐
+│ Place   │   │ Market   │
+│ Limit   │   │ Order    │
+│ Order   │   │          │
+└─────────┘   └──────────┘
+```
+
+### Пересчёт targets при отклонении
+
+```csharp
+public class TargetAdjuster
+{
+    /// <summary>
+    /// Пересчитать targets пропорционально новой цене входа
+    /// </summary>
+    public IReadOnlyList<decimal> AdjustTargets(
+        decimal originalEntry,
+        decimal actualEntry,
+        IReadOnlyList<decimal> originalTargets,
+        SignalDirection direction)
+    {
+        // Рассчитать коэффициент смещения
+        decimal shift = actualEntry - originalEntry;
+
+        // Для Long: если вошли выше - targets тоже сдвигаем выше
+        // Для Short: если вошли ниже - targets тоже сдвигаем ниже
+        return originalTargets.Select(t => t + shift).ToList();
+    }
+
+    /// <summary>
+    /// Альтернатива: сохранить R:R ratio
+    /// </summary>
+    public IReadOnlyList<decimal> AdjustTargetsKeepRatio(
+        decimal originalEntry,
+        decimal actualEntry,
+        decimal originalSl,
+        IReadOnlyList<decimal> originalTargets,
+        SignalDirection direction)
+    {
+        decimal originalRisk = Math.Abs(originalEntry - originalSl);
+
+        return originalTargets.Select(target =>
+        {
+            decimal originalReward = Math.Abs(target - originalEntry);
+            decimal ratio = originalReward / originalRisk;
+
+            decimal newRisk = Math.Abs(actualEntry - originalSl);
+            decimal newReward = newRisk * ratio;
+
+            return direction == SignalDirection.Long
+                ? actualEntry + newReward
+                : actualEntry - newReward;
+        }).ToList();
+    }
+}
+```
+
+### Примеры сценариев
+
+**Сценарий 1: Цена в пределах допустимого**
+```
+Entry в сигнале: 0.3709
+Текущая цена:    0.3715 (+0.16%)
+MaxDeviation:    0.5%
+Результат:       Входим по рынку @ 0.3715
+```
+
+**Сценарий 2: Цена ушла, Skip**
+```
+Entry в сигнале: 0.3709
+Текущая цена:    0.3780 (+1.9%)
+MaxDeviation:    0.5%
+DeviationAction: Skip
+Результат:       Сигнал пропущен, лог: "Price deviation 1.9% > 0.5%"
+```
+
+**Сценарий 3: Цена ушла, PlaceLimitAtEntry**
+```
+Entry в сигнале: 0.3709
+Текущая цена:    0.3780 (+1.9%)
+DeviationAction: PlaceLimitAtEntry
+LimitOrderTtl:   5 минут
+Результат:       Лимитный ордер @ 0.3709, отменится через 5 мин если не исполнится
+```
+
+**Сценарий 4: Цена ушла, AdjustTargets**
+```
+Entry в сигнале: 0.3709, Targets: [0.3725, 0.3750, 0.3780]
+Текущая цена:    0.3730 (+0.57%)
+DeviationAction: EnterAndAdjustTargets
+
+Shift: +0.0021
+Новые targets:   [0.3746, 0.3771, 0.3801]
+Результат:       Входим @ 0.3730 с пересчитанными targets
+```
+
+### Конфигурация
+
+```json
+{
+  "SignalBot": {
+    "Entry": {
+      "MaxPriceDeviationPercent": 0.5,
+      "DeviationAction": "Skip",
+      "UseLimitOrder": false,
+      "LimitPricing": "AtEntry",
+      "LimitOrderTtl": "00:05:00",
+      "MaxSlippagePercent": 0.3
+    }
+  }
+}
+```
+
+---
+
+## Cooldown после убытков
+
+### Проблема
+
+После стоп-лосса трейдер часто хочет "отыграться" и входит в следующий трейд импульсивно. Бот должен защитить от этого.
+
+### Настройки
+
+```csharp
+public record CooldownSettings
+{
+    /// <summary>
+    /// Включить систему cooldown
+    /// </summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>
+    /// Пауза после каждого стоп-лосса
+    /// </summary>
+    public TimeSpan CooldownAfterStopLoss { get; init; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Пауза после ликвидации (если произошла)
+    /// </summary>
+    public TimeSpan CooldownAfterLiquidation { get; init; } = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Количество убытков подряд для длинного cooldown
+    /// </summary>
+    public int ConsecutiveLossesForLongCooldown { get; init; } = 3;
+
+    /// <summary>
+    /// Длинный cooldown после серии убытков
+    /// </summary>
+    public TimeSpan LongCooldownDuration { get; init; } = TimeSpan.FromHours(2);
+
+    /// <summary>
+    /// Уменьшить размер позиции после убытков
+    /// </summary>
+    public bool ReduceSizeAfterLosses { get; init; } = true;
+
+    /// <summary>
+    /// Множитель размера после 1 убытка
+    /// </summary>
+    public decimal SizeMultiplierAfter1Loss { get; init; } = 0.75m;
+
+    /// <summary>
+    /// Множитель размера после 2 убытков подряд
+    /// </summary>
+    public decimal SizeMultiplierAfter2Losses { get; init; } = 0.5m;
+
+    /// <summary>
+    /// Множитель размера после 3+ убытков подряд
+    /// </summary>
+    public decimal SizeMultiplierAfter3PlusLosses { get; init; } = 0.25m;
+
+    /// <summary>
+    /// Сколько прибыльных трейдов нужно для сброса счётчика убытков
+    /// </summary>
+    public int WinsToResetLossCounter { get; init; } = 2;
+}
+```
+
+### Логика работы
+
+```
+                     Позиция закрыта
+                           │
+                           ▼
+                   ┌───────────────┐
+                   │ Причина       │
+                   │ закрытия?     │
+                   └───────┬───────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+    StopLoss          TargetHit         Liquidation
+         │                 │                 │
+         ▼                 ▼                 ▼
+   consecutiveLosses++   consecutiveLosses=0   consecutiveLosses++
+         │                 │                 │
+         ▼                 ▼                 ▼
+   ┌───────────────┐   Нет cooldown    ┌───────────────┐
+   │ consecutiveLosses                 │ Длинный       │
+   │ >= 3?         │                   │ cooldown      │
+   └───────┬───────┘                   │ (1 час)       │
+           │                           └───────────────┘
+    ┌──────┴──────┐
+    │             │
+   Да            Нет
+    │             │
+    ▼             ▼
+┌─────────┐  ┌─────────────┐
+│ Длинный │  │ Обычный     │
+│ cooldown│  │ cooldown    │
+│ (2 часа)│  │ (15 мин)    │
+└─────────┘  └─────────────┘
+```
+
+### CooldownManager
+
+```csharp
+public class CooldownManager
+{
+    private readonly CooldownSettings _settings;
+    private readonly ILogger<CooldownManager> _logger;
+
+    private int _consecutiveLosses = 0;
+    private int _consecutiveWins = 0;
+    private DateTime? _cooldownUntil = null;
+    private string? _cooldownReason = null;
+
+    public bool IsInCooldown => _cooldownUntil.HasValue && DateTime.UtcNow < _cooldownUntil.Value;
+
+    public TimeSpan? RemainingCooldown => IsInCooldown
+        ? _cooldownUntil!.Value - DateTime.UtcNow
+        : null;
+
+    public CooldownStatus GetStatus()
+    {
+        return new CooldownStatus
+        {
+            IsInCooldown = IsInCooldown,
+            CooldownUntil = _cooldownUntil,
+            RemainingTime = RemainingCooldown,
+            Reason = _cooldownReason,
+            ConsecutiveLosses = _consecutiveLosses,
+            CurrentSizeMultiplier = GetCurrentSizeMultiplier()
+        };
+    }
+
+    public void OnPositionClosed(SignalPosition position)
+    {
+        if (!_settings.Enabled) return;
+
+        switch (position.CloseReason)
+        {
+            case PositionCloseReason.StopLossHit:
+                HandleStopLoss();
+                break;
+
+            case PositionCloseReason.Liquidation:
+                HandleLiquidation();
+                break;
+
+            case PositionCloseReason.AllTargetsHit:
+                HandleWin();
+                break;
+
+            // Partial close или manual - не влияют на cooldown
+        }
+    }
+
+    private void HandleStopLoss()
+    {
+        _consecutiveLosses++;
+        _consecutiveWins = 0;
+
+        TimeSpan cooldown = _consecutiveLosses >= _settings.ConsecutiveLossesForLongCooldown
+            ? _settings.LongCooldownDuration
+            : _settings.CooldownAfterStopLoss;
+
+        SetCooldown(cooldown, $"Stop loss #{_consecutiveLosses}");
+
+        _logger.LogWarning(
+            "Cooldown activated: {Duration} after {Losses} consecutive losses",
+            cooldown, _consecutiveLosses);
+    }
+
+    private void HandleLiquidation()
+    {
+        _consecutiveLosses++;
+        _consecutiveWins = 0;
+
+        SetCooldown(_settings.CooldownAfterLiquidation, "Liquidation");
+
+        _logger.LogError("Cooldown activated after LIQUIDATION: {Duration}",
+            _settings.CooldownAfterLiquidation);
+    }
+
+    private void HandleWin()
+    {
+        _consecutiveWins++;
+
+        if (_consecutiveWins >= _settings.WinsToResetLossCounter)
+        {
+            _consecutiveLosses = 0;
+            _consecutiveWins = 0;
+            _logger.LogInformation("Loss counter reset after {Wins} consecutive wins",
+                _settings.WinsToResetLossCounter);
+        }
+    }
+
+    private void SetCooldown(TimeSpan duration, string reason)
+    {
+        _cooldownUntil = DateTime.UtcNow + duration;
+        _cooldownReason = reason;
+    }
+
+    public decimal GetCurrentSizeMultiplier()
+    {
+        if (!_settings.ReduceSizeAfterLosses) return 1.0m;
+
+        return _consecutiveLosses switch
+        {
+            0 => 1.0m,
+            1 => _settings.SizeMultiplierAfter1Loss,
+            2 => _settings.SizeMultiplierAfter2Losses,
+            _ => _settings.SizeMultiplierAfter3PlusLosses
+        };
+    }
+
+    /// <summary>
+    /// Принудительно сбросить cooldown (для manual override)
+    /// </summary>
+    public void ForceResetCooldown()
+    {
+        _cooldownUntil = null;
+        _cooldownReason = null;
+        _logger.LogWarning("Cooldown manually reset");
+    }
+
+    /// <summary>
+    /// Принудительно сбросить счётчик убытков
+    /// </summary>
+    public void ForceResetLossCounter()
+    {
+        _consecutiveLosses = 0;
+        _consecutiveWins = 0;
+        _logger.LogWarning("Loss counter manually reset");
+    }
+}
+
+public record CooldownStatus
+{
+    public bool IsInCooldown { get; init; }
+    public DateTime? CooldownUntil { get; init; }
+    public TimeSpan? RemainingTime { get; init; }
+    public string? Reason { get; init; }
+    public int ConsecutiveLosses { get; init; }
+    public decimal CurrentSizeMultiplier { get; init; }
+}
+```
+
+### Интеграция с SignalProcessor
+
+```csharp
+public async Task<SignalProcessingResult> ProcessSignalAsync(TradingSignal signal, CancellationToken ct)
+{
+    // Проверить cooldown
+    if (_cooldownManager.IsInCooldown)
+    {
+        var status = _cooldownManager.GetStatus();
+        _logger.LogInformation(
+            "Signal skipped: in cooldown for {Remaining} ({Reason})",
+            status.RemainingTime, status.Reason);
+
+        return SignalProcessingResult.Skipped(
+            $"In cooldown: {status.RemainingTime:mm\\:ss} remaining ({status.Reason})");
+    }
+
+    // Получить множитель размера
+    decimal sizeMultiplier = _cooldownManager.GetCurrentSizeMultiplier();
+
+    if (sizeMultiplier < 1.0m)
+    {
+        _logger.LogInformation(
+            "Position size reduced to {Multiplier:P0} due to {Losses} consecutive losses",
+            sizeMultiplier, _cooldownManager.GetStatus().ConsecutiveLosses);
+    }
+
+    // ... продолжить обработку с уменьшенным размером
+}
+```
+
+### Конфигурация
+
+```json
+{
+  "SignalBot": {
+    "Cooldown": {
+      "Enabled": true,
+      "CooldownAfterStopLoss": "00:15:00",
+      "CooldownAfterLiquidation": "01:00:00",
+      "ConsecutiveLossesForLongCooldown": 3,
+      "LongCooldownDuration": "02:00:00",
+      "ReduceSizeAfterLosses": true,
+      "SizeMultiplierAfter1Loss": 0.75,
+      "SizeMultiplierAfter2Losses": 0.5,
+      "SizeMultiplierAfter3PlusLosses": 0.25,
+      "WinsToResetLossCounter": 2
+    }
+  }
+}
+```
+
+---
+
+## Emergency Controls / Ручное управление
+
+### Проблема
+
+Нужна возможность:
+- Аварийно остановить бота
+- Закрыть все позиции одной командой
+- Приостановить автоматическую торговлю
+- Вручную вмешаться в работу
+
+### Режимы работы бота
+
+```csharp
+public enum BotOperatingMode
+{
+    /// <summary>
+    /// Полностью автоматический режим
+    /// </summary>
+    Automatic,
+
+    /// <summary>
+    /// Только мониторинг, новые сигналы игнорируются
+    /// Существующие позиции управляются автоматически
+    /// </summary>
+    MonitorOnly,
+
+    /// <summary>
+    /// Пауза - ничего не делаем, но позиции остаются
+    /// </summary>
+    Paused,
+
+    /// <summary>
+    /// Аварийная остановка - закрыть всё
+    /// </summary>
+    EmergencyStop
+}
+```
+
+### Emergency Settings
+
+```csharp
+public record EmergencySettings
+{
+    /// <summary>
+    /// Максимальный дневной убыток (% от капитала)
+    /// При достижении - автоматическая остановка
+    /// </summary>
+    public decimal MaxDailyLossPercent { get; init; } = 5m;
+
+    /// <summary>
+    /// Максимальный убыток за сессию
+    /// </summary>
+    public decimal MaxSessionLossPercent { get; init; } = 10m;
+
+    /// <summary>
+    /// Что делать при достижении лимита убытков
+    /// </summary>
+    public MaxLossAction MaxLossAction { get; init; } = MaxLossAction.StopNewTrades;
+
+    /// <summary>
+    /// Автоматически закрыть все позиции при аварийной остановке
+    /// </summary>
+    public bool CloseAllOnEmergencyStop { get; init; } = true;
+
+    /// <summary>
+    /// Уведомить при аварийной остановке
+    /// </summary>
+    public bool NotifyOnEmergencyStop { get; init; } = true;
+
+    /// <summary>
+    /// Webhook URL для критических уведомлений
+    /// </summary>
+    public string? EmergencyWebhookUrl { get; init; }
+}
+
+public enum MaxLossAction
+{
+    /// <summary>
+    /// Только остановить новые трейды, позиции оставить
+    /// </summary>
+    StopNewTrades,
+
+    /// <summary>
+    /// Закрыть все позиции и остановить
+    /// </summary>
+    CloseAllAndStop,
+
+    /// <summary>
+    /// Только уведомить, продолжить работу
+    /// </summary>
+    NotifyOnly
+}
+```
+
+### BotController - центр управления
+
+```csharp
+public class BotController
+{
+    private readonly IPositionManager _positionManager;
+    private readonly IBinanceFuturesClient _client;
+    private readonly INotifier _notifier;
+    private readonly ILogger<BotController> _logger;
+    private readonly EmergencySettings _settings;
+
+    private BotOperatingMode _currentMode = BotOperatingMode.Automatic;
+    private decimal _sessionStartEquity;
+    private decimal _dailyStartEquity;
+    private DateTime _dailyResetTime;
+
+    public BotOperatingMode CurrentMode => _currentMode;
+
+    /// <summary>
+    /// Переключить режим работы
+    /// </summary>
+    public async Task SetModeAsync(BotOperatingMode mode, CancellationToken ct = default)
+    {
+        var previousMode = _currentMode;
+        _currentMode = mode;
+
+        _logger.LogWarning("Bot mode changed: {Previous} → {New}", previousMode, mode);
+
+        switch (mode)
+        {
+            case BotOperatingMode.EmergencyStop:
+                await HandleEmergencyStopAsync(ct);
+                break;
+
+            case BotOperatingMode.Paused:
+                await _notifier.SendAlertAsync("⏸️ Bot Paused",
+                    "Automatic trading paused. Positions remain open.", ct);
+                break;
+
+            case BotOperatingMode.MonitorOnly:
+                await _notifier.SendMessageAsync(
+                    "👁️ Bot switched to Monitor Only mode. New signals will be ignored.", ct);
+                break;
+
+            case BotOperatingMode.Automatic:
+                await _notifier.SendMessageAsync(
+                    "✅ Bot resumed automatic trading.", ct);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Аварийная остановка
+    /// </summary>
+    public async Task EmergencyStopAsync(string reason, CancellationToken ct = default)
+    {
+        _logger.LogCritical("EMERGENCY STOP initiated: {Reason}", reason);
+
+        _currentMode = BotOperatingMode.EmergencyStop;
+
+        // Уведомить
+        await _notifier.SendAlertAsync(
+            "🚨 EMERGENCY STOP",
+            $"Reason: {reason}\nClosing all positions...",
+            ct);
+
+        // Закрыть все позиции
+        if (_settings.CloseAllOnEmergencyStop)
+        {
+            await CloseAllPositionsAsync("Emergency stop", ct);
+        }
+
+        // Webhook
+        if (!string.IsNullOrEmpty(_settings.EmergencyWebhookUrl))
+        {
+            await SendEmergencyWebhookAsync(reason, ct);
+        }
+    }
+
+    /// <summary>
+    /// Закрыть все открытые позиции
+    /// </summary>
+    public async Task<CloseAllResult> CloseAllPositionsAsync(
+        string reason,
+        CancellationToken ct = default)
+    {
+        var openPositions = await _positionManager.GetOpenPositionsAsync(ct);
+
+        _logger.LogWarning("Closing {Count} positions: {Reason}",
+            openPositions.Count, reason);
+
+        var results = new List<PositionCloseResult>();
+
+        foreach (var position in openPositions)
+        {
+            try
+            {
+                // Отменить все ордера
+                await CancelAllOrdersForPositionAsync(position, ct);
+
+                // Закрыть по рынку
+                var closeResult = await _client.PlaceMarketOrderAsync(new OrderRequest
+                {
+                    Symbol = position.Symbol,
+                    Side = position.Direction == SignalDirection.Long
+                        ? OrderSide.Sell
+                        : OrderSide.Buy,
+                    Quantity = position.RemainingQuantity,
+                    ReduceOnly = true
+                }, ct);
+
+                results.Add(new PositionCloseResult
+                {
+                    Position = position,
+                    Success = closeResult.IsSuccess,
+                    ClosePrice = closeResult.AveragePrice,
+                    Error = closeResult.Error
+                });
+
+                _logger.LogInformation("Closed {Symbol} @ {Price}",
+                    position.Symbol, closeResult.AveragePrice);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to close position {Symbol}", position.Symbol);
+                results.Add(new PositionCloseResult
+                {
+                    Position = position,
+                    Success = false,
+                    Error = ex.Message
+                });
+            }
+        }
+
+        var totalPnl = results.Where(r => r.Success).Sum(r => r.RealizedPnl);
+
+        await _notifier.SendMessageAsync(
+            $"📊 Closed {results.Count(r => r.Success)}/{openPositions.Count} positions\n" +
+            $"Total PnL: {totalPnl:+0.00;-0.00} USDT\n" +
+            $"Reason: {reason}",
+            ct);
+
+        return new CloseAllResult
+        {
+            TotalPositions = openPositions.Count,
+            ClosedSuccessfully = results.Count(r => r.Success),
+            Failed = results.Count(r => !r.Success),
+            TotalPnl = totalPnl,
+            Results = results
+        };
+    }
+
+    /// <summary>
+    /// Отменить все открытые ордера (без закрытия позиций)
+    /// </summary>
+    public async Task CancelAllOrdersAsync(CancellationToken ct = default)
+    {
+        var openPositions = await _positionManager.GetOpenPositionsAsync(ct);
+
+        foreach (var position in openPositions)
+        {
+            await CancelAllOrdersForPositionAsync(position, ct);
+        }
+
+        _logger.LogWarning("All orders cancelled for {Count} positions", openPositions.Count);
+    }
+
+    /// <summary>
+    /// Проверка лимитов убытков
+    /// </summary>
+    public async Task CheckLossLimitsAsync(CancellationToken ct = default)
+    {
+        // Сброс дневного счётчика в полночь UTC
+        if (DateTime.UtcNow.Date > _dailyResetTime.Date)
+        {
+            var account = await _client.GetAccountInfoAsync(ct);
+            _dailyStartEquity = account.TotalWalletBalance;
+            _dailyResetTime = DateTime.UtcNow;
+        }
+
+        var currentAccount = await _client.GetAccountInfoAsync(ct);
+        decimal currentEquity = currentAccount.TotalWalletBalance;
+
+        // Дневной убыток
+        decimal dailyLossPercent = (_dailyStartEquity - currentEquity) / _dailyStartEquity * 100;
+
+        if (dailyLossPercent >= _settings.MaxDailyLossPercent)
+        {
+            _logger.LogCritical("Daily loss limit reached: {Loss:F2}%", dailyLossPercent);
+            await HandleMaxLossAsync($"Daily loss limit: {dailyLossPercent:F2}%", ct);
+            return;
+        }
+
+        // Сессионный убыток
+        decimal sessionLossPercent = (_sessionStartEquity - currentEquity) / _sessionStartEquity * 100;
+
+        if (sessionLossPercent >= _settings.MaxSessionLossPercent)
+        {
+            _logger.LogCritical("Session loss limit reached: {Loss:F2}%", sessionLossPercent);
+            await HandleMaxLossAsync($"Session loss limit: {sessionLossPercent:F2}%", ct);
+        }
+    }
+
+    private async Task HandleMaxLossAsync(string reason, CancellationToken ct)
+    {
+        switch (_settings.MaxLossAction)
+        {
+            case MaxLossAction.StopNewTrades:
+                await SetModeAsync(BotOperatingMode.MonitorOnly, ct);
+                await _notifier.SendAlertAsync("⚠️ Loss Limit Reached",
+                    $"{reason}\nNew trades stopped. Positions remain open.", ct);
+                break;
+
+            case MaxLossAction.CloseAllAndStop:
+                await EmergencyStopAsync(reason, ct);
+                break;
+
+            case MaxLossAction.NotifyOnly:
+                await _notifier.SendAlertAsync("⚠️ Loss Limit Warning",
+                    $"{reason}\nContinuing to trade.", ct);
+                break;
+        }
+    }
+
+    private async Task HandleEmergencyStopAsync(CancellationToken ct)
+    {
+        await _notifier.SendAlertAsync("🚨 EMERGENCY STOP ACTIVATED",
+            "Closing all positions and stopping bot.", ct);
+
+        if (_settings.CloseAllOnEmergencyStop)
+        {
+            await CloseAllPositionsAsync("Emergency stop", ct);
+        }
+    }
+}
+
+public record CloseAllResult
+{
+    public int TotalPositions { get; init; }
+    public int ClosedSuccessfully { get; init; }
+    public int Failed { get; init; }
+    public decimal TotalPnl { get; init; }
+    public IReadOnlyList<PositionCloseResult> Results { get; init; } = [];
+}
+
+public record PositionCloseResult
+{
+    public SignalPosition Position { get; init; } = null!;
+    public bool Success { get; init; }
+    public decimal ClosePrice { get; init; }
+    public decimal RealizedPnl { get; init; }
+    public string? Error { get; init; }
+}
+```
+
+### Команды управления (Telegram Bot / CLI)
+
+```csharp
+public interface IBotCommands
+{
+    /// <summary>
+    /// /status - показать текущее состояние
+    /// </summary>
+    Task<string> GetStatusAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// /pause - приостановить торговлю
+    /// </summary>
+    Task PauseAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// /resume - возобновить торговлю
+    /// </summary>
+    Task ResumeAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// /stop - аварийная остановка
+    /// </summary>
+    Task EmergencyStopAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// /closeall - закрыть все позиции
+    /// </summary>
+    Task CloseAllAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// /close BTCUSDT - закрыть конкретную позицию
+    /// </summary>
+    Task ClosePositionAsync(string symbol, CancellationToken ct = default);
+
+    /// <summary>
+    /// /cancelorders - отменить все ордера
+    /// </summary>
+    Task CancelAllOrdersAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// /resetcooldown - сбросить cooldown
+    /// </summary>
+    Task ResetCooldownAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// /positions - показать открытые позиции
+    /// </summary>
+    Task<string> GetPositionsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// /pnl - показать P&L за сессию/день
+    /// </summary>
+    Task<string> GetPnlAsync(CancellationToken ct = default);
+}
+```
+
+### Пример реализации команд
+
+```csharp
+public class TelegramBotCommands : IBotCommands
+{
+    private readonly BotController _controller;
+    private readonly CooldownManager _cooldownManager;
+    private readonly IPositionManager _positionManager;
+
+    public async Task<string> GetStatusAsync(CancellationToken ct = default)
+    {
+        var positions = await _positionManager.GetOpenPositionsAsync(ct);
+        var cooldown = _cooldownManager.GetStatus();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"🤖 **Bot Status**");
+        sb.AppendLine($"Mode: {_controller.CurrentMode}");
+        sb.AppendLine($"Open positions: {positions.Count}");
+
+        if (cooldown.IsInCooldown)
+        {
+            sb.AppendLine($"⏳ Cooldown: {cooldown.RemainingTime:mm\\:ss} ({cooldown.Reason})");
+        }
+
+        if (cooldown.ConsecutiveLosses > 0)
+        {
+            sb.AppendLine($"📉 Consecutive losses: {cooldown.ConsecutiveLosses}");
+            sb.AppendLine($"📊 Size multiplier: {cooldown.CurrentSizeMultiplier:P0}");
+        }
+
+        return sb.ToString();
+    }
+
+    public async Task<string> GetPositionsAsync(CancellationToken ct = default)
+    {
+        var positions = await _positionManager.GetOpenPositionsAsync(ct);
+
+        if (!positions.Any())
+            return "📭 No open positions";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("📊 **Open Positions**\n");
+
+        foreach (var pos in positions)
+        {
+            var emoji = pos.Direction == SignalDirection.Long ? "🟢" : "🔴";
+            var pnlEmoji = pos.UnrealizedPnl >= 0 ? "📈" : "📉";
+
+            sb.AppendLine($"{emoji} **{pos.Symbol}** {pos.Direction}");
+            sb.AppendLine($"   Entry: {pos.ActualEntryPrice}");
+            sb.AppendLine($"   SL: {pos.CurrentStopLoss}");
+            sb.AppendLine($"   Qty: {pos.RemainingQuantity}");
+            sb.AppendLine($"   {pnlEmoji} PnL: {pos.UnrealizedPnl:+0.00;-0.00} USDT");
+            sb.AppendLine($"   Targets hit: {pos.TargetsHit}/{pos.Targets.Count}");
+            sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+}
+```
+
+### Конфигурация
+
+```json
+{
+  "SignalBot": {
+    "Emergency": {
+      "MaxDailyLossPercent": 5.0,
+      "MaxSessionLossPercent": 10.0,
+      "MaxLossAction": "StopNewTrades",
+      "CloseAllOnEmergencyStop": true,
+      "NotifyOnEmergencyStop": true,
+      "EmergencyWebhookUrl": null
+    },
+
+    "Commands": {
+      "EnableTelegramCommands": true,
+      "AllowedUserIds": [123456789],
+      "RequireConfirmation": ["closeall", "stop"]
+    }
+  }
+}
+```
+
+### Telegram уведомления для команд
+
+```
+👤 Command received: /pause
+
+⏸️ Bot Paused
+Trading paused. 3 positions remain open.
+Use /resume to continue or /closeall to exit.
+
+---
+
+👤 Command received: /closeall
+⚠️ Are you sure? Reply /closeall confirm
+
+👤 /closeall confirm
+
+📊 Closing 3 positions...
+✅ BTCUSDT closed @ 43250.50 (+12.35 USDT)
+✅ ETHUSDT closed @ 2250.25 (-5.20 USDT)
+✅ SOLUSDT closed @ 98.15 (+3.80 USDT)
+
+Total PnL: +10.95 USDT
+
+---
+
+🚨 EMERGENCY STOP
+Reason: Daily loss limit: 5.12%
+All positions closed.
+Bot is now stopped. Manual restart required.
 ```
 
 ---
