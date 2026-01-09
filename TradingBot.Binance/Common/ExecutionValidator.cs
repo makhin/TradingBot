@@ -1,7 +1,12 @@
 using Binance.Net.Enums;
+using TradingBot.Core.Models;
+using TradingBot.Binance.Common.Models;
 
-namespace ComplexBot.Services.Trading;
+namespace TradingBot.Binance.Common;
 
+/// <summary>
+/// Validates order execution against expected parameters (slippage, price)
+/// </summary>
 public class ExecutionValidator
 {
     private readonly decimal _maxSlippagePercent;
@@ -11,6 +16,9 @@ public class ExecutionValidator
         _maxSlippagePercent = maxSlippagePercent;
     }
 
+    /// <summary>
+    /// Validates execution result against expected price and direction
+    /// </summary>
     public ExecutionResult ValidateExecution(
         decimal expectedPrice,
         decimal actualPrice,
@@ -39,6 +47,21 @@ public class ExecutionValidator
         };
     }
 
+    /// <summary>
+    /// Validates execution using TradeDirection instead of OrderSide
+    /// </summary>
+    public ExecutionResult ValidateExecution(
+        decimal expectedPrice,
+        decimal actualPrice,
+        TradeDirection direction)
+    {
+        var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
+        return ValidateExecution(expectedPrice, actualPrice, side);
+    }
+
+    /// <summary>
+    /// Returns a human-readable description of slippage quality
+    /// </summary>
     public string GetSlippageDescription(ExecutionResult result, OrderSide side)
     {
         if (Math.Abs(result.SlippagePercent) < 0.01m)
@@ -56,5 +79,14 @@ public class ExecutionValidator
         };
 
         return $"{emoji} Slippage: {Math.Abs(result.SlippagePercent):F3}% ({direction} than expected)";
+    }
+
+    /// <summary>
+    /// GetSlippageDescription overload for TradeDirection
+    /// </summary>
+    public string GetSlippageDescription(ExecutionResult result, TradeDirection direction)
+    {
+        var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
+        return GetSlippageDescription(result, side);
     }
 }

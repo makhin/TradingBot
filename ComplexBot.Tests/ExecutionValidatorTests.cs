@@ -1,5 +1,5 @@
 using Binance.Net.Enums;
-using ComplexBot.Services.Trading;
+using TradingBot.Binance.Common;
 
 namespace ComplexBot.Tests;
 

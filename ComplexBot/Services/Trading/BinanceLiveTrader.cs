@@ -13,6 +13,8 @@ using TradingBot.Core.Notifications;
 using TradingBot.Core.State;
 using TradingBot.Core.Analytics;
 using TradingBot.Core.Lifecycle;
+using TradingBot.Binance.Common;
+using TradingBot.Binance.Common.Models;
 using CryptoExchange.Net.Objects.Sockets;
 using Serilog;
 using Serilog.Events;

@@ -1,5 +1,8 @@
-namespace ComplexBot.Services.Trading;
+namespace TradingBot.Binance.Common.Models;
 
+/// <summary>
+/// Result of order execution with slippage validation
+/// </summary>
 public record ExecutionResult
 {
     public bool IsAcceptable { get; init; }

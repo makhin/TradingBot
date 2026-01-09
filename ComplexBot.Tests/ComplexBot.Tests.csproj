@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../ComplexBot/ComplexBot.csproj" />
+    <ProjectReference Include="../TradingBot.Binance/TradingBot.Binance.csproj" />
   </ItemGroup>
 
   <ItemGroup>
