@@ -293,6 +293,40 @@ class ResultsRenderer
         DisplayBacktestResults(backtestResult);
     }
 
+    public void DisplayAdxOptimizationResults(
+        GeneticOptimizationResult<StrategySettings> result,
+        BacktestResult backtestResult)
+    {
+        var best = result.BestSettings;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[yellow]ADX Genetic Optimization Results[/]").RuleStyle("grey"));
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Metric")
+            .AddColumn("Value");
+
+        table.AddRow("Best fitness", result.BestFitness.ToString("F2"));
+        table.AddRow("Generations", result.GenerationHistory.Count.ToString());
+        table.AddEmptyRow();
+        table.AddRow("[cyan]ADX period[/]", best.AdxPeriod.ToString());
+        table.AddRow("[cyan]ADX threshold[/]", best.AdxThreshold.ToString("F1"));
+        table.AddRow("[cyan]ADX exit threshold[/]", best.AdxExitThreshold.ToString("F1"));
+        table.AddEmptyRow();
+        table.AddRow("[cyan]Fast/Slow EMA[/]", $"{best.FastEmaPeriod} / {best.SlowEmaPeriod}");
+        table.AddEmptyRow();
+        table.AddRow("[cyan]ATR stop[/]", best.AtrStopMultiplier.ToString("F2"));
+        table.AddRow("[cyan]Take profit[/]", best.TakeProfitMultiplier.ToString("F2"));
+        table.AddRow("[cyan]Volume threshold[/]", best.VolumeThreshold.ToString("F2"));
+        table.AddRow("[cyan]Volume confirmation[/]", best.RequireVolumeConfirmation ? "Yes" : "No");
+        table.AddRow("[cyan]OBV confirmation[/]", best.RequireObvConfirmation ? "Yes" : "No");
+
+        AnsiConsole.Write(table);
+
+        DisplayBacktestResults(backtestResult);
+    }
+
     public void DisplayFullEnsembleResults(
         GeneticOptimizationResult<FullEnsembleSettings> result,
         BacktestResult backtestResult)

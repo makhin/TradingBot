@@ -74,6 +74,12 @@ class OptimizationRunner
                 await RunRsiOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
                 return;
             }
+            case { Kind: StrategyKind.AdxTrendFollowing, Mode: OptimizationMode.Genetic }:
+            {
+                var optimizeFor = PromptOptimizationTarget();
+                await RunAdxOptimization(candles, symbol, riskSettings, backtestSettings, optimizeFor);
+                return;
+            }
             case { Mode: OptimizationMode.Quick }:
             {
                 var strategy = _strategyRegistry.CreateStrategy(scenario.Kind);
@@ -382,6 +388,33 @@ class OptimizationRunner
         PromptSaveRsiSettings(bestSettings);
     }
 
+    private async Task RunAdxOptimization(
+        List<Candle> candles,
+        string symbol,
+        RiskSettings riskSettings,
+        BacktestSettingsModel backtestSettings,
+        OptimizationTarget optimizeFor)
+    {
+        var config = _configService.GetConfiguration();
+        var optimizerConfig = config.AdxOptimizer.ToAdxOptimizerConfig();
+        var geneticSettings = config.GeneticOptimizer.ToGeneticOptimizerSettings();
+        var fitness = ToFitnessFunction(optimizeFor);
+        var optimizer = new AdxStrategyOptimizer(optimizerConfig, riskSettings, backtestSettings, fitness);
+
+        var result = await RunGeneticOptimization<StrategySettings>(
+            "Optimizing ADX...",
+            progress => optimizer.Optimize(candles, symbol, geneticSettings, progress),
+            p => $"Optimizing ADX... Gen {p.CurrentGeneration}/{p.TotalGenerations}");
+
+        var bestSettings = result.BestSettings;
+        var strategy = new AdxTrendStrategy(bestSettings);
+        var engine = new BacktestEngine(strategy, riskSettings, backtestSettings);
+        var backtestResult = engine.Run(candles, symbol);
+
+        _resultsRenderer.DisplayAdxOptimizationResults(result, backtestResult);
+        PromptSaveAdxGeneticSettings(bestSettings);
+    }
+
     private void PromptSaveEnsembleSettings(EnsembleOptimizationSettings settings)
     {
         if (!AnsiConsole.Confirm("Save best ensemble settings to appsettings.user.json?", defaultValue: true))
@@ -420,6 +453,28 @@ class OptimizationRunner
 
         var updated = RsiStrategyConfigSettings.FromSettings(settings);
         _configService.UpdateSection("RsiStrategy", updated);
+    }
+
+    private void PromptSaveAdxGeneticSettings(StrategySettings settings)
+    {
+        if (!AnsiConsole.Confirm("Save best ADX parameters to appsettings.user.json?", defaultValue: true))
+            return;
+
+        var updated = new StrategyConfigSettings
+        {
+            AdxPeriod = settings.AdxPeriod,
+            AdxThreshold = settings.AdxThreshold,
+            AdxExitThreshold = settings.AdxExitThreshold,
+            FastEmaPeriod = settings.FastEmaPeriod,
+            SlowEmaPeriod = settings.SlowEmaPeriod,
+            AtrStopMultiplier = settings.AtrStopMultiplier,
+            TakeProfitMultiplier = settings.TakeProfitMultiplier,
+            VolumeThreshold = settings.VolumeThreshold,
+            RequireVolumeConfirmation = settings.RequireVolumeConfirmation
+        };
+
+        _configService.UpdateSection("Strategy", updated);
+        AnsiConsole.MarkupLine("[green]✓ ADX settings saved to appsettings.user.json[/]");
     }
 
     private static async Task<GeneticOptimizationResult<TSettings>> RunGeneticOptimization<TSettings>(

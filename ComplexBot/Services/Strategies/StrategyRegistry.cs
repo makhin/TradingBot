@@ -20,7 +20,7 @@ public class StrategyRegistry
             StrategyKind.AdxTrendFollowing,
             "ADX Trend Following",
             "ADX",
-            [OptimizationMode.Full]),
+            [OptimizationMode.Full, OptimizationMode.Genetic]),
         new StrategyDefinition(
             StrategyKind.RsiMeanReversion,
             "RSI Mean Reversion",
