@@ -6,6 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a .NET 8 cryptocurrency trading bot for Binance implementing multiple trend-following strategies with comprehensive backtesting, optimization, and risk management. The primary strategy is ADX Trend Following with Volume Confirmation, targeting Sharpe Ratio 1.5-1.9 and Max Drawdown <20%.
 
+## Documentation Map
+
+Key docs in `docs/` for onboarding and operations:
+
+- `docs/QUICK_START.md` - End-to-end CLI workflow overview
+- `docs/ENV_SETUP.md` - Full environment variable setup and security guidance
+- `docs/ENV_QUICK_START.md` - Short setup checklist for `.env` usage
+- `docs/README-DOCKER.md` - Docker build/run flow
+- `docs/STRATEGY_PHILOSOPHY.md` - Strategy rationale and trading principles
+- `docs/SIGNALBOT_DESIGN.md` - SignalBot architecture notes
+- `docs/GENETIC_OPTIMIZER_GUIDE.md` - Optimizer usage and configuration
+- `docs/USER_GUIDE_RU.md` - Russian user guide for non-technical users
+
 ## Build and Run Commands
 
 ### Main Application
