@@ -83,14 +83,39 @@ public class SignalBotRunner
 
         try
         {
-            // Test connectivity
-            var connected = await _client.TestConnectivityAsync(_cts.Token);
-            if (!connected)
+            // Check if Futures trading is enabled
+            if (!_settings.EnableFuturesTrading)
             {
-                throw new InvalidOperationException("Failed to connect to Binance Futures API");
+                _logger.Warning("⚠️ Futures trading is DISABLED in configuration");
+                _logger.Information("SignalBot will run in monitoring-only mode");
+                await StartInMonitoringOnlyMode(_cts.Token);
+                return;
             }
 
-            _logger.Information("Connected to Binance Futures API");
+            // Test connectivity to Futures API
+            try
+            {
+                var connected = await _client.TestConnectivityAsync(_cts.Token);
+                if (!connected)
+                {
+                    throw new InvalidOperationException("Failed to connect to Binance Futures API");
+                }
+
+                _logger.Information("Connected to Binance Futures API");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to connect to Binance Futures API");
+                
+                if (ex.Message.Contains("Invalid API-key") || ex.Message.Contains("permissions"))
+                {
+                    _logger.Warning("⚠️ Futures API credentials issue detected");
+                    _logger.Information("To disable Futures trading, set 'EnableFuturesTrading' to false in appsettings.json");
+                    _logger.Information("Or set environment variable: TRADING_SignalBot__EnableFuturesTrading=false");
+                }
+                
+                throw;
+            }
 
             // Subscribe to events
             _telegramListener.OnSignalReceived += HandleSignalReceived;
@@ -125,6 +150,51 @@ public class SignalBotRunner
         catch (Exception ex)
         {
             _logger.Error(ex, "Failed to start SignalBot");
+            await StopAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Start SignalBot in monitoring-only mode (no trading)
+    /// </summary>
+    private async Task StartInMonitoringOnlyMode(CancellationToken ct)
+    {
+        try
+        {
+            // Subscribe to events (except trading-related ones)
+            _telegramListener.OnSignalReceived += (signal) =>
+            {
+                _logger.Information("Received signal (MONITORING ONLY): {Symbol} {Direction} at {Price}",
+                    signal.Symbol, signal.Direction, signal.Entry);
+            };
+
+            // Start Telegram listener only
+            await _telegramListener.StartAsync(ct);
+
+            // Start command handler (if configured)
+            if (_commandHandler != null)
+            {
+                await _commandHandler.StartAsync(ct);
+                _logger.Information("Telegram command handler started (monitoring mode)");
+            }
+
+            _isRunning = true;
+            _logger.Information("✅ SignalBot started in MONITORING-ONLY mode (no trading)");
+
+            if (_notifier != null)
+            {
+                await _notifier.SendMessageAsync(
+                    "⚠️ SignalBot started in MONITORING-ONLY mode\n" +
+                    "Futures trading is DISABLED\n" +
+                    $"Monitoring {_settings.Telegram.ChannelIds.Count} Telegram channel(s)\n" +
+                    "To enable trading, set EnableFuturesTrading to true",
+                    ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to start monitoring-only mode");
             await StopAsync();
             throw;
         }

@@ -1,0 +1,13 @@
+2026-01-10 19:01:06.272 +01:00 [INF] SignalBot starting up...
+2026-01-10 19:01:06.454 +01:00 [INF] Using Binance Testnet API
+2026-01-10 19:01:08.226 +01:00 [INF] Starting SignalBot...
+2026-01-10 19:01:10.091 +01:00 [WRN] Futures account balances failed: Invalid API-key, IP, or permissions for action
+2026-01-10 19:01:10.094 +01:00 [ERR] Failed to start SignalBot
+System.InvalidOperationException: Failed to connect to Binance Futures API
+   at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 90
+2026-01-10 19:01:10.131 +01:00 [WRN] SignalBot is not running
+2026-01-10 19:01:10.136 +01:00 [FTL] SignalBot terminated unexpectedly
+System.InvalidOperationException: Failed to connect to Binance Futures API
+   at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 90
+   at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 129
+   at SignalBot.Program.Main(String[] args) in C:\code\TradingBot\SignalBot\Program.cs:line 113

@@ -90,7 +90,15 @@ class Program
             if (!string.IsNullOrEmpty(chatId))
                 signalBotSettings.Notifications.TelegramChatId = chatId;
 
+            // Override EnableFuturesTrading from environment if specified
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TRADING_SignalBot__EnableFuturesTrading")))
+            {
+                signalBotSettings.EnableFuturesTrading = 
+                    bool.Parse(Environment.GetEnvironmentVariable("TRADING_SignalBot__EnableFuturesTrading")!);
+            }
+
             Log.Information("Using Binance {Mode} API", binanceSettings.UseTestnet ? "Testnet" : "Mainnet");
+            Log.Information("Futures Trading: {Status}", signalBotSettings.EnableFuturesTrading ? "ENABLED" : "DISABLED");
 
             // Build service provider
             var services = new ServiceCollection();

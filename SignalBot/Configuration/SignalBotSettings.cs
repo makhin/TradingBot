@@ -15,4 +15,9 @@ public class SignalBotSettings
     public RiskOverrideSettings RiskOverride { get; set; } = new();
     public NotificationSettings Notifications { get; set; } = new();
     public StateSettings State { get; set; } = new();
+    
+    /// <summary>
+    /// Enable/disable Futures trading. If disabled, only monitoring is available
+    /// </summary>
+    public bool EnableFuturesTrading { get; set; } = true;
 }
