@@ -1,0 +1,251 @@
+using SignalBot.Models;
+using SignalBot.State;
+using TradingBot.Binance.Futures.Interfaces;
+using TradingBot.Core.Models;
+using TradingBot.Core.Notifications;
+using Serilog;
+
+namespace SignalBot.Services.Trading;
+
+/// <summary>
+/// Manages signal positions lifecycle (targets, stop-loss movement, P&L)
+/// </summary>
+public class PositionManager : IPositionManager
+{
+    private readonly IPositionStore<SignalPosition> _store;
+    private readonly IFuturesOrderExecutor _orderExecutor;
+    private readonly INotifier? _notifier;
+    private readonly ILogger _logger;
+
+    public PositionManager(
+        IPositionStore<SignalPosition> store,
+        IFuturesOrderExecutor orderExecutor,
+        INotifier? notifier = null,
+        ILogger? logger = null)
+    {
+        _store = store;
+        _orderExecutor = orderExecutor;
+        _notifier = notifier;
+        _logger = logger ?? Log.ForContext<PositionManager>();
+    }
+
+    public async Task SavePositionAsync(SignalPosition position, CancellationToken ct = default)
+    {
+        await _store.SavePositionAsync(position, ct);
+    }
+
+    public async Task<SignalPosition?> GetPositionAsync(Guid positionId, CancellationToken ct = default)
+    {
+        return await _store.GetPositionAsync(positionId, ct);
+    }
+
+    public async Task<SignalPosition?> GetPositionBySymbolAsync(string symbol, CancellationToken ct = default)
+    {
+        return await _store.GetPositionBySymbolAsync(symbol, ct);
+    }
+
+    public async Task<List<SignalPosition>> GetOpenPositionsAsync(CancellationToken ct = default)
+    {
+        return await _store.GetOpenPositionsAsync(ct);
+    }
+
+    public async Task UpdatePositionAsync(SignalPosition position, CancellationToken ct = default)
+    {
+        await _store.SavePositionAsync(position, ct);
+    }
+
+    public async Task HandleTargetHitAsync(
+        SignalPosition position,
+        int targetIndex,
+        decimal fillPrice,
+        CancellationToken ct = default)
+    {
+        var target = position.Targets[targetIndex];
+
+        _logger.Information("Handling target {Index} hit for {Symbol} @ {Price}",
+            targetIndex, position.Symbol, fillPrice);
+
+        // 1. Update target as hit
+        var updatedTargets = position.Targets.Select((t, i) => i == targetIndex
+            ? t with
+            {
+                IsHit = true,
+                HitAt = DateTime.UtcNow,
+                ActualClosePrice = fillPrice
+            }
+            : t).ToList();
+
+        // 2. Update remaining quantity
+        decimal closedQty = target.QuantityToClose;
+        decimal newRemaining = position.RemainingQuantity - closedQty;
+
+        // 3. Calculate realized PnL for this portion
+        decimal pnl = CalculatePnl(
+            position.ActualEntryPrice,
+            fillPrice,
+            closedQty,
+            position.Direction);
+
+        // 4. Move Stop Loss if needed
+        if (target.MoveStopLossTo.HasValue && newRemaining > 0)
+        {
+            await MoveStopLossAsync(position, target.MoveStopLossTo.Value, newRemaining, ct);
+        }
+
+        // 5. Update position
+        var updatedPosition = position with
+        {
+            Targets = updatedTargets,
+            RemainingQuantity = newRemaining,
+            RealizedPnl = position.RealizedPnl + pnl,
+            Status = newRemaining <= 0 ? PositionStatus.Closed : PositionStatus.PartialClosed,
+            ClosedAt = newRemaining <= 0 ? DateTime.UtcNow : null,
+            CloseReason = newRemaining <= 0 ? PositionCloseReason.AllTargetsHit : null
+        };
+
+        await _store.SavePositionAsync(updatedPosition, ct);
+
+        // 6. Notify
+        if (_notifier != null)
+        {
+            await _notifier.SendMessageAsync(
+                $"🎯 Target {targetIndex + 1} hit!\n" +
+                $"Symbol: {position.Symbol}\n" +
+                $"Price: {fillPrice}\n" +
+                $"PnL: {pnl:+0.00;-0.00} USDT\n" +
+                $"Remaining: {newRemaining}",
+                ct);
+        }
+
+        _logger.Information(
+            "Target {Index} hit for {Symbol}: {Price}, PnL: {Pnl}, Remaining: {Remaining}",
+            targetIndex + 1, position.Symbol, fillPrice, pnl, newRemaining);
+    }
+
+    public async Task HandleStopLossHitAsync(
+        SignalPosition position,
+        decimal fillPrice,
+        CancellationToken ct = default)
+    {
+        _logger.Information("Handling stop loss hit for {Symbol} @ {Price}",
+            position.Symbol, fillPrice);
+
+        // 1. Cancel all TP orders
+        foreach (var orderId in position.TakeProfitOrderIds)
+        {
+            try
+            {
+                await _orderExecutor.CancelOrderAsync(position.Symbol, orderId, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Failed to cancel TP order {OrderId} for {Symbol}",
+                    orderId, position.Symbol);
+            }
+        }
+
+        // 2. Calculate PnL
+        decimal pnl = CalculatePnl(
+            position.ActualEntryPrice,
+            fillPrice,
+            position.RemainingQuantity,
+            position.Direction);
+
+        // 3. Update position
+        var updatedPosition = position with
+        {
+            RemainingQuantity = 0,
+            RealizedPnl = position.RealizedPnl + pnl,
+            Status = PositionStatus.Closed,
+            ClosedAt = DateTime.UtcNow,
+            CloseReason = PositionCloseReason.StopLossHit
+        };
+
+        await _store.SavePositionAsync(updatedPosition, ct);
+
+        // 4. Notify
+        if (_notifier != null)
+        {
+            await _notifier.SendMessageAsync(
+                "🛑 Stop Loss Hit\n" +
+                $"Symbol: {position.Symbol}\n" +
+                $"Entry: {position.ActualEntryPrice}\n" +
+                $"Exit: {fillPrice}\n" +
+                $"Total PnL: {updatedPosition.RealizedPnl:+0.00;-0.00} USDT",
+                ct);
+        }
+
+        _logger.Information(
+            "Stop loss hit for {Symbol}: Entry {Entry}, Exit {Exit}, PnL: {Pnl}",
+            position.Symbol, position.ActualEntryPrice, fillPrice, updatedPosition.RealizedPnl);
+    }
+
+    private async Task MoveStopLossAsync(
+        SignalPosition position,
+        decimal newStopLoss,
+        decimal quantity,
+        CancellationToken ct)
+    {
+        _logger.Information("Moving stop loss for {Symbol}: {OldSL} → {NewSL}",
+            position.Symbol, position.CurrentStopLoss, newStopLoss);
+
+        // 1. Cancel old SL
+        if (position.StopLossOrderId.HasValue)
+        {
+            try
+            {
+                await _orderExecutor.CancelOrderAsync(position.Symbol, position.StopLossOrderId.Value, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Failed to cancel old stop loss for {Symbol}", position.Symbol);
+            }
+        }
+
+        // 2. Place new SL
+        try
+        {
+            var tradeDirection = position.Direction == SignalDirection.Long
+                ? TradeDirection.Long
+                : TradeDirection.Short;
+
+            var result = await _orderExecutor.PlaceStopLossAsync(
+                position.Symbol,
+                tradeDirection,
+                quantity,
+                newStopLoss,
+                ct);
+
+            if (result.IsAcceptable && result.OrderId.HasValue)
+            {
+                // Update position with new SL order ID
+                var updatedPosition = position with
+                {
+                    StopLossOrderId = result.OrderId.Value,
+                    CurrentStopLoss = newStopLoss
+                };
+                await _store.SavePositionAsync(updatedPosition, ct);
+
+                _logger.Information("Stop loss moved successfully for {Symbol}", position.Symbol);
+            }
+            else
+            {
+                _logger.Warning("Failed to place new stop loss for {Symbol}: {Reason}",
+                    position.Symbol, result.RejectReason);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error moving stop loss for {Symbol}", position.Symbol);
+        }
+    }
+
+    private decimal CalculatePnl(decimal entry, decimal exit, decimal quantity, SignalDirection direction)
+    {
+        decimal priceDiff = direction == SignalDirection.Long
+            ? exit - entry
+            : entry - exit;
+
+        return priceDiff * quantity;
+    }
+}

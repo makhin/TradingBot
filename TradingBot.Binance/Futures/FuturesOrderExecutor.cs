@@ -4,6 +4,7 @@ using TradingBot.Core.Models;
 using TradingBot.Binance.Common;
 using TradingBot.Binance.Common.Interfaces;
 using TradingBot.Binance.Common.Models;
+using TradingBot.Binance.Futures.Interfaces;
 using Serilog;
 
 namespace TradingBot.Binance.Futures;
@@ -11,7 +12,7 @@ namespace TradingBot.Binance.Futures;
 /// <summary>
 /// Binance Futures market order executor implementation
 /// </summary>
-public class FuturesOrderExecutor : IOrderExecutor
+public class FuturesOrderExecutor : IFuturesOrderExecutor
 {
     private readonly BinanceRestClient _client;
     private readonly ExecutionValidator _validator;
@@ -67,7 +68,8 @@ public class FuturesOrderExecutor : IOrderExecutor
         var markPriceResult = await _client.UsdFuturesApi.ExchangeData.GetMarkPriceAsync(symbol, ct);
         decimal expectedPrice = markPriceResult.Success ? markPriceResult.Data.MarkPrice : avgPrice;
 
-        return _validator.ValidateExecution(expectedPrice, avgPrice, side);
+        var executionResult = _validator.ValidateExecution(expectedPrice, avgPrice, side);
+        return executionResult with { OrderId = order.Id };
     }
 
     /// <summary>
@@ -109,6 +111,7 @@ public class FuturesOrderExecutor : IOrderExecutor
         return new ExecutionResult
         {
             IsAcceptable = true,
+            OrderId = result.Data.Id,
             ExpectedPrice = price,
             ActualPrice = price,
             SlippagePercent = 0,
@@ -157,6 +160,7 @@ public class FuturesOrderExecutor : IOrderExecutor
         return new ExecutionResult
         {
             IsAcceptable = true,
+            OrderId = result.Data.Id,
             ExpectedPrice = stopPrice,
             ActualPrice = stopPrice,
             SlippagePercent = 0,
@@ -205,6 +209,7 @@ public class FuturesOrderExecutor : IOrderExecutor
         return new ExecutionResult
         {
             IsAcceptable = true,
+            OrderId = result.Data.Id,
             ExpectedPrice = takeProfitPrice,
             ActualPrice = takeProfitPrice,
             SlippagePercent = 0,
