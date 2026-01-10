@@ -18,6 +18,7 @@ public class SignalTrader : ISignalTrader
     private readonly IPositionManager _positionManager;
     private readonly IRiskManager _riskManager;
     private readonly TradingSettings _settings;
+    private readonly EntrySettings _entrySettings;
     private readonly ILogger _logger;
 
     public SignalTrader(
@@ -26,6 +27,7 @@ public class SignalTrader : ISignalTrader
         IPositionManager positionManager,
         IRiskManager riskManager,
         TradingSettings settings,
+        EntrySettings entrySettings,
         ILogger? logger = null)
     {
         _client = client;
@@ -33,6 +35,7 @@ public class SignalTrader : ISignalTrader
         _positionManager = positionManager;
         _riskManager = riskManager;
         _settings = settings;
+        _entrySettings = entrySettings;
         _logger = logger ?? Log.ForContext<SignalTrader>();
     }
 
@@ -71,7 +74,49 @@ public class SignalTrader : ISignalTrader
                 _logger.Warning("Failed to set margin type for {Symbol}, may already be set", signal.Symbol);
             }
 
-            // 3. Calculate position size
+            // 3. Check price deviation
+            var currentPrice = await _client.GetMarkPriceAsync(signal.Symbol, ct);
+            var deviationPercent = Math.Abs(currentPrice - signal.Entry) / signal.Entry * 100;
+
+            if (deviationPercent > _entrySettings.MaxPriceDeviationPercent)
+            {
+                _logger.Warning(
+                    "Price deviation {Deviation:F2}% exceeds max {Max:F2}% for {Symbol} (Signal: {Entry}, Current: {Current})",
+                    deviationPercent, _entrySettings.MaxPriceDeviationPercent, signal.Symbol, signal.Entry, currentPrice);
+
+                switch (_entrySettings.DeviationAction)
+                {
+                    case PriceDeviationAction.Skip:
+                        _logger.Information("Skipping signal for {Symbol} due to price deviation", signal.Symbol);
+                        position = position with { Status = PositionStatus.Cancelled };
+                        await _positionManager.SavePositionAsync(position, ct);
+                        throw new InvalidOperationException(
+                            $"Price deviation {deviationPercent:F2}% exceeds maximum {_entrySettings.MaxPriceDeviationPercent:F2}%");
+
+                    case PriceDeviationAction.EnterAtMarket:
+                        _logger.Information("Entering at market despite deviation for {Symbol}", signal.Symbol);
+                        // Continue with execution
+                        break;
+
+                    case PriceDeviationAction.PlaceLimitAtEntry:
+                        _logger.Information("Placing limit order at entry price {Entry} for {Symbol}", signal.Entry, signal.Symbol);
+                        // TODO: Implement limit order logic
+                        throw new NotImplementedException("Limit order placement not yet implemented");
+
+                    case PriceDeviationAction.EnterAndAdjustTargets:
+                        _logger.Information("Entering at market and adjusting targets for {Symbol}", signal.Symbol);
+                        signal = AdjustTargetsForPriceDeviation(signal, currentPrice);
+                        break;
+                }
+            }
+            else
+            {
+                _logger.Information(
+                    "Price deviation {Deviation:F2}% is within acceptable range for {Symbol}",
+                    deviationPercent, signal.Symbol);
+            }
+
+            // 4. Calculate position size
             var positionSize = _riskManager.CalculatePositionSize(
                 signal.Entry,
                 signal.AdjustedStopLoss);
@@ -202,6 +247,30 @@ public class SignalTrader : ISignalTrader
         }
 
         return targets;
+    }
+
+    private TradingSignal AdjustTargetsForPriceDeviation(TradingSignal signal, decimal actualEntry)
+    {
+        // Calculate the shift between planned and actual entry
+        decimal shift = actualEntry - signal.Entry;
+
+        _logger.Information(
+            "Adjusting targets for {Symbol}: Entry shift from {Original} to {Actual} ({Shift:+0.0000;-0.0000})",
+            signal.Symbol, signal.Entry, actualEntry, shift);
+
+        // Shift all targets by the same amount
+        var adjustedTargets = signal.Targets.Select(t => t + shift).ToList();
+
+        _logger.Information(
+            "Original targets: [{Original}], Adjusted targets: [{Adjusted}]",
+            string.Join(", ", signal.Targets.Select(t => t.ToString("F4"))),
+            string.Join(", ", adjustedTargets.Select(t => t.ToString("F4"))));
+
+        return signal with
+        {
+            Entry = actualEntry,
+            Targets = adjustedTargets
+        };
     }
 
     private async Task<TradingBot.Binance.Common.Models.ExecutionResult> PlaceMarketOrderWithRetry(

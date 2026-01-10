@@ -1,3 +1,5 @@
+using SignalBot.Models;
+
 namespace SignalBot.Configuration;
 
 /// <summary>
@@ -6,8 +8,9 @@ namespace SignalBot.Configuration;
 public class EntrySettings
 {
     public decimal MaxPriceDeviationPercent { get; set; } = 0.5m;
-    public string DeviationAction { get; set; } = "Skip"; // Skip, Adjust, Wait
+    public PriceDeviationAction DeviationAction { get; set; } = PriceDeviationAction.Skip;
     public bool UseLimitOrder { get; set; } = false;
+    public LimitOrderPricing LimitPricing { get; set; } = LimitOrderPricing.AtEntry;
     public TimeSpan LimitOrderTtl { get; set; } = TimeSpan.FromMinutes(5);
     public decimal MaxSlippagePercent { get; set; } = 0.3m;
 }

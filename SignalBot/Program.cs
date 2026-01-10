@@ -152,6 +152,7 @@ class Program
         services.AddSingleton(signalBotSettings.RiskOverride);
         services.AddSingleton(signalBotSettings.PositionSizing);
         services.AddSingleton(signalBotSettings.DuplicateHandling);
+        services.AddSingleton(signalBotSettings.Entry);
 
         // Logging
         services.AddSingleton<ILogger>(Log.Logger);
