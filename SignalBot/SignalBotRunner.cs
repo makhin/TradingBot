@@ -1,5 +1,7 @@
 using SignalBot.Configuration;
 using SignalBot.Models;
+using SignalBot.Services;
+using SignalBot.Services.Commands;
 using SignalBot.Services.Monitoring;
 using SignalBot.Services.Telegram;
 using SignalBot.Services.Trading;
@@ -25,6 +27,9 @@ public class SignalBotRunner
     private readonly IPositionManager _positionManager;
     private readonly IOrderMonitor _orderMonitor;
     private readonly IPositionStore<SignalPosition> _store;
+    private readonly BotController _botController;
+    private readonly CooldownManager _cooldownManager;
+    private readonly TelegramCommandHandler? _commandHandler;
     private readonly INotifier? _notifier;
     private readonly ILogger _logger;
 
@@ -42,6 +47,9 @@ public class SignalBotRunner
         IPositionManager positionManager,
         IOrderMonitor orderMonitor,
         IPositionStore<SignalPosition> store,
+        BotController botController,
+        CooldownManager cooldownManager,
+        TelegramCommandHandler? commandHandler = null,
         INotifier? notifier = null,
         ILogger? logger = null)
     {
@@ -54,6 +62,9 @@ public class SignalBotRunner
         _positionManager = positionManager;
         _orderMonitor = orderMonitor;
         _store = store;
+        _botController = botController;
+        _cooldownManager = cooldownManager;
+        _commandHandler = commandHandler;
         _notifier = notifier;
         _logger = logger ?? Log.ForContext<SignalBotRunner>();
     }
@@ -92,6 +103,13 @@ public class SignalBotRunner
             // Start Telegram listener
             await _telegramListener.StartAsync(_cts.Token);
 
+            // Start command handler (if configured)
+            if (_commandHandler != null)
+            {
+                await _commandHandler.StartAsync(_cts.Token);
+                _logger.Information("Telegram command handler started");
+            }
+
             _isRunning = true;
             _logger.Information("SignalBot started successfully");
 
@@ -129,6 +147,9 @@ public class SignalBotRunner
             _orderMonitor.OnTargetHit -= HandleTargetHit;
             _orderMonitor.OnStopLossHit -= HandleStopLossHit;
 
+            // Stop command handler
+            _commandHandler?.Stop();
+
             // Stop Telegram listener
             await _telegramListener.StopAsync();
 
@@ -160,6 +181,22 @@ public class SignalBotRunner
         {
             _logger.Information("Received signal: {Symbol} {Direction} @ {Entry}",
                 signal.Symbol, signal.Direction, signal.Entry);
+
+            // Check if bot can accept new signals
+            if (!_botController.CanAcceptNewSignals())
+            {
+                _logger.Warning("Signal ignored: Bot is in {Mode} mode", _botController.CurrentMode);
+                return;
+            }
+
+            // Check cooldown period
+            if (_cooldownManager.IsInCooldown)
+            {
+                var cooldownStatus = _cooldownManager.GetStatus();
+                _logger.Warning("Signal ignored: Cooldown active until {Until} ({Remaining} remaining). Reason: {Reason}",
+                    cooldownStatus.CooldownUntil, cooldownStatus.RemainingTime, cooldownStatus.Reason);
+                return;
+            }
 
             // Check concurrent positions limit
             var openPositions = await _store.GetOpenPositionsAsync(_cts!.Token);
@@ -279,6 +316,13 @@ public class SignalBotRunner
 
             await _positionManager.HandleTargetHitAsync(position, targetIndex, fillPrice, _cts.Token);
 
+            // Get updated position to pass to cooldown manager if fully closed
+            var updatedPosition = await _store.GetPositionAsync(positionId, _cts.Token);
+            if (updatedPosition is { Status: PositionStatus.Closed, CloseReason: PositionCloseReason.AllTargetsHit })
+            {
+                _cooldownManager.OnPositionClosed(updatedPosition);
+            }
+
             _logger.Information("Target {Index} processed for {Symbol}", targetIndex, position.Symbol);
         }
         catch (Exception ex)
@@ -302,6 +346,13 @@ public class SignalBotRunner
             }
 
             await _positionManager.HandleStopLossHitAsync(position, fillPrice, _cts.Token);
+
+            // Get updated position to pass to cooldown manager
+            var updatedPosition = await _store.GetPositionAsync(positionId, _cts.Token);
+            if (updatedPosition is { Status: PositionStatus.Closed })
+            {
+                _cooldownManager.OnPositionClosed(updatedPosition);
+            }
 
             _logger.Information("Stop loss processed for {Symbol}", position.Symbol);
         }

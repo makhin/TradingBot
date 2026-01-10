@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Binance.Net.Clients;
 using SignalBot.Configuration;
 using SignalBot.Models;
+using SignalBot.Services.Commands;
 using SignalBot.Services.Monitoring;
 using SignalBot.Services.Telegram;
 using SignalBot.Services.Trading;
@@ -153,6 +154,7 @@ class Program
         services.AddSingleton(signalBotSettings.PositionSizing);
         services.AddSingleton(signalBotSettings.DuplicateHandling);
         services.AddSingleton(signalBotSettings.Entry);
+        services.AddSingleton(signalBotSettings.Cooldown);
 
         // Logging
         services.AddSingleton<ILogger>(Log.Logger);
@@ -236,6 +238,11 @@ class Program
         // Monitoring
         services.AddSingleton<IOrderMonitor, OrderMonitor>();
 
+        // Bot control
+        services.AddSingleton<BotController>();
+        services.AddSingleton<IBotCommands, TelegramBotCommands>();
+        services.AddSingleton<Services.CooldownManager>();
+
         // Telegram
         services.AddSingleton<ITelegramSignalListener>(sp =>
             new TelegramSignalListener(
@@ -248,6 +255,20 @@ class Program
         {
             services.AddSingleton<INotifier>(sp =>
                 new TelegramNotifier(
+                    signalBotSettings.Notifications.TelegramBotToken,
+                    long.Parse(signalBotSettings.Notifications.TelegramChatId),
+                    sp.GetRequiredService<ILogger>()));
+        }
+
+        // Command handler (optional - requires bot token separate from notifier)
+        // For now, commands go through the same notifier bot token
+        // To enable: set a separate bot token in config for commands
+        if (!string.IsNullOrEmpty(signalBotSettings.Notifications.TelegramBotToken) &&
+            !string.IsNullOrEmpty(signalBotSettings.Notifications.TelegramChatId))
+        {
+            services.AddSingleton<TelegramCommandHandler>(sp =>
+                new TelegramCommandHandler(
+                    sp.GetRequiredService<IBotCommands>(),
                     signalBotSettings.Notifications.TelegramBotToken,
                     long.Parse(signalBotSettings.Notifications.TelegramChatId),
                     sp.GetRequiredService<ILogger>()));
