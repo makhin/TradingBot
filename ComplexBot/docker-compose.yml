@@ -1,8 +1,8 @@
 services:
   tradingbot:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: ComplexBot/Dockerfile
     container_name: tradingbot
     restart: unless-stopped
 
@@ -27,11 +27,11 @@ services:
     # Persistent volumes
     volumes:
       # Historical data cache
-      - ./data/HistoricalData:/app/HistoricalData
+      - ../data/HistoricalData:/app/HistoricalData
       # Application logs (Serilog output)
-      - ./data/logs:/app/data/logs
+      - ../data/logs:/app/data/logs
       # Mount .env file for configuration
-      - ./.env:/app/.env:ro
+      - ../.env:/app/.env:ro
 
     # Resource limits for Raspberry Pi 4 (4GB model)
     deploy:
@@ -51,8 +51,8 @@ services:
   # Optional: Live trading service (runs continuously)
   tradingbot-live:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: ComplexBot/Dockerfile
     container_name: tradingbot-live
     restart: unless-stopped
     profiles:
@@ -71,10 +71,10 @@ services:
       - TRADING_MODE=live
 
     volumes:
-      - ./data/HistoricalData:/app/HistoricalData
+      - ../data/HistoricalData:/app/HistoricalData
       # Application logs (Serilog output)
-      - ./data/logs:/app/data/logs
-      - ./.env:/app/.env:ro
+      - ../data/logs:/app/data/logs
+      - ../.env:/app/.env:ro
 
     deploy:
       resources:

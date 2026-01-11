@@ -1,0 +1,47 @@
+services:
+  signalbot:
+    build:
+      context: ..
+      dockerfile: SignalBot/SignalBot.Dockerfile
+    container_name: signalbot
+    restart: unless-stopped
+
+    environment:
+      - TZ=${TZ:-UTC}
+      # Binance API credentials
+      - BINANCE_TESTNET_KEY=${BINANCE_TESTNET_KEY:-}
+      - BINANCE_TESTNET_SECRET=${BINANCE_TESTNET_SECRET:-}
+      - BINANCE_MAINNET_KEY=${BINANCE_MAINNET_KEY:-}
+      - BINANCE_MAINNET_SECRET=${BINANCE_MAINNET_SECRET:-}
+      # SignalBot configuration
+      - SignalBot__State__StatePath=/app/data/state/signalbot_state.json
+      - SignalBot__Telegram__SessionPath=/app/data/telegram/telegram_session.dat
+      - TRADING_SignalBot__EnableFuturesTrading=${TRADING_SignalBot__EnableFuturesTrading:-true}
+      # Telegram notifications (optional)
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID:-}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH:-}
+      - TELEGRAM_PHONE=${TELEGRAM_PHONE:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+
+    volumes:
+      # State and session persistence
+      - ./data/state:/app/data/state
+      - ./data/telegram:/app/data/telegram
+      # Application logs (Serilog output)
+      - ./data/logs:/app/logs
+      # Mount .env file for configuration
+      - ./.env:/app/.env:ro
+
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
