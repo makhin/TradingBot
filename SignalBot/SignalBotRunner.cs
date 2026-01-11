@@ -10,6 +10,7 @@ using SignalBot.State;
 using TradingBot.Binance.Futures.Interfaces;
 using TradingBot.Core.Notifications;
 using Serilog;
+using Microsoft.Extensions.Options;
 
 namespace SignalBot;
 
@@ -38,7 +39,7 @@ public class SignalBotRunner
     private bool _isRunning;
 
     public SignalBotRunner(
-        SignalBotSettings settings,
+        IOptions<SignalBotSettings> settings,
         IBinanceFuturesClient client,
         ITelegramSignalListener telegramListener,
         SignalParser signalParser,
@@ -53,7 +54,7 @@ public class SignalBotRunner
         INotifier? notifier = null,
         ILogger? logger = null)
     {
-        _settings = settings;
+        _settings = settings.Value;
         _client = client;
         _telegramListener = telegramListener;
         _signalParser = signalParser;

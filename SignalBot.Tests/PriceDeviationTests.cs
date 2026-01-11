@@ -58,7 +58,10 @@ public class PriceDeviationTests
         _mockClient.Setup(x => x.SetMarginTypeAsync(It.IsAny<string>(), It.IsAny<MarginType>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        _mockRiskManager.Setup(x => x.CalculatePositionSize(It.IsAny<decimal>(), It.IsAny<decimal>()))
+        _mockRiskManager.Setup(x => x.CalculatePositionSize(
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal?>()))
             .Returns(new PositionSizeResult(Quantity: 1.0m, RiskAmount: 100m, StopDistance: 0.05m));
 
         _mockOrderExecutor.Setup(x => x.PlaceMarketOrderAsync(
@@ -190,7 +193,10 @@ public class PriceDeviationTests
         _mockClient.Setup(x => x.SetMarginTypeAsync(It.IsAny<string>(), It.IsAny<MarginType>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        _mockRiskManager.Setup(x => x.CalculatePositionSize(It.IsAny<decimal>(), It.IsAny<decimal>()))
+        _mockRiskManager.Setup(x => x.CalculatePositionSize(
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal?>()))
             .Returns(new PositionSizeResult(Quantity: 1.0m, RiskAmount: 100m, StopDistance: 0.05m));
 
         _mockOrderExecutor.Setup(x => x.PlaceMarketOrderAsync(

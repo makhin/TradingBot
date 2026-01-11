@@ -17,6 +17,7 @@ using TradingBot.Core.Notifications;
 using TradingBot.Core.RiskManagement;
 using Serilog;
 using DotNetEnv;
+using Microsoft.Extensions.Options;
 
 namespace SignalBot;
 
@@ -42,68 +43,19 @@ class Program
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                .AddEnvironmentVariables()
+                .AddEnvironmentVariables("TRADING_")
                 .Build();
-
-            // Load settings
-            var signalBotSettings = new SignalBotSettings();
-            configuration.GetSection("SignalBot").Bind(signalBotSettings);
-
-            var binanceSettings = new BinanceApiSettings();
-            configuration.GetSection("BinanceApi").Bind(binanceSettings);
-
-            // Override from environment
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TRADING_BinanceApi__UseTestnet")))
-            {
-                binanceSettings.UseTestnet = bool.Parse(Environment.GetEnvironmentVariable("TRADING_BinanceApi__UseTestnet")!);
-            }
-
-            // Select API keys based on testnet setting
-            if (binanceSettings.UseTestnet)
-            {
-                binanceSettings.ApiKey = Environment.GetEnvironmentVariable("BINANCE_TESTNET_KEY") ?? binanceSettings.ApiKey;
-                binanceSettings.ApiSecret = Environment.GetEnvironmentVariable("BINANCE_TESTNET_SECRET") ?? binanceSettings.ApiSecret;
-            }
-            else
-            {
-                binanceSettings.ApiKey = Environment.GetEnvironmentVariable("BINANCE_MAINNET_KEY") ?? binanceSettings.ApiKey;
-                binanceSettings.ApiSecret = Environment.GetEnvironmentVariable("BINANCE_MAINNET_SECRET") ?? binanceSettings.ApiSecret;
-            }
-
-            // Telegram settings from environment
-            if (int.TryParse(Environment.GetEnvironmentVariable("TELEGRAM_API_ID"), out var apiId))
-                signalBotSettings.Telegram.ApiId = apiId;
-
-            var apiHash = Environment.GetEnvironmentVariable("TELEGRAM_API_HASH");
-            if (!string.IsNullOrEmpty(apiHash))
-                signalBotSettings.Telegram.ApiHash = apiHash;
-
-            var phone = Environment.GetEnvironmentVariable("TELEGRAM_PHONE");
-            if (!string.IsNullOrEmpty(phone))
-                signalBotSettings.Telegram.PhoneNumber = phone;
-
-            var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN");
-            if (!string.IsNullOrEmpty(botToken))
-                signalBotSettings.Notifications.TelegramBotToken = botToken;
-
-            var chatId = Environment.GetEnvironmentVariable("TELEGRAM_CHAT_ID");
-            if (!string.IsNullOrEmpty(chatId))
-                signalBotSettings.Notifications.TelegramChatId = chatId;
-
-            // Override EnableFuturesTrading from environment if specified
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TRADING_SignalBot__EnableFuturesTrading")))
-            {
-                signalBotSettings.EnableFuturesTrading = 
-                    bool.Parse(Environment.GetEnvironmentVariable("TRADING_SignalBot__EnableFuturesTrading")!);
-            }
-
-            Log.Information("Using Binance {Mode} API", binanceSettings.UseTestnet ? "Testnet" : "Mainnet");
-            Log.Information("Futures Trading: {Status}", signalBotSettings.EnableFuturesTrading ? "ENABLED" : "DISABLED");
 
             // Build service provider
             var services = new ServiceCollection();
-            ConfigureServices(services, signalBotSettings, binanceSettings);
+            ConfigureServices(services, configuration);
             var serviceProvider = services.BuildServiceProvider();
+
+            var signalBotSettings = serviceProvider.GetRequiredService<IOptions<SignalBotSettings>>().Value;
+            var binanceSettings = serviceProvider.GetRequiredService<IOptions<BinanceApiSettings>>().Value;
+
+            Log.Information("Using Binance {Mode} API", binanceSettings.UseTestnet ? "Testnet" : "Mainnet");
+            Log.Information("Futures Trading: {Status}", signalBotSettings.EnableFuturesTrading ? "ENABLED" : "DISABLED");
 
             // Create runner
             var runner = serviceProvider.GetRequiredService<SignalBotRunner>();
@@ -151,49 +103,57 @@ class Program
 
     private static void ConfigureServices(
         IServiceCollection services,
-        SignalBotSettings signalBotSettings,
-        BinanceApiSettings binanceSettings)
+        IConfiguration configuration)
     {
+        services.AddSingleton(configuration);
+        services.AddOptions();
+        services.Configure<SignalBotSettings>(configuration.GetSection("SignalBot"));
+        services.Configure<BinanceApiSettings>(configuration.GetSection("BinanceApi"));
+
         // Settings
-        services.AddSingleton(signalBotSettings);
-        services.AddSingleton(signalBotSettings.Telegram);
-        services.AddSingleton(signalBotSettings.Trading);
-        services.AddSingleton(signalBotSettings.RiskOverride);
-        services.AddSingleton(signalBotSettings.PositionSizing);
-        services.AddSingleton(signalBotSettings.DuplicateHandling);
-        services.AddSingleton(signalBotSettings.Entry);
-        services.AddSingleton(signalBotSettings.Cooldown);
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.Telegram);
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.Trading);
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.RiskOverride);
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.PositionSizing);
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.DuplicateHandling);
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.Entry);
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.Cooldown);
 
         // Logging
         services.AddSingleton<ILogger>(Log.Logger);
 
         // Binance clients
-        var restClient = new BinanceRestClient(options =>
+        services.AddSingleton(sp =>
         {
-            options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                binanceSettings.ApiKey,
-                binanceSettings.ApiSecret);
-
-            if (binanceSettings.UseTestnet)
+            var binanceSettings = sp.GetRequiredService<IOptions<BinanceApiSettings>>().Value;
+            return new BinanceRestClient(options =>
             {
-                options.Environment = Binance.Net.BinanceEnvironment.Testnet;
-            }
+                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
+                    binanceSettings.ApiKey,
+                    binanceSettings.ApiSecret);
+
+                if (binanceSettings.UseTestnet)
+                {
+                    options.Environment = Binance.Net.BinanceEnvironment.Testnet;
+                }
+            });
         });
 
-        var socketClient = new BinanceSocketClient(options =>
+        services.AddSingleton(sp =>
         {
-            options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                binanceSettings.ApiKey,
-                binanceSettings.ApiSecret);
-
-            if (binanceSettings.UseTestnet)
+            var binanceSettings = sp.GetRequiredService<IOptions<BinanceApiSettings>>().Value;
+            return new BinanceSocketClient(options =>
             {
-                options.Environment = Binance.Net.BinanceEnvironment.Testnet;
-            }
-        });
+                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
+                    binanceSettings.ApiKey,
+                    binanceSettings.ApiSecret);
 
-        services.AddSingleton(restClient);
-        services.AddSingleton(socketClient);
+                if (binanceSettings.UseTestnet)
+                {
+                    options.Environment = Binance.Net.BinanceEnvironment.Testnet;
+                }
+            });
+        });
 
         // Binance services
         services.AddSingleton<IBinanceFuturesClient>(sp =>
@@ -216,6 +176,7 @@ class Program
         // Risk management
         services.AddSingleton<IRiskManager>(sp =>
         {
+            var signalBotSettings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
             var riskSettings = new RiskSettings
             {
                 RiskPerTradePercent = signalBotSettings.RiskOverride.RiskPerTradePercent,
@@ -229,14 +190,14 @@ class Program
         // State persistence
         services.AddSingleton<IPositionStore<SignalPosition>>(sp =>
             new JsonPositionStore(
-                signalBotSettings.State.StatePath,
+                sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.State.StatePath,
                 sp.GetRequiredService<ILogger>()));
 
         // Signal processing
         services.AddSingleton<SignalParser>();
         services.AddSingleton<ISignalValidator>(sp =>
             new SignalValidator(
-                signalBotSettings.RiskOverride,
+                sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.RiskOverride,
                 sp.GetRequiredService<ILogger>()));
 
         // Trading
@@ -254,32 +215,40 @@ class Program
         // Telegram
         services.AddSingleton<ITelegramSignalListener>(sp =>
             new TelegramSignalListener(
-                signalBotSettings.Telegram,
+                sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.Telegram,
                 sp.GetRequiredService<SignalParser>(),
                 sp.GetRequiredService<ILogger>()));
 
         // Notifications (optional)
-        if (!string.IsNullOrEmpty(signalBotSettings.Notifications.TelegramBotToken))
+        var notificationSettings = configuration.GetSection("SignalBot:Notifications").Get<NotificationSettings>()
+            ?? new NotificationSettings();
+        if (!string.IsNullOrEmpty(notificationSettings.TelegramBotToken))
         {
             services.AddSingleton<INotifier>(sp =>
-                new TelegramNotifier(
-                    signalBotSettings.Notifications.TelegramBotToken,
-                    long.Parse(signalBotSettings.Notifications.TelegramChatId),
-                    sp.GetRequiredService<ILogger>()));
+            {
+                var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.Notifications;
+                return new TelegramNotifier(
+                    settings.TelegramBotToken,
+                    long.Parse(settings.TelegramChatId),
+                    sp.GetRequiredService<ILogger>());
+            });
         }
 
         // Command handler (optional - requires bot token separate from notifier)
         // For now, commands go through the same notifier bot token
         // To enable: set a separate bot token in config for commands
-        if (!string.IsNullOrEmpty(signalBotSettings.Notifications.TelegramBotToken) &&
-            !string.IsNullOrEmpty(signalBotSettings.Notifications.TelegramChatId))
+        if (!string.IsNullOrEmpty(notificationSettings.TelegramBotToken) &&
+            !string.IsNullOrEmpty(notificationSettings.TelegramChatId))
         {
             services.AddSingleton<TelegramCommandHandler>(sp =>
-                new TelegramCommandHandler(
+            {
+                var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.Notifications;
+                return new TelegramCommandHandler(
                     sp.GetRequiredService<IBotCommands>(),
-                    signalBotSettings.Notifications.TelegramBotToken,
-                    long.Parse(signalBotSettings.Notifications.TelegramChatId),
-                    sp.GetRequiredService<ILogger>()));
+                    settings.TelegramBotToken,
+                    long.Parse(settings.TelegramChatId),
+                    sp.GetRequiredService<ILogger>());
+            });
         }
 
         // Main runner
