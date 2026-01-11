@@ -11,6 +11,7 @@ public class SignalValidator : ISignalValidator
 {
     private readonly RiskOverrideSettings _settings;
     private readonly ILogger _logger;
+    private readonly TradingSignalValidator _signalValidator = new();
 
     public SignalValidator(RiskOverrideSettings settings, ILogger? logger = null)
     {
@@ -28,20 +29,10 @@ public class SignalValidator : ISignalValidator
             var warnings = new List<string>();
 
             // 1. Validate basic signal data
-            if (signal.Entry <= 0)
-                return ValidationResult.Failed("Invalid entry price");
+            if (!_signalValidator.TryValidate(signal, out var validationError))
+                return ValidationResult.Failed(validationError);
 
-            if (signal.OriginalStopLoss <= 0)
-                return ValidationResult.Failed("Invalid stop loss price");
-
-            if (signal.Targets.Count == 0)
-                return ValidationResult.Failed("No targets specified");
-
-            // 2. Validate direction vs prices
-            if (!ValidateDirectionPrices(signal, out var directionError))
-                return ValidationResult.Failed(directionError);
-
-            // 3. Determine leverage
+            // 2. Determine leverage
             int leverage = _settings.Enabled
                 ? (_settings.UseSignalLeverage
                     ? Math.Min(signal.OriginalLeverage, _settings.MaxLeverage)
@@ -53,13 +44,13 @@ public class SignalValidator : ISignalValidator
                 warnings.Add($"Leverage adjusted: {signal.OriginalLeverage}x → {leverage}x");
             }
 
-            // 4. Calculate liquidation price
+            // 3. Calculate liquidation price
             decimal liquidationPrice = CalculateLiquidationPrice(
                 signal.Entry,
                 signal.Direction,
                 leverage);
 
-            // 5. Determine Stop Loss
+            // 4. Determine Stop Loss
             decimal stopLoss;
 
             if (_settings.Enabled && _settings.StopLossMode == "Calculate")
@@ -85,7 +76,7 @@ public class SignalValidator : ISignalValidator
                 }
             }
 
-            // 6. Calculate Risk:Reward ratio
+            // 5. Calculate Risk:Reward ratio
             decimal targetPrice = signal.Targets.FirstOrDefault();
             decimal riskReward = targetPrice > 0
                 ? CalculateRiskReward(signal.Entry, stopLoss, targetPrice, signal.Direction)
@@ -96,7 +87,7 @@ public class SignalValidator : ISignalValidator
                 warnings.Add($"Poor Risk:Reward ratio: {riskReward:F2}");
             }
 
-            // 7. Create validated signal
+            // 6. Create validated signal
             var validatedSignal = signal with
             {
                 AdjustedStopLoss = stopLoss,
@@ -126,49 +117,6 @@ public class SignalValidator : ISignalValidator
             _logger.Error(ex, "Error validating signal {SignalId}", signal.Id);
             return ValidationResult.Failed($"Validation error: {ex.Message}");
         }
-    }
-
-    private bool ValidateDirectionPrices(TradingSignal signal, out string errorMessage)
-    {
-        if (signal.Direction == SignalDirection.Long)
-        {
-            // For Long: SL < Entry < Targets
-            if (signal.OriginalStopLoss >= signal.Entry)
-            {
-                errorMessage = $"Long: Stop Loss ({signal.OriginalStopLoss}) must be below Entry ({signal.Entry})";
-                return false;
-            }
-
-            foreach (var target in signal.Targets)
-            {
-                if (target <= signal.Entry)
-                {
-                    errorMessage = $"Long: Target ({target}) must be above Entry ({signal.Entry})";
-                    return false;
-                }
-            }
-        }
-        else // Short
-        {
-            // For Short: Targets < Entry < SL
-            if (signal.OriginalStopLoss <= signal.Entry)
-            {
-                errorMessage = $"Short: Stop Loss ({signal.OriginalStopLoss}) must be above Entry ({signal.Entry})";
-                return false;
-            }
-
-            foreach (var target in signal.Targets)
-            {
-                if (target >= signal.Entry)
-                {
-                    errorMessage = $"Short: Target ({target}) must be below Entry ({signal.Entry})";
-                    return false;
-                }
-            }
-        }
-
-        errorMessage = string.Empty;
-        return true;
     }
 
     private decimal CalculateLiquidationPrice(decimal entry, SignalDirection direction, int leverage)
