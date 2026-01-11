@@ -18,7 +18,12 @@ using TradingBot.Core.RiskManagement;
 using Serilog;
 using DotNetEnv;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Polly;
+using Serilog.Sinks.Elasticsearch;
+using Serilog.Sinks.Grafana.Loki;
+using SignalBot.Telemetry;
 using TradingBot.Binance.Common.Models;
 
 namespace SignalBot;
@@ -30,23 +35,19 @@ class Program
         // Load environment variables
         Env.Load();
 
+        // Build configuration
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddEnvironmentVariables("TRADING_")
+            .Build();
+
         // Configure Serilog
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.Console()
-            .WriteTo.File("logs/signalbot-.txt", rollingInterval: RollingInterval.Day)
-            .CreateLogger();
+        Log.Logger = BuildLogger(configuration);
 
         try
         {
             Log.Information("SignalBot starting up...");
-
-            // Build configuration
-            var configuration = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                .AddEnvironmentVariables("TRADING_")
-                .Build();
 
             // Build service provider
             var services = new ServiceCollection();
@@ -123,6 +124,7 @@ class Program
 
         // Logging
         services.AddSingleton<ILogger>(Log.Logger);
+        ConfigureOpenTelemetry(services, configuration);
 
         // Resilience policies
         services.AddSingleton<IAsyncPolicy<ExecutionResult>>(_ =>
@@ -276,6 +278,63 @@ class Program
 
         // Main runner
         services.AddSingleton<SignalBotRunner>();
+    }
+
+    private static ILogger BuildLogger(IConfiguration configuration)
+    {
+        var loggerConfiguration = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .Enrich.FromLogContext()
+            .Enrich.WithProperty("Service", "SignalBot")
+            .WriteTo.Console()
+            .WriteTo.File("logs/signalbot-.txt", rollingInterval: RollingInterval.Day);
+
+        var seqUrl = configuration["Serilog:Seq:Url"];
+        if (!string.IsNullOrWhiteSpace(seqUrl))
+        {
+            loggerConfiguration.WriteTo.Seq(seqUrl);
+        }
+
+        var lokiUrl = configuration["Serilog:Loki:Url"];
+        if (!string.IsNullOrWhiteSpace(lokiUrl))
+        {
+            loggerConfiguration.WriteTo.GrafanaLoki(lokiUrl);
+        }
+
+        var elasticUrl = configuration["Serilog:Elasticsearch:Url"];
+        if (!string.IsNullOrWhiteSpace(elasticUrl))
+        {
+            var indexFormat = configuration["Serilog:Elasticsearch:IndexFormat"] ?? "signalbot-logs-{0:yyyy.MM}";
+            loggerConfiguration.WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri(elasticUrl))
+            {
+                AutoRegisterTemplate = true,
+                IndexFormat = indexFormat
+            });
+        }
+
+        return loggerConfiguration.CreateLogger();
+    }
+
+    private static void ConfigureOpenTelemetry(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOpenTelemetry()
+            .WithTracing(builder =>
+            {
+                builder
+                    .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("SignalBot"))
+                    .AddSource(SignalBotTelemetry.ActivitySourceName);
+
+                var otlpEndpoint = configuration["OpenTelemetry:OtlpEndpoint"];
+                if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+                {
+                    builder.AddOtlpExporter(options => options.Endpoint = new Uri(otlpEndpoint));
+                }
+
+                if (configuration.GetValue("OpenTelemetry:ConsoleExporter", false))
+                {
+                    builder.AddConsoleExporter();
+                }
+            });
     }
 }
 

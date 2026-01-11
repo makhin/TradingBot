@@ -1,11 +1,14 @@
+using System.Diagnostics;
 using SignalBot.Configuration;
 using SignalBot.Models;
+using SignalBot.Telemetry;
 using TradingBot.Binance.Futures.Interfaces;
 using TradingBot.Binance.Futures.Models;
 using TradingBot.Core.Models;
 using TradingBot.Core.RiskManagement;
 using Serilog;
 using Polly;
+using Serilog.Context;
 using TradingBot.Binance.Common.Models;
 
 namespace SignalBot.Services.Trading;
@@ -49,6 +52,13 @@ public class SignalTrader : ISignalTrader
         decimal accountEquity,
         CancellationToken ct = default)
     {
+        using var activity = SignalBotTelemetry.ActivitySource.StartActivity("Execute", ActivityKind.Internal);
+        activity?.SetTag("signal.id", signal.Id);
+        activity?.SetTag("signal.symbol", signal.Symbol);
+        activity?.SetTag("signal.direction", signal.Direction.ToString());
+
+        using var signalContext = LogContext.PushProperty("SignalId", signal.Id);
+
         // 1. Create position in Pending status
         var position = new SignalPosition
         {
@@ -63,6 +73,8 @@ public class SignalTrader : ISignalTrader
         };
 
         await _positionManager.SavePositionAsync(position, ct);
+        using var positionContext = LogContext.PushProperty("PositionId", position.Id);
+        activity?.SetTag("position.id", position.Id);
 
         try
         {
@@ -213,6 +225,7 @@ public class SignalTrader : ISignalTrader
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.Error(ex, "Failed to execute signal {SignalId} for {Symbol}",
                 signal.Id, signal.Symbol);
 
