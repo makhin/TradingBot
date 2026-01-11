@@ -10,6 +10,13 @@ namespace SignalBot.Services.Commands;
 /// </summary>
 public class TelegramCommandHandler
 {
+    private static readonly IReadOnlyDictionary<string, string> CommandAliases =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["/start"] = "/help",
+            ["/pos"] = "/positions"
+        };
+
     private readonly IBotCommands _commands;
     private readonly TelegramBotClient _botClient;
     private readonly long _authorizedChatId;
@@ -105,20 +112,31 @@ public class TelegramCommandHandler
         var command = parts[0].ToLowerInvariant();
         var args = parts.Skip(1).ToArray();
 
-        return command switch
+        if (CommandAliases.TryGetValue(command, out var aliasedCommand))
         {
-            "/start" or "/help" => _commands.GetHelp(),
-            "/status" => await _commands.GetStatusAsync(ct),
-            "/positions" or "/pos" => await _commands.GetPositionsAsync(ct),
-            "/pause" => await _commands.PauseAsync(ct),
-            "/resume" => await _commands.ResumeAsync(ct),
-            "/closeall" => await _commands.CloseAllAsync(ct),
-            "/close" => args.Length > 0
-                ? await _commands.ClosePositionAsync(args[0], ct)
-                : "❌ Usage: /close BTCUSDT",
-            "/resetcooldown" => await _commands.ResetCooldownAsync(ct),
-            "/stop" => await _commands.EmergencyStopAsync(ct),
-            _ => $"❌ Unknown command: {command}\n\nUse /help to see available commands."
+            command = aliasedCommand;
+        }
+
+        var handlers = new Dictionary<string, Func<Task<string>>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["/help"] = () => Task.FromResult(_commands.GetHelp()),
+            ["/status"] = () => _commands.GetStatusAsync(ct),
+            ["/positions"] = () => _commands.GetPositionsAsync(ct),
+            ["/pause"] = () => _commands.PauseAsync(ct),
+            ["/resume"] = () => _commands.ResumeAsync(ct),
+            ["/closeall"] = () => _commands.CloseAllAsync(ct),
+            ["/close"] = () => args.Length > 0
+                ? _commands.ClosePositionAsync(args[0], ct)
+                : Task.FromResult("❌ Usage: /close BTCUSDT"),
+            ["/resetcooldown"] = () => _commands.ResetCooldownAsync(ct),
+            ["/stop"] = () => _commands.EmergencyStopAsync(ct)
         };
+
+        if (handlers.TryGetValue(command, out var handler))
+        {
+            return await handler();
+        }
+
+        return $"❌ Unknown command: {command}\n\nUse /help to see available commands.";
     }
 }
