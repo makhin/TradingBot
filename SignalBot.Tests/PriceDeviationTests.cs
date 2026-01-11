@@ -10,6 +10,8 @@ using TradingBot.Core.RiskManagement;
 using Moq;
 using Xunit;
 using Serilog;
+using Polly;
+using TradingBot.Binance.Common.Models;
 
 namespace SignalBot.Tests;
 
@@ -19,6 +21,7 @@ public class PriceDeviationTests
     private readonly Mock<IFuturesOrderExecutor> _mockOrderExecutor;
     private readonly Mock<IPositionManager> _mockPositionManager;
     private readonly Mock<IRiskManager> _mockRiskManager;
+    private readonly IAsyncPolicy<ExecutionResult> _retryPolicy;
     private readonly ILogger _logger;
 
     public PriceDeviationTests()
@@ -27,6 +30,7 @@ public class PriceDeviationTests
         _mockOrderExecutor = new Mock<IFuturesOrderExecutor>();
         _mockPositionManager = new Mock<IPositionManager>();
         _mockRiskManager = new Mock<IRiskManager>();
+        _retryPolicy = Policy.NoOpAsync<ExecutionResult>();
         _logger = new LoggerConfiguration().CreateLogger();
     }
 
@@ -107,6 +111,7 @@ public class PriceDeviationTests
             _mockRiskManager.Object,
             tradingSettings,
             entrySettings,
+            _retryPolicy,
             _logger);
 
         // Act
@@ -152,6 +157,7 @@ public class PriceDeviationTests
             _mockRiskManager.Object,
             tradingSettings,
             entrySettings,
+            _retryPolicy,
             _logger);
 
         // Act & Assert
@@ -242,6 +248,7 @@ public class PriceDeviationTests
             _mockRiskManager.Object,
             tradingSettings,
             entrySettings,
+            _retryPolicy,
             _logger);
 
         // Act

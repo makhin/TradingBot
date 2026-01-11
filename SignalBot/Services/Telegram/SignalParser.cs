@@ -38,25 +38,16 @@ public partial class SignalParser
 
             if (!match.Success)
             {
-                _logger.Warning("Signal format not recognized: {Text}", text.Substring(0, Math.Min(100, text.Length)));
+                _logger.Warning("Signal format not recognized: {Text}", TruncateText(text, 100));
                 return SignalParserResult.Failed("Signal format not recognized");
             }
 
             // Parse targets
-            var targets = new List<decimal>();
-            for (int i = 1; i <= 4; i++)
-            {
-                var group = match.Groups[$"t{i}"];
-                if (group.Success && decimal.TryParse(group.Value,
-                    NumberStyles.Any, CultureInfo.InvariantCulture, out var target))
-                {
-                    targets.Add(target);
-                }
-            }
+            var targets = ParseTargets(match);
 
             if (targets.Count == 0)
             {
-                _logger.Warning("No targets found in signal: {Text}", text.Substring(0, Math.Min(100, text.Length)));
+                _logger.Warning("No targets found in signal: {Text}", TruncateText(text, 100));
                 return SignalParserResult.Failed("No targets found in signal");
             }
 
@@ -107,8 +98,34 @@ public partial class SignalParser
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Error parsing signal: {Text}", text.Substring(0, Math.Min(100, text.Length)));
+            _logger.Error(ex, "Error parsing signal: {Text}", TruncateText(text, 100));
             return SignalParserResult.Failed($"Parse error: {ex.Message}");
         }
+    }
+
+    private static List<decimal> ParseTargets(Match match)
+    {
+        var targets = new List<decimal>();
+        for (int i = 1; i <= 4; i++)
+        {
+            var group = match.Groups[$"t{i}"];
+            if (group.Success && decimal.TryParse(group.Value,
+                NumberStyles.Any, CultureInfo.InvariantCulture, out var target))
+            {
+                targets.Add(target);
+            }
+        }
+
+        return targets;
+    }
+
+    private static string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+        {
+            return text;
+        }
+
+        return text.Substring(0, maxLength);
     }
 }
