@@ -123,6 +123,94 @@ public class PriceDeviationTests
     }
 
     [Fact]
+    public async Task ExecuteSignal_MoveStopToBreakeven_ShouldSetMoveStopLossTargets()
+    {
+        // Arrange
+        var entrySettings = new EntrySettings
+        {
+            MaxPriceDeviationPercent = 1.0m,
+            DeviationAction = PriceDeviationAction.Skip
+        };
+
+        var tradingSettings = new TradingSettings
+        {
+            TargetClosePercents = new List<decimal> { 50, 30, 20 },
+            MoveStopToBreakeven = true
+        };
+
+        var signal = CreateTestSignal(entry: 100m, targets: new[] { 110m, 120m, 130m });
+
+        _mockClient.Setup(x => x.GetMarkPriceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100m);
+
+        _mockClient.Setup(x => x.SetLeverageAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        _mockClient.Setup(x => x.SetMarginTypeAsync(It.IsAny<string>(), It.IsAny<MarginType>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        _mockRiskManager.Setup(x => x.CalculatePositionSize(
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal?>()))
+            .Returns(new PositionSizeResult(Quantity: 1.0m, RiskAmount: 100m, StopDistance: 0.05m));
+
+        _mockOrderExecutor.Setup(x => x.PlaceMarketOrderAsync(
+                It.IsAny<string>(),
+                It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+                It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            {
+                IsAcceptable = true,
+                OrderId = 12345,
+                ActualPrice = 100m
+            });
+
+        _mockOrderExecutor.Setup(x => x.PlaceStopLossAsync(
+                It.IsAny<string>(),
+                It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            {
+                IsAcceptable = true,
+                OrderId = 12346
+            });
+
+        _mockOrderExecutor.Setup(x => x.PlaceTakeProfitAsync(
+                It.IsAny<string>(),
+                It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            {
+                IsAcceptable = true,
+                OrderId = 12347
+            });
+
+        var trader = new SignalTrader(
+            _mockClient.Object,
+            _mockOrderExecutor.Object,
+            _mockPositionManager.Object,
+            _mockRiskManager.Object,
+            tradingSettings,
+            entrySettings,
+            _retryPolicy,
+            _logger);
+
+        // Act
+        var position = await trader.ExecuteSignalAsync(signal, 10000m);
+
+        // Assert
+        Assert.Equal(signal.Entry, position.Targets[0].MoveStopLossTo);
+        Assert.Equal(signal.Targets[0], position.Targets[1].MoveStopLossTo);
+        Assert.Equal(signal.Targets[1], position.Targets[2].MoveStopLossTo);
+    }
+
+    [Fact]
     public async Task ExecuteSignal_PriceExceedsDeviation_Skip_ShouldCancel()
     {
         // Arrange
