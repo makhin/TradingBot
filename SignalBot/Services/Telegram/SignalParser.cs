@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using SignalBot.Models;
+using SignalBot.Telemetry;
 using Serilog;
+using Serilog.Context;
 
 namespace SignalBot.Services.Telegram;
 
@@ -34,11 +37,17 @@ public partial class SignalParser
     {
         try
         {
+            using var activity = SignalBotTelemetry.ActivitySource.StartActivity("Parse", ActivityKind.Internal);
+            activity?.SetTag("signal.source.channel", source.ChannelName);
+            activity?.SetTag("signal.source.channel_id", source.ChannelId);
+            activity?.SetTag("signal.source.message_id", source.MessageId);
+
             var normalizedText = text.Trim();
             var match = SignalRegex().Match(normalizedText);
 
             if (!match.Success)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "Signal format not recognized");
                 _logger.Warning("Signal format not recognized: {Text}", TruncateText(normalizedText, 100));
                 return SignalParserResult.Failed("Signal format not recognized");
             }
@@ -48,6 +57,7 @@ public partial class SignalParser
 
             if (targets.Count == 0)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "No targets found in signal");
                 _logger.Warning("No targets found in signal: {Text}", TruncateText(normalizedText, 100));
                 return SignalParserResult.Failed("No targets found in signal");
             }
@@ -61,18 +71,21 @@ public partial class SignalParser
             // Parse entry price
             if (!decimal.TryParse(match.Groups["entry"].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var entry))
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "Invalid entry price");
                 return SignalParserResult.Failed("Invalid entry price");
             }
 
             // Parse stop loss
             if (!decimal.TryParse(match.Groups["sl"].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var stopLoss))
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "Invalid stop loss price");
                 return SignalParserResult.Failed("Invalid stop loss price");
             }
 
             // Parse leverage
             if (!int.TryParse(match.Groups["leverage"].Value, out var leverage))
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "Invalid leverage");
                 return SignalParserResult.Failed("Invalid leverage");
             }
 
@@ -91,14 +104,22 @@ public partial class SignalParser
                 OriginalLeverage = leverage
             };
 
-            _logger.Information(
-                "Signal parsed: {Symbol} {Direction} @ {Entry}, SL: {SL}, Leverage: {Leverage}x, Targets: {Targets}",
-                symbol, direction, entry, stopLoss, leverage, targets.Count);
+            activity?.SetTag("signal.id", signal.Id);
+            activity?.SetTag("signal.symbol", signal.Symbol);
+            activity?.SetTag("signal.direction", signal.Direction.ToString());
+
+            using (LogContext.PushProperty("SignalId", signal.Id))
+            {
+                _logger.Information(
+                    "Signal parsed: {Symbol} {Direction} @ {Entry}, SL: {SL}, Leverage: {Leverage}x, Targets: {Targets}",
+                    symbol, direction, entry, stopLoss, leverage, targets.Count);
+            }
 
             return SignalParserResult.Success(signal);
         }
         catch (Exception ex)
         {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.Error(ex, "Error parsing signal: {Text}", TruncateText(text, 100));
             return SignalParserResult.Failed($"Parse error: {ex.Message}");
         }

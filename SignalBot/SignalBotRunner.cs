@@ -10,6 +10,7 @@ using SignalBot.State;
 using TradingBot.Binance.Futures.Interfaces;
 using TradingBot.Core.Notifications;
 using Serilog;
+using Serilog.Context;
 using Microsoft.Extensions.Options;
 
 namespace SignalBot;
@@ -250,6 +251,7 @@ public class SignalBotRunner
         await _signalProcessingLock.WaitAsync();
         try
         {
+            using var signalContext = LogContext.PushProperty("SignalId", signal.Id);
             _logger.Information("Received signal: {Symbol} {Direction} @ {Entry}",
                 signal.Symbol, signal.Direction, signal.Entry);
 
@@ -334,22 +336,25 @@ public class SignalBotRunner
             _logger.Information("Executing signal for {Symbol}", validatedSignal.Symbol);
             var position = await _signalTrader.ExecuteSignalAsync(validatedSignal, balance, _cts.Token);
 
-            _logger.Information("Position opened: {PositionId} for {Symbol} @ {Entry}",
-                position.Id, position.Symbol, position.ActualEntryPrice);
-
-            // Notify about position opened
-            if (_notifier != null && _settings.Notifications.NotifyOnPositionOpened)
+            using (LogContext.PushProperty("PositionId", position.Id))
             {
-                await _notifier.SendMessageAsync(
-                    $"✅ Position opened\n" +
-                    $"Symbol: {position.Symbol}\n" +
-                    $"Direction: {position.Direction}\n" +
-                    $"Entry: {position.ActualEntryPrice}\n" +
-                    $"SL: {position.CurrentStopLoss}\n" +
-                    $"Quantity: {position.InitialQuantity}\n" +
-                    $"Leverage: {position.Leverage}x\n" +
-                    $"Targets: {position.Targets.Count}",
-                    _cts.Token);
+                _logger.Information("Position opened: {PositionId} for {Symbol} @ {Entry}",
+                    position.Id, position.Symbol, position.ActualEntryPrice);
+
+                // Notify about position opened
+                if (_notifier != null && _settings.Notifications.NotifyOnPositionOpened)
+                {
+                    await _notifier.SendMessageAsync(
+                        $"✅ Position opened\n" +
+                        $"Symbol: {position.Symbol}\n" +
+                        $"Direction: {position.Direction}\n" +
+                        $"Entry: {position.ActualEntryPrice}\n" +
+                        $"SL: {position.CurrentStopLoss}\n" +
+                        $"Quantity: {position.InitialQuantity}\n" +
+                        $"Leverage: {position.Leverage}x\n" +
+                        $"Targets: {position.Targets.Count}",
+                        _cts.Token);
+                }
             }
         }
         catch (Exception ex)

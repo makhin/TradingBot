@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using SignalBot.Configuration;
 using SignalBot.Models;
+using SignalBot.Telemetry;
 using Serilog;
+using Serilog.Context;
 
 namespace SignalBot.Services.Validation;
 
@@ -26,11 +29,19 @@ public class SignalValidator : ISignalValidator
     {
         try
         {
+            using var activity = SignalBotTelemetry.ActivitySource.StartActivity("Validate", ActivityKind.Internal);
+            activity?.SetTag("signal.id", signal.Id);
+            activity?.SetTag("signal.symbol", signal.Symbol);
+            activity?.SetTag("signal.direction", signal.Direction.ToString());
+
             var warnings = new List<string>();
 
             // 1. Validate basic signal data
             if (!_signalValidator.TryValidate(signal, out var validationError))
+            {
+                activity?.SetStatus(ActivityStatusCode.Error, validationError);
                 return ValidationResult.Failed(validationError);
+            }
 
             // 2. Determine leverage
             int leverage = _settings.Enabled
@@ -98,22 +109,26 @@ public class SignalValidator : ISignalValidator
                 ValidationWarnings = warnings
             };
 
-            _logger.Information(
-                "Signal validated: {Symbol} {Direction}, Entry: {Entry}, SL: {SL} (orig: {OrigSL}), " +
-                "Liq: {Liq}, Leverage: {Lev}x, R:R: {RR:F2}",
-                signal.Symbol, signal.Direction, signal.Entry, stopLoss, signal.OriginalStopLoss,
-                liquidationPrice, leverage, riskReward);
-
-            if (warnings.Any())
+            using (LogContext.PushProperty("SignalId", signal.Id))
             {
-                _logger.Warning("Validation warnings for {Symbol}: {Warnings}",
-                    signal.Symbol, string.Join("; ", warnings));
+                _logger.Information(
+                    "Signal validated: {Symbol} {Direction}, Entry: {Entry}, SL: {SL} (orig: {OrigSL}), " +
+                    "Liq: {Liq}, Leverage: {Lev}x, R:R: {RR:F2}",
+                    signal.Symbol, signal.Direction, signal.Entry, stopLoss, signal.OriginalStopLoss,
+                    liquidationPrice, leverage, riskReward);
+
+                if (warnings.Any())
+                {
+                    _logger.Warning("Validation warnings for {Symbol}: {Warnings}",
+                        signal.Symbol, string.Join("; ", warnings));
+                }
             }
 
             return ValidationResult.Success(validatedSignal);
         }
         catch (Exception ex)
         {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.Error(ex, "Error validating signal {SignalId}", signal.Id);
             return ValidationResult.Failed($"Validation error: {ex.Message}");
         }
