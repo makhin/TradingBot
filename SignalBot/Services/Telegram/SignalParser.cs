@@ -14,7 +14,7 @@ public partial class SignalParser
 
     // Regex pattern for signal parsing
     [GeneratedRegex(
-        @"#(?<symbol>\w+)/USDT\s*-\s*(?<direction>Long|Short)[🟢🔴]?\s*" +
+        @"#(?<symbol>\w+)/USDT\s*-\s*(?<direction>Long|Short)\s*(?:🟢|🔴)?\s*" +
         @"Entry:\s*(?<entry>[\d.]+)\s*" +
         @"Stop\s*Loss:\s*(?<sl>[\d.]+)\s*" +
         @"(?:Target\s*1:\s*(?<t1>[\d.]+)\s*)?" +
@@ -34,11 +34,12 @@ public partial class SignalParser
     {
         try
         {
-            var match = SignalRegex().Match(text);
+            var normalizedText = text.Trim();
+            var match = SignalRegex().Match(normalizedText);
 
             if (!match.Success)
             {
-                _logger.Warning("Signal format not recognized: {Text}", TruncateText(text, 100));
+                _logger.Warning("Signal format not recognized: {Text}", TruncateText(normalizedText, 100));
                 return SignalParserResult.Failed("Signal format not recognized");
             }
 
@@ -47,7 +48,7 @@ public partial class SignalParser
 
             if (targets.Count == 0)
             {
-                _logger.Warning("No targets found in signal: {Text}", TruncateText(text, 100));
+                _logger.Warning("No targets found in signal: {Text}", TruncateText(normalizedText, 100));
                 return SignalParserResult.Failed("No targets found in signal");
             }
 
@@ -80,7 +81,7 @@ public partial class SignalParser
 
             var signal = new TradingSignal
             {
-                RawText = text,
+                RawText = normalizedText,
                 Source = source,
                 Symbol = symbol,
                 Direction = direction,

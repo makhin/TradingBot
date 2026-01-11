@@ -230,28 +230,31 @@ public class SignalTrader : ISignalTrader
 
         for (int i = 0; i < signal.Targets.Count && i < percents.Count; i++)
         {
-            decimal percentToClose = percents[i];
-            decimal quantityToClose = totalQuantity * (percentToClose / 100m);
-
-            decimal? moveSlTo = null;
-            if (_settings.MoveStopToBreakeven)
-            {
-                moveSlTo = i == 0
-                    ? signal.Entry  // After T1, move SL to breakeven
-                    : signal.Targets[i - 1];  // After T2, move to T1, etc.
-            }
-
+            var percentToClose = percents[i];
+            var quantityToClose = totalQuantity * (percentToClose / 100m);
             targets.Add(new TargetLevel
             {
                 Index = i,
                 Price = signal.Targets[i],
                 PercentToClose = percentToClose,
                 QuantityToClose = quantityToClose,
-                MoveStopLossTo = moveSlTo
+                MoveStopLossTo = GetMoveStopLossTo(i, signal)
             });
         }
 
         return targets;
+    }
+
+    private decimal? GetMoveStopLossTo(int index, TradingSignal signal)
+    {
+        if (!_settings.MoveStopToBreakeven)
+        {
+            return null;
+        }
+
+        return index == 0
+            ? signal.Entry  // After T1, move SL to breakeven
+            : signal.Targets[index - 1];  // After T2, move to T1, etc.
     }
 
     private TradingSignal AdjustTargetsForPriceDeviation(TradingSignal signal, decimal actualEntry)
