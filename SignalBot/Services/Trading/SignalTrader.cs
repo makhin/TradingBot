@@ -5,6 +5,8 @@ using TradingBot.Binance.Futures.Models;
 using TradingBot.Core.Models;
 using TradingBot.Core.RiskManagement;
 using Serilog;
+using Polly;
+using TradingBot.Binance.Common.Models;
 
 namespace SignalBot.Services.Trading;
 
@@ -20,6 +22,7 @@ public class SignalTrader : ISignalTrader
     private readonly TradingSettings _settings;
     private readonly EntrySettings _entrySettings;
     private readonly ILogger _logger;
+    private readonly IAsyncPolicy<ExecutionResult> _retryPolicy;
 
     public SignalTrader(
         IBinanceFuturesClient client,
@@ -28,6 +31,7 @@ public class SignalTrader : ISignalTrader
         IRiskManager riskManager,
         TradingSettings settings,
         EntrySettings entrySettings,
+        IAsyncPolicy<ExecutionResult> retryPolicy,
         ILogger? logger = null)
     {
         _client = client;
@@ -36,6 +40,7 @@ public class SignalTrader : ISignalTrader
         _riskManager = riskManager;
         _settings = settings;
         _entrySettings = entrySettings;
+        _retryPolicy = retryPolicy;
         _logger = logger ?? Log.ForContext<SignalTrader>();
     }
 
@@ -273,127 +278,111 @@ public class SignalTrader : ISignalTrader
         };
     }
 
-    private async Task<TradingBot.Binance.Common.Models.ExecutionResult> PlaceMarketOrderWithRetry(
+    private async Task<ExecutionResult> PlaceMarketOrderWithRetry(
         string symbol,
         TradeDirection direction,
         decimal quantity,
-        CancellationToken ct,
-        int maxRetries = 3)
+        CancellationToken ct)
     {
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
-        {
-            try
-            {
-                _logger.Information("Placing market {Direction} order for {Symbol}, attempt {Attempt}/{Max}",
-                    direction, symbol, attempt, maxRetries);
-
-                return await _orderExecutor.PlaceMarketOrderAsync(symbol, direction, quantity, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.Warning(ex, "Market order attempt {Attempt} failed for {Symbol}", attempt, symbol);
-
-                if (attempt == maxRetries)
-                    throw;
-
-                await Task.Delay(TimeSpan.FromSeconds(attempt), ct);
-            }
-        }
-
-        return new TradingBot.Binance.Common.Models.ExecutionResult
-        {
-            IsAcceptable = false,
-            RejectReason = "Max retries exceeded"
-        };
+        return await ExecuteWithRetryAsync(
+            ct,
+            token => _orderExecutor.PlaceMarketOrderAsync(symbol, direction, quantity, token),
+            (attempt, max) => _logger.Information(
+                "Placing market {Direction} order for {Symbol}, attempt {Attempt}/{Max}",
+                direction, symbol, attempt, max),
+            (attempt, ex) => _logger.Warning(ex, "Market order attempt {Attempt} failed for {Symbol}", attempt, symbol),
+            "Market order placement failed",
+            throwOnFailure: true);
     }
 
-    private async Task<TradingBot.Binance.Common.Models.ExecutionResult> PlaceStopLossOrderWithRetry(
+    private async Task<ExecutionResult> PlaceStopLossOrderWithRetry(
         string symbol,
         SignalDirection direction,
         decimal quantity,
         decimal stopPrice,
-        CancellationToken ct,
-        int maxRetries = 3)
+        CancellationToken ct)
     {
         var tradeDirection = direction == SignalDirection.Long
             ? TradeDirection.Long
             : TradeDirection.Short;
 
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
-        {
-            try
-            {
-                _logger.Information("Placing stop loss for {Symbol} @ {StopPrice}, attempt {Attempt}/{Max}",
-                    symbol, stopPrice, attempt, maxRetries);
-
-                return await _orderExecutor.PlaceStopLossAsync(symbol, tradeDirection, quantity, stopPrice, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.Warning(ex, "Stop loss placement attempt {Attempt} failed for {Symbol}", attempt, symbol);
-
-                if (attempt == maxRetries)
-                {
-                    return new TradingBot.Binance.Common.Models.ExecutionResult
-                    {
-                        IsAcceptable = false,
-                        RejectReason = $"Stop loss placement failed after {maxRetries} attempts: {ex.Message}"
-                    };
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(attempt), ct);
-            }
-        }
-
-        return new TradingBot.Binance.Common.Models.ExecutionResult
-        {
-            IsAcceptable = false,
-            RejectReason = "Max retries exceeded"
-        };
+        return await ExecuteWithRetryAsync(
+            ct,
+            token => _orderExecutor.PlaceStopLossAsync(symbol, tradeDirection, quantity, stopPrice, token),
+            (attempt, max) => _logger.Information(
+                "Placing stop loss for {Symbol} @ {StopPrice}, attempt {Attempt}/{Max}",
+                symbol, stopPrice, attempt, max),
+            (attempt, ex) => _logger.Warning(ex, "Stop loss placement attempt {Attempt} failed for {Symbol}", attempt, symbol),
+            "Stop loss placement failed",
+            throwOnFailure: false);
     }
 
-    private async Task<TradingBot.Binance.Common.Models.ExecutionResult> PlaceTakeProfitOrderWithRetry(
+    private async Task<ExecutionResult> PlaceTakeProfitOrderWithRetry(
         string symbol,
         SignalDirection direction,
         decimal quantity,
         decimal takeProfitPrice,
-        CancellationToken ct,
-        int maxRetries = 3)
+        CancellationToken ct)
     {
         var tradeDirection = direction == SignalDirection.Long
             ? TradeDirection.Long
             : TradeDirection.Short;
 
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
+        return await ExecuteWithRetryAsync(
+            ct,
+            token => _orderExecutor.PlaceTakeProfitAsync(symbol, tradeDirection, quantity, takeProfitPrice, token),
+            (attempt, max) => _logger.Information(
+                "Placing take profit for {Symbol} @ {TpPrice}, attempt {Attempt}/{Max}",
+                symbol, takeProfitPrice, attempt, max),
+            (attempt, ex) => _logger.Warning(ex, "Take profit placement attempt {Attempt} failed for {Symbol}", attempt, symbol),
+            "Take profit placement failed",
+            throwOnFailure: false);
+    }
+
+    private async Task<ExecutionResult> ExecuteWithRetryAsync(
+        CancellationToken ct,
+        Func<CancellationToken, Task<ExecutionResult>> action,
+        Action<int, int> logAttempt,
+        Action<int, Exception> logFailure,
+        string failureMessage,
+        bool throwOnFailure)
+    {
+        var maxAttempts = RetryPolicySettings.MaxRetryAttempts;
+        var attempt = 0;
+
+        try
         {
-            try
-            {
-                _logger.Information("Placing take profit for {Symbol} @ {TpPrice}, attempt {Attempt}/{Max}",
-                    symbol, takeProfitPrice, attempt, maxRetries);
-
-                return await _orderExecutor.PlaceTakeProfitAsync(symbol, tradeDirection, quantity, takeProfitPrice, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.Warning(ex, "Take profit placement attempt {Attempt} failed for {Symbol}", attempt, symbol);
-
-                if (attempt == maxRetries)
+            return await _retryPolicy.ExecuteAsync(
+                async (context, token) =>
                 {
-                    return new TradingBot.Binance.Common.Models.ExecutionResult
+                    attempt++;
+                    logAttempt(attempt, maxAttempts);
+                    return await action(token);
+                },
+                new Context
+                {
+                    ["OnRetry"] = (Action<Exception, int>)((exception, retryAttempt) =>
                     {
-                        IsAcceptable = false,
-                        RejectReason = $"Take profit placement failed after {maxRetries} attempts: {ex.Message}"
-                    };
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(attempt), ct);
-            }
+                        logFailure(retryAttempt, exception);
+                    })
+                },
+                ct);
         }
-
-        return new TradingBot.Binance.Common.Models.ExecutionResult
+        catch (Exception ex)
         {
-            IsAcceptable = false,
-            RejectReason = "Max retries exceeded"
-        };
+            var finalAttempt = attempt == 0 ? maxAttempts : attempt;
+            logFailure(finalAttempt, ex);
+
+            if (throwOnFailure)
+            {
+                throw;
+            }
+
+            return new ExecutionResult
+            {
+                IsAcceptable = false,
+                RejectReason = $"{failureMessage} after {maxAttempts} attempts: {ex.Message}"
+            };
+        }
     }
 }

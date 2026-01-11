@@ -18,6 +18,8 @@ using TradingBot.Core.RiskManagement;
 using Serilog;
 using DotNetEnv;
 using Microsoft.Extensions.Options;
+using Polly;
+using TradingBot.Binance.Common.Models;
 
 namespace SignalBot;
 
@@ -121,6 +123,27 @@ class Program
 
         // Logging
         services.AddSingleton<ILogger>(Log.Logger);
+
+        // Resilience policies
+        services.AddSingleton<IAsyncPolicy<ExecutionResult>>(_ =>
+            Policy<ExecutionResult>
+                .Handle<Exception>()
+                .WaitAndRetryAsync(
+                    RetryPolicySettings.RetryCount,
+                    attempt => TimeSpan.FromSeconds(attempt),
+                    (outcome, _, retryCount, context) =>
+                    {
+                        if (outcome.Exception is null)
+                        {
+                            return;
+                        }
+
+                        if (context.TryGetValue("OnRetry", out var callback) &&
+                            callback is Action<Exception, int> onRetry)
+                        {
+                            onRetry(outcome.Exception, retryCount);
+                        }
+                    }));
 
         // Binance clients
         services.AddSingleton(sp =>
