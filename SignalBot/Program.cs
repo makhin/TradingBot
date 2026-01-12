@@ -25,6 +25,7 @@ using Serilog.Sinks.Elasticsearch;
 using Serilog.Sinks.Grafana.Loki;
 using SignalBot.Telemetry;
 using TradingBot.Binance.Common.Models;
+using Binance.Net.Objects.Options;
 
 namespace SignalBot;
 
@@ -325,7 +326,21 @@ class Program
 
     private static void ConfigureBinanceOptions(
         BinanceApiSettings settings,
-        BinanceClientOptions options)
+        BinanceRestOptions options)
+    {
+        options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
+            settings.ApiKey,
+            settings.ApiSecret);
+
+        if (settings.UseTestnet)
+        {
+            options.Environment = Binance.Net.BinanceEnvironment.Testnet;
+        }
+    }
+
+    private static void ConfigureBinanceOptions(
+        BinanceApiSettings settings,
+        BinanceSocketOptions options)
     {
         options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
             settings.ApiKey,
