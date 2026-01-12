@@ -1,0 +1,14 @@
+{
+  "solution": {
+    "path": "TradingBot.sln",
+    "projects": [
+      "TradingBot.Core\\TradingBot.Core.csproj",
+      "TradingBot.Indicators\\TradingBot.Indicators.csproj",
+      "TradingBot.Binance\\TradingBot.Binance.csproj",
+      "TradingBot.Core.Tests\\TradingBot.Core.Tests.csproj",
+      "TradingBot.Binance.Tests\\TradingBot.Binance.Tests.csproj",
+      "SignalBot\\SignalBot.csproj",
+      "SignalBot.Tests\\SignalBot.Tests.csproj"
+    ]
+  }
+}
