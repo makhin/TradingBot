@@ -153,14 +153,7 @@ class Program
             var binanceSettings = sp.GetRequiredService<IOptions<BinanceApiSettings>>().Value;
             return new BinanceRestClient(options =>
             {
-                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                    binanceSettings.ApiKey,
-                    binanceSettings.ApiSecret);
-
-                if (binanceSettings.UseTestnet)
-                {
-                    options.Environment = Binance.Net.BinanceEnvironment.Testnet;
-                }
+                ConfigureBinanceOptions(binanceSettings, options);
             });
         });
 
@@ -169,14 +162,7 @@ class Program
             var binanceSettings = sp.GetRequiredService<IOptions<BinanceApiSettings>>().Value;
             return new BinanceSocketClient(options =>
             {
-                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                    binanceSettings.ApiKey,
-                    binanceSettings.ApiSecret);
-
-                if (binanceSettings.UseTestnet)
-                {
-                    options.Environment = Binance.Net.BinanceEnvironment.Testnet;
-                }
+                ConfigureBinanceOptions(binanceSettings, options);
             });
         });
 
@@ -335,6 +321,20 @@ class Program
                     builder.AddConsoleExporter();
                 }
             });
+    }
+
+    private static void ConfigureBinanceOptions(
+        BinanceApiSettings settings,
+        BinanceClientOptions options)
+    {
+        options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
+            settings.ApiKey,
+            settings.ApiSecret);
+
+        if (settings.UseTestnet)
+        {
+            options.Environment = Binance.Net.BinanceEnvironment.Testnet;
+        }
     }
 }
 
