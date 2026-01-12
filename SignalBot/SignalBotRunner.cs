@@ -237,93 +237,28 @@ public class SignalBotRunner
             _logger.Information("Received signal: {Symbol} {Direction} @ {Entry}",
                 signal.Symbol, signal.Direction, signal.Entry);
 
-            // Check if bot can accept new signals
-            if (!_botController.CanAcceptNewSignals())
+            var (canProcess, rejectReason, existingPosition) = await CanProcessSignalAsync(signal);
+            if (!canProcess)
             {
-                _logger.Warning("Signal ignored: Bot is in {Mode} mode", _botController.CurrentMode);
-                return;
-            }
-
-            // Check cooldown period
-            if (_cooldownManager.IsInCooldown)
-            {
-                var cooldownStatus = _cooldownManager.GetStatus();
-                _logger.Warning("Signal ignored: Cooldown active until {Until} ({Remaining} remaining). Reason: {Reason}",
-                    cooldownStatus.CooldownUntil, cooldownStatus.RemainingTime, cooldownStatus.Reason);
-                return;
-            }
-
-            // Check concurrent positions limit
-            var openPositions = await _store.GetOpenPositionsAsync(_cts!.Token);
-            if (openPositions.Count >= _settings.Trading.MaxConcurrentPositions)
-            {
-                _logger.Warning("Max concurrent positions ({Max}) reached, ignoring signal for {Symbol}",
-                    _settings.Trading.MaxConcurrentPositions, signal.Symbol);
-                return;
-            }
-
-            // Check duplicate position
-            var existingPosition = openPositions.FirstOrDefault(p => p.Symbol == signal.Symbol);
-            if (existingPosition != null)
-            {
-                _logger.Warning("Position already exists for {Symbol}, handling duplicate...", signal.Symbol);
-                await HandleDuplicateSignal(signal, existingPosition);
-                return;
-            }
-
-            // Get account balance
-            var balance = await _client.GetBalanceAsync("USDT", _cts.Token);
-            _logger.Information("Current USDT balance: {Balance}", balance);
-
-            // Validate and adjust signal
-            var validationResult = await _signalValidator.ValidateAndAdjustAsync(signal, balance, _cts.Token);
-            if (!validationResult.IsSuccess || validationResult.ValidatedSignal == null)
-            {
-                _logger.Warning("Signal validation failed for {Symbol}: {Error}",
-                    signal.Symbol, validationResult.ErrorMessage);
-
-                await SendNotificationAsync(
-                    BuildValidationFailedMessage(signal, validationResult.ErrorMessage),
-                    _cts.Token);
-                return;
-            }
-
-            var validatedSignal = validationResult.ValidatedSignal;
-
-            // Notify about signal
-            if (_settings.Notifications.NotifyOnSignalReceived)
-            {
-                var warnings = validatedSignal.ValidationWarnings.Any()
-                    ? $"\n⚠️ {string.Join("\n", validatedSignal.ValidationWarnings)}"
-                    : "";
-
-                await SendNotificationAsync(
-                    $"📊 Signal received\n" +
-                    $"Symbol: {validatedSignal.Symbol}\n" +
-                    $"Direction: {validatedSignal.Direction}\n" +
-                    $"Entry: {validatedSignal.Entry}\n" +
-                    $"SL: {validatedSignal.AdjustedStopLoss} (orig: {validatedSignal.OriginalStopLoss})\n" +
-                    $"Leverage: {validatedSignal.AdjustedLeverage}x\n" +
-                    $"R:R: {validatedSignal.RiskRewardRatio:F2}" +
-                    warnings,
-                    _cts.Token);
-            }
-
-            // Execute signal
-            _logger.Information("Executing signal for {Symbol}", validatedSignal.Symbol);
-            var position = await _signalTrader.ExecuteSignalAsync(validatedSignal, balance, _cts.Token);
-
-            using (LogContext.PushProperty("PositionId", position.Id))
-            {
-                _logger.Information("Position opened: {PositionId} for {Symbol} @ {Entry}",
-                    position.Id, position.Symbol, position.ActualEntryPrice);
-
-                // Notify about position opened
-                if (_settings.Notifications.NotifyOnPositionOpened)
+                _logger.Warning("Signal ignored: {Reason}", rejectReason);
+                if (existingPosition != null)
                 {
-                    await SendNotificationAsync(BuildPositionOpenedMessage(position), _cts.Token);
+                    await HandleDuplicateSignal(signal, existingPosition);
                 }
+                return;
             }
+
+            var (isValid, validatedSignal, balance) = await TryValidateSignalAsync(signal);
+            if (!isValid || validatedSignal == null)
+            {
+                return;
+            }
+
+            await NotifySignalReceivedAsync(validatedSignal);
+
+            var position = await OpenPositionAsync(validatedSignal, balance);
+
+            await NotifyPositionOpenedAsync(position);
         }
         catch (Exception ex)
         {
@@ -339,6 +274,106 @@ public class SignalBotRunner
         {
             _signalProcessingLock.Release();
         }
+    }
+
+    private async Task<(bool CanProcess, string? RejectReason, SignalPosition? ExistingPosition)> CanProcessSignalAsync(
+        TradingSignal signal)
+    {
+        if (!_botController.CanAcceptNewSignals())
+        {
+            return (false, $"Bot is in {_botController.CurrentMode} mode", null);
+        }
+
+        if (_cooldownManager.IsInCooldown)
+        {
+            var cooldownStatus = _cooldownManager.GetStatus();
+            return (false,
+                $"Cooldown active until {cooldownStatus.CooldownUntil} ({cooldownStatus.RemainingTime} remaining). Reason: {cooldownStatus.Reason}",
+                null);
+        }
+
+        var openPositions = await _store.GetOpenPositionsAsync(_cts!.Token);
+        if (openPositions.Count >= _settings.Trading.MaxConcurrentPositions)
+        {
+            return (false, $"Max concurrent positions ({_settings.Trading.MaxConcurrentPositions}) reached", null);
+        }
+
+        var existingPosition = openPositions.FirstOrDefault(p => p.Symbol == signal.Symbol);
+        if (existingPosition != null)
+        {
+            return (false, $"Position already exists for {signal.Symbol}", existingPosition);
+        }
+
+        return (true, null, null);
+    }
+
+    private async Task<(bool IsValid, TradingSignal? ValidatedSignal, decimal Balance)> TryValidateSignalAsync(
+        TradingSignal signal)
+    {
+        var balance = await _client.GetBalanceAsync("USDT", _cts!.Token);
+        _logger.Information("Current USDT balance: {Balance}", balance);
+
+        var validationResult = await _signalValidator.ValidateAndAdjustAsync(signal, balance, _cts.Token);
+        if (!validationResult.IsSuccess || validationResult.ValidatedSignal == null)
+        {
+            _logger.Warning("Signal validation failed for {Symbol}: {Error}",
+                signal.Symbol, validationResult.ErrorMessage);
+
+            await SendNotificationAsync(
+                BuildValidationFailedMessage(signal, validationResult.ErrorMessage),
+                _cts.Token);
+
+            return (false, null, balance);
+        }
+
+        return (true, validationResult.ValidatedSignal, balance);
+    }
+
+    private async Task NotifySignalReceivedAsync(TradingSignal validatedSignal)
+    {
+        if (!_settings.Notifications.NotifyOnSignalReceived)
+        {
+            return;
+        }
+
+        var warnings = validatedSignal.ValidationWarnings.Any()
+            ? $"\n⚠️ {string.Join("\n", validatedSignal.ValidationWarnings)}"
+            : "";
+
+        await SendNotificationAsync(
+            $"📊 Signal received\n" +
+            $"Symbol: {validatedSignal.Symbol}\n" +
+            $"Direction: {validatedSignal.Direction}\n" +
+            $"Entry: {validatedSignal.Entry}\n" +
+            $"SL: {validatedSignal.AdjustedStopLoss} (orig: {validatedSignal.OriginalStopLoss})\n" +
+            $"Leverage: {validatedSignal.AdjustedLeverage}x\n" +
+            $"R:R: {validatedSignal.RiskRewardRatio:F2}" +
+            warnings,
+            _cts!.Token);
+    }
+
+    private async Task<SignalPosition> OpenPositionAsync(TradingSignal validatedSignal, decimal balance)
+    {
+        _logger.Information("Executing signal for {Symbol}", validatedSignal.Symbol);
+        var position = await _signalTrader.ExecuteSignalAsync(validatedSignal, balance, _cts!.Token);
+
+        using (LogContext.PushProperty("PositionId", position.Id))
+        {
+            _logger.Information("Position opened: {PositionId} for {Symbol} @ {Entry}",
+                position.Id, position.Symbol, position.ActualEntryPrice);
+        }
+
+        return position;
+    }
+
+    private async Task NotifyPositionOpenedAsync(SignalPosition position)
+    {
+        if (!_settings.Notifications.NotifyOnPositionOpened)
+        {
+            return;
+        }
+
+        await SendNotificationAsync(BuildPositionOpenedMessage(position), _cts!.Token);
     }
 
     private async void HandleTargetHit(Guid positionId, int targetIndex, decimal fillPrice)
