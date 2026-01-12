@@ -1,8 +1,10 @@
 using SignalBot.Configuration;
 using SignalBot.Models;
 using Serilog;
+using Serilog.Events;
 using TL;
 using WTelegram;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace SignalBot.Services.Telegram;
 
@@ -14,6 +16,7 @@ public class TelegramSignalListener : ITelegramSignalListener, IAsyncDisposable
     private readonly TelegramSettings _settings;
     private readonly SignalParser _parser;
     private readonly ILogger _logger;
+    private readonly LogLevel _clientLogLevel;
     private Client? _client;
     private bool _isListening;
     private readonly HashSet<int> _processedMessageIds = new();
@@ -31,6 +34,9 @@ public class TelegramSignalListener : ITelegramSignalListener, IAsyncDisposable
         _settings = settings;
         _parser = parser;
         _logger = logger ?? Log.ForContext<TelegramSignalListener>();
+        _clientLogLevel = ParseLogLevel(settings.ClientLogLevel);
+
+        ConfigureClientLogging();
     }
 
     public async Task StartAsync(CancellationToken ct = default)
@@ -113,6 +119,37 @@ public class TelegramSignalListener : ITelegramSignalListener, IAsyncDisposable
     {
         await StopAsync();
         _messageLock.Dispose();
+    }
+
+    private void ConfigureClientLogging()
+    {
+        Helpers.Log = (severity, message) =>
+        {
+            var level = (LogLevel)severity;
+
+            if (level == LogLevel.None || level < _clientLogLevel)
+                return;
+
+            var serilogLevel = level switch
+            {
+                LogLevel.Trace => LogEventLevel.Verbose,
+                LogLevel.Debug => LogEventLevel.Debug,
+                LogLevel.Information => LogEventLevel.Information,
+                LogLevel.Warning => LogEventLevel.Warning,
+                LogLevel.Error => LogEventLevel.Error,
+                LogLevel.Critical => LogEventLevel.Fatal,
+                _ => LogEventLevel.Information
+            };
+
+            _logger.Write(serilogLevel, "[WTelegram] {Message}", message);
+        };
+    }
+
+    private static LogLevel ParseLogLevel(string? value)
+    {
+        return Enum.TryParse<LogLevel>(value, true, out var level)
+            ? level
+            : LogLevel.Warning;
     }
 
     private string? Config(string what)

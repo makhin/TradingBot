@@ -10,4 +10,8 @@ public class TelegramSettings
     public string PhoneNumber { get; set; } = string.Empty;
     public List<long> ChannelIds { get; set; } = new();
     public string SessionPath { get; set; } = "telegram_session.dat";
+    /// <summary>
+    /// Minimum log level for WTelegram client logs (Trace/Debug/Information/Warning/Error/Critical/None)
+    /// </summary>
+    public string ClientLogLevel { get; set; } = "Warning";
 }
