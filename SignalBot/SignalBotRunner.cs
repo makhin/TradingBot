@@ -140,14 +140,7 @@ public class SignalBotRunner
             _isRunning = true;
             _logger.Information("SignalBot started successfully");
 
-            if (_notifier != null)
-            {
-                await _notifier.SendMessageAsync(
-                    "✅ SignalBot started\n" +
-                    $"Monitoring {_settings.Telegram.ChannelIds.Count} Telegram channel(s)\n" +
-                    $"Max concurrent positions: {_settings.Trading.MaxConcurrentPositions}",
-                    _cts.Token);
-            }
+            await SendNotificationAsync(BuildStartMessage(), _cts.Token);
         }
         catch (Exception ex)
         {
@@ -184,15 +177,7 @@ public class SignalBotRunner
             _isRunning = true;
             _logger.Information("✅ SignalBot started in MONITORING-ONLY mode (no trading)");
 
-            if (_notifier != null)
-            {
-                await _notifier.SendMessageAsync(
-                    "⚠️ SignalBot started in MONITORING-ONLY mode\n" +
-                    "Futures trading is DISABLED\n" +
-                    $"Monitoring {_settings.Telegram.ChannelIds.Count} Telegram channel(s)\n" +
-                    "To enable trading, set EnableFuturesTrading to true",
-                    ct);
-            }
+            await SendNotificationAsync(BuildStartMessage(monitoringOnly: true), ct);
         }
         catch (Exception ex)
         {
@@ -235,10 +220,7 @@ public class SignalBotRunner
             _isRunning = false;
             _logger.Information("SignalBot stopped");
 
-            if (_notifier != null)
-            {
-                await _notifier.SendMessageAsync("🛑 SignalBot stopped", CancellationToken.None);
-            }
+            await SendNotificationAsync(BuildStopMessage(), CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -300,27 +282,22 @@ public class SignalBotRunner
                 _logger.Warning("Signal validation failed for {Symbol}: {Error}",
                     signal.Symbol, validationResult.ErrorMessage);
 
-                if (_notifier != null)
-                {
-                    await _notifier.SendMessageAsync(
-                        $"❌ Signal validation failed\n" +
-                        $"Symbol: {signal.Symbol}\n" +
-                        $"Reason: {validationResult.ErrorMessage}",
-                        _cts.Token);
-                }
+                await SendNotificationAsync(
+                    BuildValidationFailedMessage(signal, validationResult.ErrorMessage),
+                    _cts.Token);
                 return;
             }
 
             var validatedSignal = validationResult.ValidatedSignal;
 
             // Notify about signal
-            if (_notifier != null && _settings.Notifications.NotifyOnSignalReceived)
+            if (_settings.Notifications.NotifyOnSignalReceived)
             {
                 var warnings = validatedSignal.ValidationWarnings.Any()
                     ? $"\n⚠️ {string.Join("\n", validatedSignal.ValidationWarnings)}"
                     : "";
 
-                await _notifier.SendMessageAsync(
+                await SendNotificationAsync(
                     $"📊 Signal received\n" +
                     $"Symbol: {validatedSignal.Symbol}\n" +
                     $"Direction: {validatedSignal.Direction}\n" +
@@ -342,18 +319,9 @@ public class SignalBotRunner
                     position.Id, position.Symbol, position.ActualEntryPrice);
 
                 // Notify about position opened
-                if (_notifier != null && _settings.Notifications.NotifyOnPositionOpened)
+                if (_settings.Notifications.NotifyOnPositionOpened)
                 {
-                    await _notifier.SendMessageAsync(
-                        $"✅ Position opened\n" +
-                        $"Symbol: {position.Symbol}\n" +
-                        $"Direction: {position.Direction}\n" +
-                        $"Entry: {position.ActualEntryPrice}\n" +
-                        $"SL: {position.CurrentStopLoss}\n" +
-                        $"Quantity: {position.InitialQuantity}\n" +
-                        $"Leverage: {position.Leverage}x\n" +
-                        $"Targets: {position.Targets.Count}",
-                        _cts.Token);
+                    await SendNotificationAsync(BuildPositionOpenedMessage(position), _cts.Token);
                 }
             }
         }
@@ -361,14 +329,11 @@ public class SignalBotRunner
         {
             _logger.Error(ex, "Error processing signal for {Symbol}", signal.Symbol);
 
-            if (_notifier != null)
-            {
-                await _notifier.SendMessageAsync(
-                    $"❌ Error executing signal\n" +
-                    $"Symbol: {signal.Symbol}\n" +
-                    $"Error: {ex.Message}",
-                    _cts!.Token);
-            }
+            await SendNotificationAsync(
+                $"❌ Error executing signal\n" +
+                $"Symbol: {signal.Symbol}\n" +
+                $"Error: {ex.Message}",
+                _cts!.Token);
         }
         finally
         {
@@ -483,5 +448,54 @@ public class SignalBotRunner
         }
 
         await Task.CompletedTask;
+    }
+
+    private async Task SendNotificationAsync(string message, CancellationToken ct)
+    {
+        if (_notifier == null)
+        {
+            return;
+        }
+
+        await _notifier.SendMessageAsync(message, ct);
+    }
+
+    private string BuildStartMessage(bool monitoringOnly = false)
+    {
+        if (monitoringOnly)
+        {
+            return "⚠️ SignalBot started in MONITORING-ONLY mode\n" +
+                   "Futures trading is DISABLED\n" +
+                   $"Monitoring {_settings.Telegram.ChannelIds.Count} Telegram channel(s)\n" +
+                   "To enable trading, set EnableFuturesTrading to true";
+        }
+
+        return "✅ SignalBot started\n" +
+               $"Monitoring {_settings.Telegram.ChannelIds.Count} Telegram channel(s)\n" +
+               $"Max concurrent positions: {_settings.Trading.MaxConcurrentPositions}";
+    }
+
+    private string BuildStopMessage()
+    {
+        return "🛑 SignalBot stopped";
+    }
+
+    private string BuildValidationFailedMessage(TradingSignal signal, string? errorMessage)
+    {
+        return "❌ Signal validation failed\n" +
+               $"Symbol: {signal.Symbol}\n" +
+               $"Reason: {errorMessage}";
+    }
+
+    private string BuildPositionOpenedMessage(SignalPosition position)
+    {
+        return "✅ Position opened\n" +
+               $"Symbol: {position.Symbol}\n" +
+               $"Direction: {position.Direction}\n" +
+               $"Entry: {position.ActualEntryPrice}\n" +
+               $"SL: {position.CurrentStopLoss}\n" +
+               $"Quantity: {position.InitialQuantity}\n" +
+               $"Leverage: {position.Leverage}x\n" +
+               $"Targets: {position.Targets.Count}";
     }
 }
