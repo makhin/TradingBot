@@ -90,4 +90,65 @@ public class SignalParserTests
         Assert.False(result.IsSuccess);
         Assert.Equal("Signal format not recognized", result.ErrorMessage);
     }
+
+    [Fact]
+    public void Parse_ValidSignalWithFiveTargets_ReturnsSignal()
+    {
+        var text = """
+            #ADA/USDT - Long🟢
+
+            Entry: 0.4005
+            Stop Loss: 0.38523
+
+            Target 1: 0.40485
+            Target 2: 0.40894
+            Target 3: 0.41526
+            Target 4: 0.43211
+            Target 5: 0.44886
+
+            Leverage: x14
+            """;
+
+        var result = _parser.Parse(text, Source);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Signal);
+        Assert.Equal("ADAUSDT", result.Signal!.Symbol);
+        Assert.Equal(SignalDirection.Long, result.Signal.Direction);
+        Assert.Equal(0.4005m, result.Signal.Entry);
+        Assert.Equal(0.38523m, result.Signal.OriginalStopLoss);
+        Assert.Equal(14, result.Signal.OriginalLeverage);
+        Assert.Equal(5, result.Signal.Targets.Count);
+        Assert.Equal(new List<decimal> { 0.40485m, 0.40894m, 0.41526m, 0.43211m, 0.44886m }, result.Signal.Targets);
+    }
+
+    [Fact]
+    public void Parse_ValidSignalWithTenTargets_ReturnsSignal()
+    {
+        var text = """
+            #BTC/USDT - Long🟢
+            Entry: 50000
+            Stop Loss: 49000
+            Target 1: 50500
+            Target 2: 51000
+            Target 3: 51500
+            Target 4: 52000
+            Target 5: 52500
+            Target 6: 53000
+            Target 7: 53500
+            Target 8: 54000
+            Target 9: 54500
+            Target 10: 55000
+            Leverage: x10
+            """;
+
+        var result = _parser.Parse(text, Source);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Signal);
+        Assert.Equal("BTCUSDT", result.Signal!.Symbol);
+        Assert.Equal(10, result.Signal.Targets.Count);
+        Assert.Equal(50500m, result.Signal.Targets[0]);
+        Assert.Equal(55000m, result.Signal.Targets[9]);
+    }
 }

@@ -107,8 +107,7 @@ public class SignalTrader : ISignalTrader
                         _logger.Information("Skipping signal for {Symbol} due to price deviation", signal.Symbol);
                         position = position with { Status = PositionStatus.Cancelled };
                         await _positionManager.SavePositionAsync(position, ct);
-                        throw new InvalidOperationException(
-                            $"Price deviation {deviationPercent:F2}% exceeds maximum {_entrySettings.MaxPriceDeviationPercent:F2}%");
+                        return position;
 
                     case PriceDeviationAction.EnterAtMarket:
                         _logger.Information("Entering at market despite deviation for {Symbol}", signal.Symbol);

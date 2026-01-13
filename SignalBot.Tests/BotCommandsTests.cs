@@ -2,6 +2,7 @@ using SignalBot.Configuration;
 using SignalBot.Models;
 using SignalBot.Services;
 using SignalBot.Services.Commands;
+using SignalBot.Services.Statistics;
 using SignalBot.Services.Trading;
 using SignalBot.State;
 using TradingBot.Binance.Futures.Interfaces;
@@ -20,6 +21,7 @@ public class BotCommandsTests
     private readonly Mock<IPositionStore<SignalPosition>> _mockStore;
     private readonly Mock<IFuturesOrderExecutor> _mockOrderExecutor;
     private readonly Mock<IBinanceFuturesClient> _mockClient;
+    private readonly Mock<ITradeStatisticsService> _mockTradeStatistics;
     private readonly TelegramBotCommands _commands;
     private readonly ILogger _logger;
 
@@ -32,6 +34,7 @@ public class BotCommandsTests
         _mockStore = new Mock<IPositionStore<SignalPosition>>();
         _mockOrderExecutor = new Mock<IFuturesOrderExecutor>();
         _mockClient = new Mock<IBinanceFuturesClient>();
+        _mockTradeStatistics = new Mock<ITradeStatisticsService>();
 
         _commands = new TelegramBotCommands(
             _controller,
@@ -40,6 +43,7 @@ public class BotCommandsTests
             _mockStore.Object,
             _mockOrderExecutor.Object,
             _mockClient.Object,
+            _mockTradeStatistics.Object,
             _logger);
     }
 

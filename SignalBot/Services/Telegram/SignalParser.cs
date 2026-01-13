@@ -15,7 +15,7 @@ public partial class SignalParser
 {
     private readonly ILogger _logger;
 
-    // Regex pattern for signal parsing
+    // Regex pattern for signal parsing (supports up to 10 targets)
     [GeneratedRegex(
         @"#(?<symbol>\w+)/USDT\s*-\s*(?<direction>Long|Short)\s*(?:🟢|🔴)?\s*" +
         @"Entry:\s*(?<entry>[\d.]+)\s*" +
@@ -24,6 +24,12 @@ public partial class SignalParser
         @"(?:Target\s*2:\s*(?<t2>[\d.]+)\s*)?" +
         @"(?:Target\s*3:\s*(?<t3>[\d.]+)\s*)?" +
         @"(?:Target\s*4:\s*(?<t4>[\d.]+)\s*)?" +
+        @"(?:Target\s*5:\s*(?<t5>[\d.]+)\s*)?" +
+        @"(?:Target\s*6:\s*(?<t6>[\d.]+)\s*)?" +
+        @"(?:Target\s*7:\s*(?<t7>[\d.]+)\s*)?" +
+        @"(?:Target\s*8:\s*(?<t8>[\d.]+)\s*)?" +
+        @"(?:Target\s*9:\s*(?<t9>[\d.]+)\s*)?" +
+        @"(?:Target\s*10:\s*(?<t10>[\d.]+)\s*)?" +
         @"Leverage:\s*x(?<leverage>\d+)",
         RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled)]
     private static partial Regex SignalRegex();
@@ -128,7 +134,7 @@ public partial class SignalParser
     private static List<decimal> ParseTargets(Match match)
     {
         var targets = new List<decimal>();
-        for (int i = 1; i <= 4; i++)
+        for (int i = 1; i <= 10; i++)
         {
             var group = match.Groups[$"t{i}"];
             if (group.Success && decimal.TryParse(group.Value,

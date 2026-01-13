@@ -259,6 +259,12 @@ public class SignalBotRunner
 
             var position = await OpenPositionAsync(validatedSignal, balance);
 
+            if (position.Status == PositionStatus.Cancelled)
+            {
+                _logger.Information("Signal for {Symbol} was cancelled (e.g., price deviation)", position.Symbol);
+                return;
+            }
+
             await NotifyPositionOpenedAsync(position);
         }
         catch (Exception ex)

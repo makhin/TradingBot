@@ -1,6 +1,7 @@
 using SignalBot.Configuration;
 using SignalBot.Models;
 using SignalBot.Services;
+using SignalBot.Utils;
 using Serilog;
 using Serilog.Events;
 using TL;
@@ -54,12 +55,18 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         var dialogs = await _client.Messages_GetAllDialogs();
         _logger.Information("Found {Count} dialogs", dialogs.dialogs.Length);
 
+        // Log all channel IDs for debugging
+        var allChannels = dialogs.chats.Values.OfType<Channel>().ToList();
+        _logger.Information("Available channels: {Count} total", allChannels.Count);
+
         // Verify configured channels exist
         foreach (var channelId in _settings.ChannelIds)
         {
+            var searchId = TelegramIdHelper.ConvertToApiFormat(channelId);
+
             var channel = dialogs.chats.Values
                 .OfType<Channel>()
-                .FirstOrDefault(c => c.ID == channelId);
+                .FirstOrDefault(c => c.ID == searchId || c.ID == channelId);
 
             if (channel != null)
             {
@@ -67,7 +74,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             }
             else
             {
-                _logger.Warning("Channel {ChannelId} not found in dialogs. Make sure you have access to it.", channelId);
+                _logger.Warning("Channel {ChannelId} not found in dialogs (searched as {SearchId}). Make sure you have access to it.", channelId, searchId);
             }
         }
     }
@@ -182,11 +189,13 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             var peerId = message.Peer.ID;
 
             // Check if this channel is in our monitored list
-            if (!_settings.ChannelIds.Contains(peerId))
+            if (!TelegramIdHelper.IsMonitoredChannel(peerId, _settings.ChannelIds))
             {
                 _logger.Debug("Ignoring message from unmonitored channel {ChannelId}", peerId);
                 return;
             }
+
+            _logger.Information("Received message from monitored channel {ChannelId}", peerId);
 
             // Check for duplicate message
             await _messageLock.WaitAsync();
