@@ -9,6 +9,7 @@ using SignalBot.Services.Telegram;
 using SignalBot.Services.Trading;
 using SignalBot.Services.Validation;
 using SignalBot.State;
+using SignalBot.Services.Statistics;
 using TradingBot.Binance.Common;
 using TradingBot.Binance.Common.Interfaces;
 using TradingBot.Binance.Futures;
@@ -204,6 +205,38 @@ class Program
             new JsonPositionStore(
                 sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.State.StatePath,
                 sp.GetRequiredService<ILogger>()));
+
+        services.AddSingleton<ITradeStatisticsStore>(sp =>
+            new JsonTradeStatisticsStore(
+                sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.State.StatisticsPath,
+                sp.GetRequiredService<ILogger>()));
+
+        services.AddSingleton<ITradeStatisticsService>(sp =>
+        {
+            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value.Statistics;
+            var windows = settings.Windows
+                .Select(window => new TradeStatisticsWindow
+                {
+                    Name = window.Name,
+                    Duration = window.Duration
+                })
+                .ToList();
+
+            if (windows.Count == 0)
+            {
+                windows.AddRange(new[]
+                {
+                    new TradeStatisticsWindow { Name = "24h", Duration = TimeSpan.FromHours(24) },
+                    new TradeStatisticsWindow { Name = "7d", Duration = TimeSpan.FromDays(7) },
+                    new TradeStatisticsWindow { Name = "30d", Duration = TimeSpan.FromDays(30) }
+                });
+            }
+
+            return new TradeStatisticsService(
+                sp.GetRequiredService<ITradeStatisticsStore>(),
+                windows,
+                sp.GetRequiredService<ILogger>());
+        });
 
         // Signal processing
         services.AddSingleton<SignalParser>();

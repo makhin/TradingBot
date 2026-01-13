@@ -1,5 +1,6 @@
 using SignalBot.Models;
 using SignalBot.State;
+using SignalBot.Services.Statistics;
 using TradingBot.Binance.Futures.Interfaces;
 using TradingBot.Core.Models;
 using TradingBot.Core.Notifications;
@@ -14,17 +15,20 @@ public class PositionManager : IPositionManager
 {
     private readonly IPositionStore<SignalPosition> _store;
     private readonly IFuturesOrderExecutor _orderExecutor;
+    private readonly ITradeStatisticsService _tradeStatistics;
     private readonly INotifier? _notifier;
     private readonly ILogger _logger;
 
     public PositionManager(
         IPositionStore<SignalPosition> store,
         IFuturesOrderExecutor orderExecutor,
+        ITradeStatisticsService tradeStatistics,
         INotifier? notifier = null,
         ILogger? logger = null)
     {
         _store = store;
         _orderExecutor = orderExecutor;
+        _tradeStatistics = tradeStatistics;
         _notifier = notifier;
         _logger = logger ?? Log.ForContext<PositionManager>();
     }
@@ -80,7 +84,7 @@ public class PositionManager : IPositionManager
         decimal newRemaining = position.RemainingQuantity - closedQty;
 
         // 3. Calculate realized PnL for this portion
-        decimal pnl = CalculatePnl(
+        decimal pnl = PnlCalculator.Calculate(
             position.ActualEntryPrice,
             fillPrice,
             closedQty,
@@ -104,6 +108,10 @@ public class PositionManager : IPositionManager
         };
 
         await _store.SavePositionAsync(updatedPosition, ct);
+        if (updatedPosition.Status == PositionStatus.Closed)
+        {
+            await _tradeStatistics.RecordClosedPositionAsync(updatedPosition, ct);
+        }
 
         // 6. Notify
         if (_notifier != null)
@@ -145,7 +153,7 @@ public class PositionManager : IPositionManager
         }
 
         // 2. Calculate PnL
-        decimal pnl = CalculatePnl(
+        decimal pnl = PnlCalculator.Calculate(
             position.ActualEntryPrice,
             fillPrice,
             position.RemainingQuantity,
@@ -162,6 +170,7 @@ public class PositionManager : IPositionManager
         };
 
         await _store.SavePositionAsync(updatedPosition, ct);
+        await _tradeStatistics.RecordClosedPositionAsync(updatedPosition, ct);
 
         // 4. Notify
         if (_notifier != null)
@@ -240,12 +249,4 @@ public class PositionManager : IPositionManager
         }
     }
 
-    private decimal CalculatePnl(decimal entry, decimal exit, decimal quantity, SignalDirection direction)
-    {
-        decimal priceDiff = direction == SignalDirection.Long
-            ? exit - entry
-            : entry - exit;
-
-        return priceDiff * quantity;
-    }
 }

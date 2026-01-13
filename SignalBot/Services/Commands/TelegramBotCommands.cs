@@ -1,6 +1,7 @@
 using System.Text;
 using SignalBot.Models;
 using SignalBot.Services.Trading;
+using SignalBot.Services.Statistics;
 using SignalBot.State;
 using TradingBot.Binance.Futures.Interfaces;
 using TradingBot.Core.Models;
@@ -20,6 +21,7 @@ public class TelegramBotCommands : IBotCommands
     private readonly IPositionStore<SignalPosition> _store;
     private readonly IFuturesOrderExecutor _orderExecutor;
     private readonly IBinanceFuturesClient _client;
+    private readonly ITradeStatisticsService _tradeStatistics;
     private readonly ILogger _logger;
 
     public TelegramBotCommands(
@@ -29,6 +31,7 @@ public class TelegramBotCommands : IBotCommands
         IPositionStore<SignalPosition> store,
         IFuturesOrderExecutor orderExecutor,
         IBinanceFuturesClient client,
+        ITradeStatisticsService tradeStatistics,
         ILogger? logger = null)
     {
         _controller = controller;
@@ -37,6 +40,7 @@ public class TelegramBotCommands : IBotCommands
         _store = store;
         _orderExecutor = orderExecutor;
         _client = client;
+        _tradeStatistics = tradeStatistics;
         _logger = logger ?? Log.ForContext<TelegramBotCommands>();
     }
 
@@ -59,6 +63,21 @@ public class TelegramBotCommands : IBotCommands
             {
                 decimal totalPnl = positions.Sum(p => p.RealizedPnl + p.UnrealizedPnl);
                 sb.AppendLine($"Total P&L: `{totalPnl:+0.00;-0.00} USDT`");
+            }
+
+            var statsReport = await _tradeStatistics.GetReportAsync(ct: ct);
+            if (statsReport.Windows.Any())
+            {
+                sb.AppendLine();
+                sb.AppendLine("📈 **Trade Stats**");
+                foreach (var window in statsReport.Windows)
+                {
+                    sb.AppendLine(
+                        $"{window.Name}: trades `{window.TradeCount}`, " +
+                        $"profit `{window.Profit:+0.00;-0.00} USDT`, " +
+                        $"loss `{window.Loss:+0.00;-0.00} USDT`, " +
+                        $"net `{window.Net:+0.00;-0.00} USDT`");
+                }
             }
 
             // Cooldown status
@@ -358,14 +377,22 @@ public class TelegramBotCommands : IBotCommands
         }
 
         // Update position
+        var pnl = PnlCalculator.Calculate(
+            position.ActualEntryPrice,
+            closeResult.ActualPrice,
+            position.RemainingQuantity,
+            position.Direction);
+
         var updatedPosition = position with
         {
             RemainingQuantity = 0,
+            RealizedPnl = position.RealizedPnl + pnl,
             Status = PositionStatus.Closed,
             ClosedAt = DateTime.UtcNow,
             CloseReason = PositionCloseReason.ManualClose
         };
 
         await _store.SavePositionAsync(updatedPosition, ct);
+        await _tradeStatistics.RecordClosedPositionAsync(updatedPosition, ct);
     }
 }
