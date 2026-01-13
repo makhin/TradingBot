@@ -1,4 +1,5 @@
 using SignalBot.Models;
+using SignalBot.Services;
 using SignalBot.State;
 using TradingBot.Binance.Common.Interfaces;
 using TradingBot.Binance.Common.Models;
@@ -9,62 +10,39 @@ namespace SignalBot.Services.Monitoring;
 /// <summary>
 /// Monitors order execution via Binance User Data Stream
 /// </summary>
-public class OrderMonitor : IOrderMonitor
+public class OrderMonitor : ServiceBase, IOrderMonitor
 {
     private readonly IOrderUpdateListener _updateListener;
     private readonly IPositionStore<SignalPosition> _store;
-    private readonly ILogger _logger;
     private IDisposable? _subscription;
-    private bool _isMonitoring;
 
     public event Action<Guid, int, decimal>? OnTargetHit;
     public event Action<Guid, decimal>? OnStopLossHit;
 
-    public bool IsMonitoring => _isMonitoring;
+    public bool IsMonitoring => IsRunning;
 
     public OrderMonitor(
         IOrderUpdateListener updateListener,
         IPositionStore<SignalPosition> store,
         ILogger? logger = null)
+        : base(logger)
     {
         _updateListener = updateListener;
         _store = store;
-        _logger = logger ?? Log.ForContext<OrderMonitor>();
     }
 
-    public async Task StartAsync(CancellationToken ct = default)
+    protected override async Task OnStartAsync(CancellationToken ct)
     {
-        if (_isMonitoring)
-        {
-            _logger.Warning("Order monitor is already running");
-            return;
-        }
-
-        _logger.Information("Starting order monitor");
-
         _subscription = await _updateListener.SubscribeToOrderUpdatesAsync(HandleOrderUpdate, ct);
 
-        if (_subscription != null)
+        if (_subscription == null)
         {
-            _isMonitoring = true;
-            _logger.Information("Order monitor started successfully");
-        }
-        else
-        {
-            _logger.Error("Failed to start order monitor");
+            throw new InvalidOperationException("Failed to subscribe to order updates");
         }
     }
 
-    public async Task StopAsync(CancellationToken ct = default)
+    protected override async Task OnStopAsync(CancellationToken ct)
     {
-        if (!_isMonitoring)
-        {
-            _logger.Warning("Order monitor is not running");
-            return;
-        }
-
-        _logger.Information("Stopping order monitor");
-
         if (_subscription != null)
         {
             _subscription.Dispose();
@@ -72,9 +50,6 @@ public class OrderMonitor : IOrderMonitor
         }
 
         await _updateListener.UnsubscribeAllAsync();
-
-        _isMonitoring = false;
-        _logger.Information("Order monitor stopped");
     }
 
     private async void HandleOrderUpdate(OrderUpdate update)

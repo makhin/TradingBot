@@ -11,3 +11,76 @@ System.InvalidOperationException: Failed to connect to Binance Futures API
    at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 90
    at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 129
    at SignalBot.Program.Main(String[] args) in C:\code\TradingBot\SignalBot\Program.cs:line 113
+2026-01-10 19:08:29.740 +01:00 [INF] SignalBot starting up...
+2026-01-10 19:08:29.868 +01:00 [INF] Using Binance Testnet API
+2026-01-10 19:08:29.872 +01:00 [INF] Futures Trading: DISABLED
+2026-01-10 19:08:30.252 +01:00 [INF] Starting SignalBot...
+2026-01-10 19:08:30.256 +01:00 [WRN] ⚠️ Futures trading is DISABLED in configuration
+2026-01-10 19:08:30.257 +01:00 [INF] SignalBot will run in monitoring-only mode
+2026-01-10 19:08:30.623 +01:00 [INF] Starting Telegram listener...
+2026-01-10 19:08:57.470 +01:00 [INF] Logged in as Makhin (@53323600)
+2026-01-10 19:08:58.499 +01:00 [INF] Found 383 dialogs
+2026-01-10 19:08:58.501 +01:00 [INF] Telegram listener started successfully
+2026-01-10 19:08:58.504 +01:00 [INF] Starting Telegram command handler
+2026-01-10 19:08:58.775 +01:00 [INF] Telegram bot started: @trade_makhin_bot
+2026-01-10 19:08:58.777 +01:00 [INF] Telegram command handler started (monitoring mode)
+2026-01-10 19:08:58.777 +01:00 [INF] ✅ SignalBot started in MONITORING-ONLY mode (no trading)
+2026-01-10 19:08:59.165 +01:00 [INF] SignalBot is running. Press Ctrl+C to stop.
+2026-01-10 19:10:29.376 +01:00 [INF] Shutdown signal received
+2026-01-10 19:10:29.379 +01:00 [INF] Shutting down...
+2026-01-10 19:10:29.381 +01:00 [INF] Stopping SignalBot...
+2026-01-10 19:10:29.382 +01:00 [INF] Stopping Telegram command handler
+2026-01-10 19:10:29.383 +01:00 [INF] Stopping Telegram listener...
+2026-01-10 19:10:29.386 +01:00 [INF] Telegram listener stopped
+2026-01-10 19:10:29.387 +01:00 [WRN] Order monitor is not running
+2026-01-10 19:10:29.388 +01:00 [INF] SignalBot stopped
+2026-01-10 19:10:29.552 +01:00 [INF] SignalBot shutdown complete
+2026-01-10 19:12:57.267 +01:00 [INF] SignalBot starting up...
+2026-01-10 19:12:57.389 +01:00 [INF] Using Binance Testnet API
+2026-01-10 19:12:57.394 +01:00 [INF] Futures Trading: ENABLED
+2026-01-10 19:12:57.525 +01:00 [INF] Starting SignalBot...
+2026-01-10 19:12:58.830 +01:00 [WRN] Futures account balances failed: Invalid API-key, IP, or permissions for action
+2026-01-10 19:12:58.833 +01:00 [ERR] Failed to connect to Binance Futures API
+System.InvalidOperationException: Failed to connect to Binance Futures API
+   at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 101
+2026-01-10 19:12:58.857 +01:00 [ERR] Failed to start SignalBot
+System.InvalidOperationException: Failed to connect to Binance Futures API
+   at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 101
+2026-01-10 19:12:58.859 +01:00 [WRN] SignalBot is not running
+2026-01-10 19:12:58.860 +01:00 [FTL] SignalBot terminated unexpectedly
+System.InvalidOperationException: Failed to connect to Binance Futures API
+   at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 101
+   at SignalBot.SignalBotRunner.StartAsync(CancellationToken ct) in C:\code\TradingBot\SignalBot\SignalBotRunner.cs:line 154
+   at SignalBot.Program.Main(String[] args) in C:\code\TradingBot\SignalBot\Program.cs:line 121
+2026-01-10 19:19:49.993 +01:00 [INF] SignalBot starting up...
+2026-01-10 19:19:50.139 +01:00 [INF] Using Binance Testnet API
+2026-01-10 19:19:50.144 +01:00 [INF] Futures Trading: ENABLED
+2026-01-10 19:19:50.284 +01:00 [INF] Starting SignalBot...
+2026-01-10 19:19:51.599 +01:00 [INF] Futures API connectivity test passed
+2026-01-10 19:19:51.601 +01:00 [INF] Connected to Binance Futures API
+2026-01-10 19:19:51.603 +01:00 [INF] Starting order monitor
+2026-01-10 19:19:51.876 +01:00 [INF] Started User Data Stream with listen key
+2026-01-10 19:19:51.878 +01:00 [INF] Subscribing to Futures order updates
+2026-01-10 19:19:53.354 +01:00 [INF] Successfully subscribed to order updates
+2026-01-10 19:19:53.358 +01:00 [INF] Order monitor started successfully
+2026-01-10 19:19:53.368 +01:00 [INF] Starting Telegram listener...
+2026-01-10 19:19:53.690 +01:00 [INF] Logged in as Makhin (@53323600)
+2026-01-10 19:19:54.685 +01:00 [INF] Found 383 dialogs
+2026-01-10 19:19:54.688 +01:00 [INF] Telegram listener started successfully
+2026-01-10 19:19:54.690 +01:00 [INF] Starting Telegram command handler
+2026-01-10 19:19:54.808 +01:00 [INF] Telegram bot started: @trade_makhin_bot
+2026-01-10 19:19:54.810 +01:00 [INF] Telegram command handler started
+2026-01-10 19:19:54.811 +01:00 [INF] SignalBot started successfully
+2026-01-10 19:19:55.133 +01:00 [INF] SignalBot is running. Press Ctrl+C to stop.
+2026-01-10 19:20:31.594 +01:00 [INF] Shutdown signal received
+2026-01-10 19:20:31.614 +01:00 [INF] Shutting down...
+2026-01-10 19:20:31.627 +01:00 [INF] Stopping SignalBot...
+2026-01-10 19:20:31.630 +01:00 [INF] Stopping Telegram command handler
+2026-01-10 19:20:31.632 +01:00 [INF] Stopping Telegram listener...
+2026-01-10 19:20:31.638 +01:00 [INF] Telegram listener stopped
+2026-01-10 19:20:31.641 +01:00 [INF] Stopping order monitor
+2026-01-10 19:20:31.643 +01:00 [INF] Unsubscribed from order updates
+2026-01-10 19:20:31.918 +01:00 [INF] Closed User Data Stream
+2026-01-10 19:20:31.921 +01:00 [INF] Order monitor stopped
+2026-01-10 19:20:31.923 +01:00 [INF] SignalBot stopped
+2026-01-10 19:20:31.996 +01:00 [INF] SignalBot shutdown complete

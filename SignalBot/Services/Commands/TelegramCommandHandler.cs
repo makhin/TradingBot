@@ -1,3 +1,4 @@
+using SignalBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -8,7 +9,7 @@ namespace SignalBot.Services.Commands;
 /// <summary>
 /// Handles incoming Telegram bot commands
 /// </summary>
-public class TelegramCommandHandler
+public class TelegramCommandHandler : ServiceBase
 {
     private static readonly IReadOnlyDictionary<string, string> CommandAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -20,24 +21,21 @@ public class TelegramCommandHandler
     private readonly IBotCommands _commands;
     private readonly TelegramBotClient _botClient;
     private readonly long _authorizedChatId;
-    private readonly ILogger _logger;
 
     public TelegramCommandHandler(
         IBotCommands commands,
         string botToken,
         long authorizedChatId,
         ILogger? logger = null)
+        : base(logger)
     {
         _commands = commands;
         _botClient = new TelegramBotClient(botToken);
         _authorizedChatId = authorizedChatId;
-        _logger = logger ?? Log.ForContext<TelegramCommandHandler>();
     }
 
-    public async Task StartAsync(CancellationToken ct = default)
+    protected override async Task OnStartAsync(CancellationToken ct)
     {
-        _logger.Information("Starting Telegram command handler");
-
         // Start receiving updates
         _botClient.StartReceiving(
             HandleUpdateAsync,
@@ -48,10 +46,10 @@ public class TelegramCommandHandler
         _logger.Information("Telegram bot started: @{BotUsername}", me.Username);
     }
 
-    public void Stop()
+    protected override Task OnStopAsync(CancellationToken ct)
     {
-        _logger.Information("Stopping Telegram command handler");
         // TelegramBotClient handles cleanup automatically
+        return Task.CompletedTask;
     }
 
     private async Task HandleUpdateAsync(

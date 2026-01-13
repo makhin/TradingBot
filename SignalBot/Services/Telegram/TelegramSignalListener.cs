@@ -1,5 +1,6 @@
 using SignalBot.Configuration;
 using SignalBot.Models;
+using SignalBot.Services;
 using Serilog;
 using Serilog.Events;
 using TL;
@@ -11,97 +12,68 @@ namespace SignalBot.Services.Telegram;
 /// <summary>
 /// Telegram signal listener implementation using WTelegramClient
 /// </summary>
-public class TelegramSignalListener : ITelegramSignalListener, IAsyncDisposable
+public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 {
     private readonly TelegramSettings _settings;
     private readonly SignalParser _parser;
-    private readonly ILogger _logger;
     private readonly LogLevel _clientLogLevel;
     private Client? _client;
-    private bool _isListening;
     private readonly HashSet<int> _processedMessageIds = new();
     private readonly SemaphoreSlim _messageLock = new(1, 1);
 
     public event Action<TradingSignal>? OnSignalReceived;
 
-    public bool IsListening => _isListening;
+    public bool IsListening => IsRunning;
 
     public TelegramSignalListener(
         TelegramSettings settings,
         SignalParser parser,
         ILogger? logger = null)
+        : base(logger)
     {
         _settings = settings;
         _parser = parser;
-        _logger = logger ?? Log.ForContext<TelegramSignalListener>();
         _clientLogLevel = ParseLogLevel(settings.ClientLogLevel);
 
         ConfigureClientLogging();
     }
 
-    public async Task StartAsync(CancellationToken ct = default)
+    protected override async Task OnStartAsync(CancellationToken ct)
     {
-        if (_isListening)
+        // Create WTelegram client
+        _client = new Client(Config);
+
+        // Login user
+        var user = await DoLogin(_client, ct);
+        _logger.Information("Logged in as {Username} (@{UserId})", user.username, user.id);
+
+        // Subscribe to updates
+        _client.OnUpdates += OnUpdate;
+
+        // Get dialogs to verify channel access
+        var dialogs = await _client.Messages_GetAllDialogs();
+        _logger.Information("Found {Count} dialogs", dialogs.dialogs.Length);
+
+        // Verify configured channels exist
+        foreach (var channelId in _settings.ChannelIds)
         {
-            _logger.Warning("Telegram listener is already running");
-            return;
-        }
+            var channel = dialogs.chats.Values
+                .OfType<Channel>()
+                .FirstOrDefault(c => c.ID == channelId);
 
-        _logger.Information("Starting Telegram listener...");
-
-        try
-        {
-            // Create WTelegram client
-            _client = new Client(Config);
-
-            // Login user
-            var user = await DoLogin(_client, ct);
-            _logger.Information("Logged in as {Username} (@{UserId})", user.username, user.id);
-
-            // Subscribe to updates
-            _client.OnUpdates += OnUpdate;
-
-            // Get dialogs to verify channel access
-            var dialogs = await _client.Messages_GetAllDialogs();
-            _logger.Information("Found {Count} dialogs", dialogs.dialogs.Length);
-
-            // Verify configured channels exist
-            foreach (var channelId in _settings.ChannelIds)
+            if (channel != null)
             {
-                var channel = dialogs.chats.Values
-                    .OfType<Channel>()
-                    .FirstOrDefault(c => c.ID == channelId);
-
-                if (channel != null)
-                {
-                    _logger.Information("Monitoring channel: {Title} (ID: {Id})", channel.Title, channel.ID);
-                }
-                else
-                {
-                    _logger.Warning("Channel {ChannelId} not found in dialogs. Make sure you have access to it.", channelId);
-                }
+                _logger.Information("Monitoring channel: {Title} (ID: {Id})", channel.Title, channel.ID);
             }
-
-            _isListening = true;
-            _logger.Information("Telegram listener started successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Failed to start Telegram listener");
-            throw;
+            else
+            {
+                _logger.Warning("Channel {ChannelId} not found in dialogs. Make sure you have access to it.", channelId);
+            }
         }
     }
 
-    public async Task StopAsync(CancellationToken ct = default)
+    protected override Task OnStopAsync(CancellationToken ct)
     {
-        if (!_isListening)
-        {
-            _logger.Warning("Telegram listener is not running");
-            return;
-        }
-
-        _logger.Information("Stopping Telegram listener...");
-
         if (_client != null)
         {
             _client.OnUpdates -= OnUpdate;
@@ -109,16 +81,13 @@ public class TelegramSignalListener : ITelegramSignalListener, IAsyncDisposable
             _client = null;
         }
 
-        _isListening = false;
-        _logger.Information("Telegram listener stopped");
-
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
-    public async ValueTask DisposeAsync()
+    protected override ValueTask OnDisposeAsync()
     {
-        await StopAsync();
         _messageLock.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     private void ConfigureClientLogging()

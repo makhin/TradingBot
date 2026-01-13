@@ -205,7 +205,8 @@ public class SignalBotRunner
             _orderMonitor.OnStopLossHit -= HandleStopLossHit;
 
             // Stop command handler
-            _commandHandler?.Stop();
+            if (_commandHandler != null)
+                await _commandHandler.StopAsync();
 
             // Stop Telegram listener
             await _telegramListener.StopAsync();
