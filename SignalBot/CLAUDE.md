@@ -101,8 +101,17 @@ Monitors order fills via Binance WebSocket. Implements `IOrderUpdateListener` to
 **PositionManager** (`Services/Trading/PositionManager.cs`)
 Manages position lifecycle. Handles partial closes when targets hit, moves stop-loss to breakeven (configurable), calculates P&L, sends notifications.
 
+**JsonFileStore<T>** (`State/JsonFileStore.cs`)
+Generic base class for persisting collections of entities to JSON files. Provides thread-safe CRUD operations with SemaphoreSlim locking, JSON serialization with enum support, and error handling. Uses `Func<T, object>` key selector for upsert operations (Option A pattern). Supports filtering with predicates, batch updates, and atomic transformations.
+
+**JsonSingletonStore<T>** (`State/JsonSingletonStore.cs`)
+Generic base class for persisting single entities (not collections) to JSON files. Provides thread-safe Load/Save operations with locking. Used for configuration-like objects (bot state, statistics) where only one instance exists per file. Supports atomic updates via transformation functions.
+
 **JsonPositionStore** (`State/JsonPositionStore.cs`)
-Persists positions to JSON file (`signalbot_state.json`). Uses semaphore for thread-safe atomic operations. Supports backup/restore.
+Persists positions to JSON file (`signalbot_state.json`). Inherits from `JsonFileStore<SignalPosition>` and implements domain-specific filtering: `GetPositionBySymbolAsync` (filters by Symbol + Status), `GetOpenPositionsAsync` (filters by PositionStatus). Uses semaphore for thread-safe atomic operations.
+
+**JsonTradeStatisticsStore** (`State/JsonTradeStatisticsStore.cs`)
+Persists trade statistics to JSON file. Inherits from `JsonSingletonStore<TradeStatisticsState>`. Provides simple Load/Save operations for singleton statistics state.
 
 **CooldownManager** (`Services/CooldownManager.cs`)
 Implements loss-based cooldown logic. Tracks consecutive losses, triggers cooling periods, reduces position size after losses.
@@ -184,7 +193,11 @@ All Binance API calls use Polly retry policies (configured in Program.cs). When 
 Signals go through validation before execution. The validator can reject signals or adjust parameters (leverage, SL). Risk validation is separate from parsing.
 
 ### State Persistence
-Positions are persisted to disk after every significant change (entry, target hit, closure). The `IPositionStore` abstraction allows swapping storage backends.
+The project uses a generic JSON persistence layer with two base classes:
+- **JsonFileStore<T>** - For collections (positions, signals, trades). Thread-safe CRUD with key selectors.
+- **JsonSingletonStore<T>** - For single objects (bot state, statistics). Thread-safe Load/Save operations.
+
+Positions are persisted to disk after every significant change (entry, target hit, closure). The `IPositionStore` abstraction allows swapping storage backends. All stores use SemaphoreSlim for thread safety and handle errors gracefully.
 
 ### Graceful Shutdown
 The application uses `CancellationToken` throughout. When adding long-running operations, respect cancellation tokens to enable graceful shutdown.
@@ -205,7 +218,11 @@ SignalBot/
 │   ├── Commands/               # Telegram bot command handlers
 │   ├── BotController.cs        # Operating mode management
 │   └── CooldownManager.cs      # Loss-based cooldown logic
-├── State/                       # Position persistence
+├── State/                       # Persistence layer
+│   ├── JsonFileStore.cs        # Generic collection store base class
+│   ├── JsonSingletonStore.cs   # Generic singleton store base class
+│   ├── JsonPositionStore.cs    # Position persistence (uses JsonFileStore)
+│   └── JsonTradeStatisticsStore.cs  # Statistics persistence (uses JsonSingletonStore)
 ├── Telemetry/                   # OpenTelemetry setup
 └── appsettings.json            # Configuration
 
@@ -282,8 +299,42 @@ Related Projects (sibling directories):
 ### Working with Position State
 - Never mutate `SignalPosition` directly (it's immutable)
 - Use `with` expressions to create modified copies
-- Save to store immediately after changes: `await _positionStore.UpdateAsync(position)`
+- Save to store immediately after changes: `await _positionStore.SavePositionAsync(position)`
 - Use position.Id as correlation identifier in logs
+
+### Adding New Persistence Stores
+When adding new persisted entities, choose the appropriate base class:
+
+**For collections** (list of entities):
+```csharp
+public class JsonSignalHistoryStore : JsonFileStore<TradingSignal>
+{
+    public JsonSignalHistoryStore(string filePath) : base(filePath) { }
+
+    // Add domain-specific queries
+    public async Task<List<TradingSignal>> GetRecentAsync(int count, CancellationToken ct = default)
+    {
+        var signals = await LoadAllAsync(ct);
+        return signals.OrderByDescending(s => s.Timestamp).Take(count).ToList();
+    }
+}
+```
+
+**For singleton objects** (one instance per file):
+```csharp
+public class JsonBotStateStore : JsonSingletonStore<SignalBotState>
+{
+    public JsonBotStateStore(string filePath) : base(filePath) { }
+
+    // Inherits Load/Save methods automatically
+}
+```
+
+Key points:
+- Use `AddOrUpdateAsync(entity, keySelector)` for upsert operations in collections
+- Use `LoadAllAsync()` for reading without locks (safe for concurrent reads)
+- Use `DeleteAsync(predicate)` for removing entities
+- Both base classes handle directory creation, error logging, and JSON serialization automatically
 
 ## Additional Resources
 
