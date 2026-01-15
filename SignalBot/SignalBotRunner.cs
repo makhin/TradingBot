@@ -504,16 +504,17 @@ public class SignalBotRunner
 
     private string BuildStartMessage(bool monitoringOnly = false)
     {
+        var monitoredChannels = _settings.Telegram.GetMonitoredChannelIds().Count;
         if (monitoringOnly)
         {
             return "⚠️ SignalBot started in MONITORING-ONLY mode\n" +
                    "Futures trading is DISABLED\n" +
-                   $"Monitoring {_settings.Telegram.ChannelIds.Count} Telegram channel(s)\n" +
+                   $"Monitoring {monitoredChannels} Telegram channel(s)\n" +
                    "To enable trading, set EnableFuturesTrading to true";
         }
 
         return "✅ SignalBot started\n" +
-               $"Monitoring {_settings.Telegram.ChannelIds.Count} Telegram channel(s)\n" +
+               $"Monitoring {monitoredChannels} Telegram channel(s)\n" +
                $"Max concurrent positions: {_settings.Trading.MaxConcurrentPositions}";
     }
 

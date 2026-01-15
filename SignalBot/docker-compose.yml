@@ -13,15 +13,17 @@ services:
       - TRADING_BinanceApi__ApiSecret=${TRADING_BinanceApi__ApiSecret:-}
       - TRADING_BinanceApi__UseTestnet=${TRADING_BinanceApi__UseTestnet:-true}
       # SignalBot configuration
-      - TRADING_SignalBot__State__StatePath=/app/data/state/signalbot_state.json
-      - TRADING_SignalBot__Telegram__SessionPath=/app/data/telegram/telegram_session.dat
       - TRADING_SignalBot__EnableFuturesTrading=${TRADING_SignalBot__EnableFuturesTrading:-true}
+      - TRADING_SignalBot__State__StatePath=/app/data/state/signalbot_state.json
+      - TRADING_SignalBot__State__StatisticsPath=/app/data/state/signalbot_statistics.json
+      - TRADING_SignalBot__Telegram__SessionPath=/app/data/telegram/telegram_session.dat
+      # Telegram connection
+      - TRADING_SignalBot__Telegram__ApiId=${TRADING_SignalBot__Telegram__ApiId:-}
+      - TRADING_SignalBot__Telegram__ApiHash=${TRADING_SignalBot__Telegram__ApiHash:-}
+      - TRADING_SignalBot__Telegram__PhoneNumber=${TRADING_SignalBot__Telegram__PhoneNumber:-}
       # Telegram notifications (optional)
-      - TELEGRAM_API_ID=${TELEGRAM_API_ID:-}
-      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH:-}
-      - TELEGRAM_PHONE=${TELEGRAM_PHONE:-}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - TRADING_SignalBot__Notifications__TelegramBotToken=${TRADING_SignalBot__Notifications__TelegramBotToken:-}
+      - TRADING_SignalBot__Notifications__TelegramChatId=${TRADING_SignalBot__Notifications__TelegramChatId:-}
 
     volumes:
       # State and session persistence

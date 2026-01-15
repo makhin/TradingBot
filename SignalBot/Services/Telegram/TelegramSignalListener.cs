@@ -16,6 +16,7 @@ namespace SignalBot.Services.Telegram;
 public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 {
     private readonly TelegramSettings _settings;
+    private readonly IReadOnlyCollection<long> _monitoredChannelIds;
     private readonly SignalParser _parser;
     private readonly LogLevel _clientLogLevel;
     private Client? _client;
@@ -33,6 +34,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         : base(logger)
     {
         _settings = settings;
+        _monitoredChannelIds = _settings.GetMonitoredChannelIds();
         _parser = parser;
         _clientLogLevel = ParseLogLevel(settings.ClientLogLevel);
 
@@ -60,7 +62,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         _logger.Information("Available channels: {Count} total", allChannels.Count);
 
         // Verify configured channels exist
-        foreach (var channelId in _settings.ChannelIds)
+        foreach (var channelId in _monitoredChannelIds)
         {
             var searchId = TelegramIdHelper.ConvertToApiFormat(channelId);
 
@@ -189,7 +191,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             var peerId = message.Peer.ID;
 
             // Check if this channel is in our monitored list
-            if (!TelegramIdHelper.IsMonitoredChannel(peerId, _settings.ChannelIds))
+            if (!TelegramIdHelper.IsMonitoredChannel(peerId, _monitoredChannelIds))
             {
                 _logger.Debug("Ignoring message from unmonitored channel {ChannelId}", peerId);
                 return;

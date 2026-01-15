@@ -14,4 +14,28 @@ public class TelegramSettings
     /// Minimum log level for WTelegram client logs (Trace/Debug/Information/Warning/Error/Critical/None)
     /// </summary>
     public string ClientLogLevel { get; set; } = "Warning";
+
+    /// <summary>
+    /// Parser configuration for Telegram signals
+    /// </summary>
+    public TelegramParsingSettings Parsing { get; set; } = new();
+
+    public IReadOnlyCollection<long> GetMonitoredChannelIds()
+    {
+        if (Parsing.ChannelParsers.Count == 0)
+        {
+            return ChannelIds;
+        }
+
+        var ids = new HashSet<long>(ChannelIds);
+        foreach (var mapping in Parsing.ChannelParsers)
+        {
+            if (mapping.ChannelId != 0)
+            {
+                ids.Add(mapping.ChannelId);
+            }
+        }
+
+        return ids.ToList();
+    }
 }
