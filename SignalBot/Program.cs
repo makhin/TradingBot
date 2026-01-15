@@ -239,6 +239,8 @@ class Program
         });
 
         // Signal processing
+        services.AddSingleton<ISignalMessageParser, DefaultSignalParser>();
+        services.AddSingleton<ISignalMessageParser, RiskOrderSignalParser>();
         services.AddSingleton<SignalParser>();
         services.AddSingleton<ISignalValidator>(sp =>
             new SignalValidator(

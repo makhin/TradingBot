@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
-using System.Text.RegularExpressions;
 using SignalBot.Configuration;
 using SignalBot.Models;
 using SignalBot.Telemetry;
@@ -13,65 +11,52 @@ namespace SignalBot.Services.Telegram;
 /// <summary>
 /// Parses trading signals from Telegram messages
 /// </summary>
-public partial class SignalParser
+public class SignalParser
 {
-    private const string DefaultParserName = "default";
-    private const RegexOptions ParserRegexOptions = RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled;
-
     private readonly ILogger _logger;
-    private readonly Dictionary<string, Regex> _parsers;
+    private readonly Dictionary<string, ISignalMessageParser> _parsers;
     private readonly Dictionary<long, string> _channelParsers;
     private readonly HashSet<string> _missingParsersLogged;
     private readonly string _defaultParserName;
+    private readonly int _defaultLeverage;
+    private readonly Dictionary<string, int> _parserDefaultLeverages;
 
-    // Regex pattern for signal parsing (supports up to 10 targets)
-    [GeneratedRegex(
-        @"#(?<symbol>\w+)/USDT\s*-\s*(?<direction>Long|Short)\s*(?:🟢|🔴)?\s*" +
-        @"Entry:\s*(?<entry>[\d.]+)\s*" +
-        @"Stop\s*Loss:\s*(?<sl>[\d.]+)\s*" +
-        @"(?:Target\s*1:\s*(?<t1>[\d.]+)\s*)?" +
-        @"(?:Target\s*2:\s*(?<t2>[\d.]+)\s*)?" +
-        @"(?:Target\s*3:\s*(?<t3>[\d.]+)\s*)?" +
-        @"(?:Target\s*4:\s*(?<t4>[\d.]+)\s*)?" +
-        @"(?:Target\s*5:\s*(?<t5>[\d.]+)\s*)?" +
-        @"(?:Target\s*6:\s*(?<t6>[\d.]+)\s*)?" +
-        @"(?:Target\s*7:\s*(?<t7>[\d.]+)\s*)?" +
-        @"(?:Target\s*8:\s*(?<t8>[\d.]+)\s*)?" +
-        @"(?:Target\s*9:\s*(?<t9>[\d.]+)\s*)?" +
-        @"(?:Target\s*10:\s*(?<t10>[\d.]+)\s*)?" +
-        @"Leverage:\s*x(?<leverage>\d+)",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled)]
-    private static partial Regex SignalRegex();
-
-    public SignalParser(TelegramSettings settings, ILogger? logger = null)
+    public SignalParser(
+        TelegramSettings settings,
+        IEnumerable<ISignalMessageParser> parsers,
+        ILogger? logger = null)
     {
         _logger = logger ?? Log.ForContext<SignalParser>();
-        _parsers = new Dictionary<string, Regex>(StringComparer.OrdinalIgnoreCase)
-        {
-            [DefaultParserName] = SignalRegex()
-        };
+        _parsers = new Dictionary<string, ISignalMessageParser>(StringComparer.OrdinalIgnoreCase);
         _channelParsers = new Dictionary<long, string>();
         _missingParsersLogged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var parsing = settings.Parsing ?? new TelegramParsingSettings();
-        foreach (var parser in parsing.Parsers)
+        foreach (var parser in parsers)
         {
-            var name = parser.Key?.Trim();
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(parser.Value))
+            if (string.IsNullOrWhiteSpace(parser.Name))
             {
+                _logger.Warning("Parser with empty name ignored: {ParserType}", parser.GetType().Name);
                 continue;
             }
 
-            try
+            if (_parsers.TryGetValue(parser.Name, out var existing))
             {
-                _parsers[name] = new Regex(parser.Value, ParserRegexOptions);
+                _logger.Warning(
+                    "Duplicate parser name '{ParserName}' ({ExistingType} -> {NewType}). Using the last one.",
+                    parser.Name,
+                    existing.GetType().Name,
+                    parser.GetType().Name);
             }
-            catch (ArgumentException ex)
-            {
-                _logger.Warning(ex, "Invalid regex pattern for parser {ParserName}", name);
-            }
+
+            _parsers[parser.Name] = parser;
         }
 
+        if (_parsers.Count == 0)
+        {
+            _logger.Warning("No parsers registered. Signal parsing will fail until parsers are registered.");
+        }
+
+        var parsing = settings.Parsing ?? new TelegramParsingSettings();
         foreach (var mapping in parsing.ChannelParsers)
         {
             if (mapping.ChannelId == 0 || string.IsNullOrWhiteSpace(mapping.Parser))
@@ -89,20 +74,43 @@ public partial class SignalParser
             }
         }
 
-        var defaultParserName = string.IsNullOrWhiteSpace(parsing.DefaultParser)
-            ? DefaultParserName
-            : parsing.DefaultParser.Trim();
-
-        if (!_parsers.ContainsKey(defaultParserName))
+        var defaultParserName = parsing.DefaultParser?.Trim();
+        if (string.IsNullOrWhiteSpace(defaultParserName))
         {
             _logger.Warning(
-                "Default parser '{ParserName}' not found. Falling back to '{FallbackParser}'.",
-                defaultParserName,
-                DefaultParserName);
-            defaultParserName = DefaultParserName;
+                "Default parser is not configured. Parsing will fail unless channel parsers are mapped.");
+            defaultParserName = string.Empty;
+        }
+        else if (!_parsers.ContainsKey(defaultParserName))
+        {
+            _logger.Warning(
+                "Default parser '{ParserName}' not registered.",
+                defaultParserName);
+            defaultParserName = string.Empty;
         }
 
         _defaultParserName = defaultParserName;
+        _defaultLeverage = parsing.DefaultLeverage > 0 ? parsing.DefaultLeverage : 1;
+        _parserDefaultLeverages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var parserDefault in parsing.ParserDefaultLeverages)
+        {
+            var name = parserDefault.Key?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            if (parserDefault.Value <= 0)
+            {
+                _logger.Warning(
+                    "Parser default leverage for {ParserName} is invalid: {Leverage}",
+                    name,
+                    parserDefault.Value);
+                continue;
+            }
+
+            _parserDefaultLeverages[name] = parserDefault.Value;
+        }
     }
 
     public SignalParserResult Parse(string text, SignalSource source)
@@ -118,73 +126,32 @@ public partial class SignalParser
             var parserName = ResolveParserName(source.ChannelId);
             activity?.SetTag("signal.parser", parserName);
 
-            var regex = GetParserRegex(parserName);
-            var match = regex.Match(normalizedText);
-
-            if (!match.Success)
+            var parser = GetParser(parserName);
+            if (parser is null)
             {
-                activity?.SetStatus(ActivityStatusCode.Error, "Signal format not recognized");
+                activity?.SetStatus(ActivityStatusCode.Error, "Parser not configured");
                 _logger.Warning(
-                    "Signal format not recognized by parser {ParserName}: {Text}",
-                    parserName,
-                    TruncateText(normalizedText, 100));
-                return SignalParserResult.Failed("Signal format not recognized");
+                    "Parser not configured for channel {ChannelId}: {ParserName}",
+                    source.ChannelId,
+                    parserName);
+                return SignalParserResult.Failed("Parser not configured");
             }
 
-            // Parse targets
-            var targets = ParseTargets(match);
-
-            if (targets.Count == 0)
+            var defaultLeverage = GetDefaultLeverage(parserName);
+            var result = parser.Parse(normalizedText, source, defaultLeverage);
+            if (!result.IsSuccess || result.Signal is null)
             {
-                activity?.SetStatus(ActivityStatusCode.Error, "No targets found in signal");
+                var error = result.ErrorMessage ?? "Signal format not recognized";
+                activity?.SetStatus(ActivityStatusCode.Error, error);
                 _logger.Warning(
-                    "No targets found in signal by parser {ParserName}: {Text}",
+                    "Signal parse failed by parser {ParserName}: {Error}. Text: {Text}",
                     parserName,
+                    error,
                     TruncateText(normalizedText, 100));
-                return SignalParserResult.Failed("No targets found in signal");
+                return SignalParserResult.Failed(error);
             }
 
-            // Parse direction
-            var directionStr = match.Groups["direction"].Value;
-            var direction = directionStr.Equals("Long", StringComparison.OrdinalIgnoreCase)
-                ? SignalDirection.Long
-                : SignalDirection.Short;
-
-            // Parse entry price
-            if (!decimal.TryParse(match.Groups["entry"].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var entry))
-            {
-                activity?.SetStatus(ActivityStatusCode.Error, "Invalid entry price");
-                return SignalParserResult.Failed("Invalid entry price");
-            }
-
-            // Parse stop loss
-            if (!decimal.TryParse(match.Groups["sl"].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var stopLoss))
-            {
-                activity?.SetStatus(ActivityStatusCode.Error, "Invalid stop loss price");
-                return SignalParserResult.Failed("Invalid stop loss price");
-            }
-
-            // Parse leverage
-            if (!int.TryParse(match.Groups["leverage"].Value, out var leverage))
-            {
-                activity?.SetStatus(ActivityStatusCode.Error, "Invalid leverage");
-                return SignalParserResult.Failed("Invalid leverage");
-            }
-
-            // Build symbol
-            var symbol = match.Groups["symbol"].Value.ToUpperInvariant() + "USDT";
-
-            var signal = new TradingSignal
-            {
-                RawText = normalizedText,
-                Source = source,
-                Symbol = symbol,
-                Direction = direction,
-                Entry = entry,
-                OriginalStopLoss = stopLoss,
-                Targets = targets,
-                OriginalLeverage = leverage
-            };
+            var signal = result.Signal;
 
             activity?.SetTag("signal.id", signal.Id);
             activity?.SetTag("signal.symbol", signal.Symbol);
@@ -194,10 +161,16 @@ public partial class SignalParser
             {
                 _logger.Information(
                     "Signal parsed by {ParserName}: {Symbol} {Direction} @ {Entry}, SL: {SL}, Leverage: {Leverage}x, Targets: {Targets}",
-                    parserName, symbol, direction, entry, stopLoss, leverage, targets.Count);
+                    parserName,
+                    signal.Symbol,
+                    signal.Direction,
+                    signal.Entry,
+                    signal.OriginalStopLoss,
+                    signal.OriginalLeverage,
+                    signal.Targets.Count);
             }
 
-            return SignalParserResult.Success(signal);
+            return result;
         }
         catch (Exception ex)
         {
@@ -215,27 +188,39 @@ public partial class SignalParser
             : _defaultParserName;
     }
 
-    private Regex GetParserRegex(string parserName)
+    private ISignalMessageParser? GetParser(string parserName)
     {
-        if (_parsers.TryGetValue(parserName, out var regex))
+        if (string.IsNullOrWhiteSpace(parserName))
         {
-            return regex;
+            if (_missingParsersLogged.Add("<empty>"))
+            {
+                _logger.Warning("Parser not configured. Set a default parser or channel mapping.");
+            }
+
+            return null;
+        }
+
+        if (_parsers.TryGetValue(parserName, out var parser))
+        {
+            return parser;
         }
 
         if (_missingParsersLogged.Add(parserName))
         {
-            _logger.Warning(
-                "Parser '{ParserName}' not configured. Falling back to '{FallbackParser}'.",
-                parserName,
-                _defaultParserName);
+            _logger.Warning("Parser '{ParserName}' not registered.", parserName);
         }
 
-        if (_parsers.TryGetValue(_defaultParserName, out var fallback))
+        return null;
+    }
+
+    private int GetDefaultLeverage(string parserName)
+    {
+        if (_parserDefaultLeverages.TryGetValue(parserName, out var leverage) && leverage > 0)
         {
-            return fallback;
+            return leverage;
         }
 
-        return _parsers[DefaultParserName];
+        return _defaultLeverage;
     }
 
     private void AddChannelParser(long channelId, string parserName)
@@ -251,22 +236,6 @@ public partial class SignalParser
         }
 
         _channelParsers[channelId] = parserName;
-    }
-
-    private static List<decimal> ParseTargets(Match match)
-    {
-        var targets = new List<decimal>();
-        for (int i = 1; i <= 10; i++)
-        {
-            var group = match.Groups[$"t{i}"];
-            if (group.Success && decimal.TryParse(group.Value,
-                NumberStyles.Any, CultureInfo.InvariantCulture, out var target))
-            {
-                targets.Add(target);
-            }
-        }
-
-        return targets;
     }
 
     private static string TruncateText(string text, int maxLength)

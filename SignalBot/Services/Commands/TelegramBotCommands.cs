@@ -285,7 +285,7 @@ public class TelegramBotCommands : IBotCommands
         }
     }
 
-    public async Task<string> ResetCooldownAsync(CancellationToken ct = default)
+    public Task<string> ResetCooldownAsync(CancellationToken ct = default)
     {
         try
         {
@@ -293,25 +293,25 @@ public class TelegramBotCommands : IBotCommands
 
             if (!cooldownStatus.IsInCooldown)
             {
-                return "ℹ️ No active cooldown to reset";
+                return Task.FromResult("ℹ️ No active cooldown to reset");
             }
 
             _cooldownManager.ForceResetCooldown();
 
             _logger.Warning("Cooldown manually reset via command");
 
-            return
+            return Task.FromResult(
                 "✅ **Cooldown Reset**\n" +
                 "\n" +
                 "Cooldown period has been cleared.\n" +
                 "Bot can now accept new signals.\n" +
                 "\n" +
-                "⚠️ Use this command with caution!";
+                "⚠️ Use this command with caution!");
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Error resetting cooldown");
-            return $"❌ Error: {ex.Message}";
+            return Task.FromResult($"❌ Error: {ex.Message}");
         }
     }
 

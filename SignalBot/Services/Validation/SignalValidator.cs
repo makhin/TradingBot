@@ -22,7 +22,7 @@ public class SignalValidator : ISignalValidator
         _logger = logger ?? Log.ForContext<SignalValidator>();
     }
 
-    public async Task<ValidationResult> ValidateAndAdjustAsync(
+    public Task<ValidationResult> ValidateAndAdjustAsync(
         TradingSignal signal,
         decimal accountEquity,
         CancellationToken ct = default)
@@ -40,7 +40,7 @@ public class SignalValidator : ISignalValidator
             if (!_signalValidator.TryValidate(signal, out var validationError))
             {
                 activity?.SetStatus(ActivityStatusCode.Error, validationError);
-                return ValidationResult.Failed(validationError);
+                return Task.FromResult(ValidationResult.Failed(validationError));
             }
 
             // 2. Determine leverage
@@ -124,13 +124,13 @@ public class SignalValidator : ISignalValidator
                 }
             }
 
-            return ValidationResult.Success(validatedSignal);
+            return Task.FromResult(ValidationResult.Success(validatedSignal));
         }
         catch (Exception ex)
         {
             Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.Error(ex, "Error validating signal {SignalId}", signal.Id);
-            return ValidationResult.Failed($"Validation error: {ex.Message}");
+            return Task.FromResult(ValidationResult.Failed($"Validation error: {ex.Message}"));
         }
     }
 
