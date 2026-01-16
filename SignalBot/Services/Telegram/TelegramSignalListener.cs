@@ -197,6 +197,12 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 return;
             }
 
+            if (message.fwd_from != null)
+            {
+                _logger.Debug("Ignoring forwarded message {MessageId} from channel {ChannelId}", message.ID, peerId);
+                return;
+            }
+
             _logger.Information("Received message from monitored channel {ChannelId}", peerId);
 
             // Check for duplicate message
