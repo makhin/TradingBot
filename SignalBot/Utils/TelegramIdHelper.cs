@@ -26,6 +26,20 @@ public static class TelegramIdHelper
     }
 
     /// <summary>
+    /// Converts API format ID to full Telegram ID format.
+    /// Example: 3045070745 -> -1003045070745
+    /// </summary>
+    /// <param name="apiId">API format ID (positive)</param>
+    /// <returns>Full ID with -100 prefix</returns>
+    public static long ConvertToFullFormat(long apiId)
+    {
+        if (apiId <= 0)
+            return apiId;
+
+        return long.Parse($"-100{apiId}");
+    }
+
+    /// <summary>
     /// Checks if the given peer ID matches any of the configured channel IDs,
     /// handling both full format (-1003045070745) and API format (3045070745)
     /// </summary>
@@ -36,16 +50,36 @@ public static class TelegramIdHelper
     {
         foreach (var configId in configuredIds)
         {
-            // Direct match
-            if (configId == peerId)
-                return true;
-
-            // Try converting config ID and compare
-            var convertedId = ConvertToApiFormat(configId);
-            if (convertedId == peerId)
+            if (IdsMatch(peerId, configId))
                 return true;
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Checks if two channel IDs refer to the same channel,
+    /// handling both full format and API format.
+    /// </summary>
+    public static bool IdsMatch(long id1, long id2)
+    {
+        if (id1 == id2)
+            return true;
+
+        var apiId1 = ConvertToApiFormat(id1);
+        var apiId2 = ConvertToApiFormat(id2);
+
+        return apiId1 == apiId2;
+    }
+
+    /// <summary>
+    /// Normalizes a channel username by removing @ prefix if present.
+    /// </summary>
+    public static string NormalizeUsername(string username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            return string.Empty;
+
+        return username.TrimStart('@').Trim();
     }
 }

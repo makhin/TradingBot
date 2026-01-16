@@ -240,7 +240,8 @@ class Program
 
         // Signal processing
         services.AddSingleton<ISignalMessageParser, DefaultSignalParser>();
-        services.AddSingleton<ISignalMessageParser, RiskOrderSignalParser>();
+        services.AddSingleton<ISignalMessageParser, BitcoinBulletsParser>();
+        services.AddSingleton<ISignalMessageParser, FatPigParser>();
         services.AddSingleton<SignalParser>();
         services.AddSingleton<ISignalValidator>(sp =>
             new SignalValidator(

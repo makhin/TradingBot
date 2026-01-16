@@ -238,6 +238,34 @@ public class SignalParser
         _channelParsers[channelId] = parserName;
     }
 
+    /// <summary>
+    /// Updates channel-to-parser mappings with resolved channel IDs.
+    /// Called by TelegramSignalListener after resolving channel names.
+    /// </summary>
+    public void UpdateChannelMappings(IEnumerable<TelegramChannelParserSettings> mappings)
+    {
+        foreach (var mapping in mappings)
+        {
+            var effectiveId = mapping.GetEffectiveChannelId();
+            if (effectiveId == 0 || string.IsNullOrWhiteSpace(mapping.Parser))
+                continue;
+
+            var parserName = mapping.Parser.Trim();
+            AddChannelParser(effectiveId, parserName);
+
+            // Also add API format ID for matching
+            var apiId = TelegramIdHelper.ConvertToApiFormat(effectiveId);
+            if (apiId != effectiveId)
+            {
+                AddChannelParser(apiId, parserName);
+            }
+
+            _logger.Debug(
+                "Channel mapping updated: {ChannelId} -> {Parser}",
+                effectiveId, parserName);
+        }
+    }
+
     private static string TruncateText(string text, int maxLength)
     {
         if (string.IsNullOrEmpty(text) || text.Length <= maxLength)

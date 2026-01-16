@@ -504,7 +504,7 @@ public class SignalBotRunner
 
     private string BuildStartMessage(bool monitoringOnly = false)
     {
-        var monitoredChannels = _settings.Telegram.GetMonitoredChannelIds().Count;
+        var monitoredChannels = _settings.Telegram.Parsing.ChannelParsers.Count;
         if (monitoringOnly)
         {
             return "⚠️ SignalBot started in MONITORING-ONLY mode\n" +
