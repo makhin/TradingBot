@@ -1,4 +1,7 @@
+using SignalBot.Configuration;
 using SignalBot.Services;
+using System;
+using System.Threading;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -21,17 +24,21 @@ public class TelegramCommandHandler : ServiceBase
     private readonly IBotCommands _commands;
     private readonly TelegramBotClient _botClient;
     private readonly long _authorizedChatId;
+    private readonly TelegramCommandRetrySettings _retrySettings;
+    private int _consecutiveErrors;
 
     public TelegramCommandHandler(
         IBotCommands commands,
         string botToken,
         long authorizedChatId,
+        TelegramCommandRetrySettings retrySettings,
         ILogger? logger = null)
         : base(logger)
     {
         _commands = commands;
         _botClient = new TelegramBotClient(botToken);
         _authorizedChatId = authorizedChatId;
+        _retrySettings = retrySettings;
     }
 
     protected override async Task OnStartAsync(CancellationToken ct)
@@ -59,6 +66,8 @@ public class TelegramCommandHandler : ServiceBase
     {
         try
         {
+            Interlocked.Exchange(ref _consecutiveErrors, 0);
+
             if (update.Type != UpdateType.Message || update.Message?.Text == null)
                 return;
 
@@ -100,7 +109,32 @@ public class TelegramCommandHandler : ServiceBase
         CancellationToken ct)
     {
         _logger.Error(exception, "Telegram bot error");
+        var attempt = Interlocked.Increment(ref _consecutiveErrors);
+        var delay = GetRetryDelay(attempt);
+
+        if (delay > TimeSpan.Zero && !ct.IsCancellationRequested)
+        {
+            _logger.Warning("Retrying Telegram bot polling in {Delay} (attempt {Attempt})", delay, attempt);
+            return Task.Delay(delay, ct);
+        }
+
         return Task.CompletedTask;
+    }
+
+    private TimeSpan GetRetryDelay(int attempt)
+    {
+        if (_retrySettings.BaseDelaySeconds <= 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var maxDelaySeconds = _retrySettings.MaxDelaySeconds <= 0
+            ? _retrySettings.BaseDelaySeconds
+            : _retrySettings.MaxDelaySeconds;
+        var delaySeconds = _retrySettings.BaseDelaySeconds * Math.Pow(2, attempt - 1);
+        var boundedDelaySeconds = Math.Min(delaySeconds, maxDelaySeconds);
+
+        return TimeSpan.FromSeconds(boundedDelaySeconds);
     }
 
     private async Task<string> ProcessCommandAsync(string text, CancellationToken ct)

@@ -295,6 +295,7 @@ class Program
                     sp.GetRequiredService<IBotCommands>(),
                     settings.TelegramBotToken,
                     long.Parse(settings.TelegramChatId),
+                    settings.TelegramCommandRetry,
                     sp.GetRequiredService<ILogger>());
             });
         }
