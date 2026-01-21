@@ -232,21 +232,45 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         {
             // Extract channel/chat ID
             var peerId = message.Peer.ID;
+            var channelName = GetChannelName(message.Peer);
+            var messageText = message.message;
+
+            _logger.Debug(
+                "Telegram message received: {MessageId} from {ChannelName} ({ChannelId}). HasText: {HasText}, TextLength: {TextLength}, IsForwarded: {IsForwarded}, Preview: {Preview}",
+                message.ID,
+                channelName,
+                peerId,
+                !string.IsNullOrWhiteSpace(messageText),
+                messageText?.Length ?? 0,
+                message.fwd_from != null,
+                BuildPreview(messageText, 50));
 
             // Check if this channel is in our monitored list
             if (!TelegramIdHelper.IsMonitoredChannel(peerId, _monitoredChannelIds))
             {
-                _logger.Debug("Ignoring message from unmonitored channel {ChannelId}", peerId);
+                _logger.Information(
+                    "Ignoring message {MessageId} from unmonitored channel {ChannelName} ({ChannelId})",
+                    message.ID,
+                    channelName,
+                    peerId);
                 return;
             }
 
             if (message.fwd_from != null)
             {
-                _logger.Debug("Ignoring forwarded message {MessageId} from channel {ChannelId}", message.ID, peerId);
+                _logger.Information(
+                    "Ignoring forwarded message {MessageId} from channel {ChannelName} ({ChannelId})",
+                    message.ID,
+                    channelName,
+                    peerId);
                 return;
             }
 
-            _logger.Information("Received message from monitored channel {ChannelId}", peerId);
+            _logger.Information(
+                "Received message {MessageId} from monitored channel {ChannelName} ({ChannelId})",
+                message.ID,
+                channelName,
+                peerId);
 
             // Check for duplicate message
             await _messageLock.WaitAsync();
@@ -275,19 +299,19 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 _messageLock.Release();
             }
 
-            // Extract message text
-            var messageText = message.message;
             if (string.IsNullOrWhiteSpace(messageText))
             {
-                _logger.Debug("Empty message, skipping");
+                _logger.Information(
+                    "Message {MessageId} from {ChannelName} ({ChannelId}) has no text, skipping. HasMedia: {HasMedia}",
+                    message.ID,
+                    channelName,
+                    peerId,
+                    message.media != null);
                 return;
             }
 
-            // Get channel name
-            var channelName = GetChannelName(message.Peer);
-
             _logger.Debug("Processing message from {Channel}: {Preview}",
-                channelName, messageText.Length > 50 ? messageText.Substring(0, 50) + "..." : messageText);
+                channelName, BuildPreview(messageText, 50));
 
             // Parse signal
             var source = new SignalSource
@@ -305,11 +329,25 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                     channelName, parseResult.Signal.Symbol, parseResult.Signal.Direction);
 
                 // Raise event
-                OnSignalReceived?.Invoke(parseResult.Signal);
+                if (OnSignalReceived == null)
+                {
+                    _logger.Warning(
+                        "Signal parsed but no subscribers attached. Signal from {Channel} ({ChannelId}) ignored.",
+                        channelName,
+                        peerId);
+                    return;
+                }
+
+                OnSignalReceived.Invoke(parseResult.Signal);
             }
             else if (!string.IsNullOrEmpty(parseResult.ErrorMessage))
             {
-                _logger.Debug("Failed to parse signal: {Error}", parseResult.ErrorMessage);
+                _logger.Warning(
+                    "Failed to parse signal from {ChannelName} ({ChannelId}): {Error}. Text: {Preview}",
+                    channelName,
+                    peerId,
+                    parseResult.ErrorMessage,
+                    BuildPreview(messageText, 200));
             }
         }
         catch (Exception ex)
@@ -324,5 +362,18 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             return name;
 
         return $"Channel_{peer.ID}";
+    }
+
+    private static string BuildPreview(string text, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "<empty>";
+        }
+
+        var normalized = text.ReplaceLineEndings(" ").Trim();
+        return normalized.Length <= maxLength
+            ? normalized
+            : $"{normalized.Substring(0, maxLength)}...";
     }
 }
