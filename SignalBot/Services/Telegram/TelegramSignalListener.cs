@@ -245,15 +245,21 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 messageText?.Length ?? 0,
                 message.fwd_from != null);
 
+            _logger.Information(
+                "Message preview {MessageId} from {ChannelName} ({ChannelId}): {Preview}",
+                message.ID,
+                channelName,
+                peerId,
+                BuildPreview(messageText ?? string.Empty, 50));
+
             // Check if this channel is in our monitored list
             if (!TelegramIdHelper.IsMonitoredChannel(peerId, _monitoredChannelIds))
             {
                 _logger.Information(
-                    "Ignoring message {MessageId} from unmonitored channel {ChannelName} ({ChannelId}). Monitored: {MonitoredChannels}",
+                    "Ignoring message {MessageId} from unmonitored channel {ChannelName} ({ChannelId}).",
                     message.ID,
                     channelName,
-                    peerId,
-                    FormatMonitoredChannels());
+                    peerId);
                 return;
             }
 
@@ -363,21 +369,6 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             return name;
 
         return $"Channel_{peer.ID}";
-    }
-
-    private string FormatMonitoredChannels()
-    {
-        if (_monitoredChannelIds.Count == 0)
-        {
-            return "<none>";
-        }
-
-        return string.Join(
-            ", ",
-            _monitoredChannelIds
-                .Select(id => _channelNames.TryGetValue(id, out var name)
-                    ? $"{name}({id})"
-                    : id.ToString()));
     }
 
     private static string BuildPreview(string text, int maxLength)
