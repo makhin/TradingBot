@@ -256,10 +256,10 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             if (!TelegramIdHelper.IsMonitoredChannel(peerId, _monitoredChannelIds))
             {
                 _logger.Information(
-                    "Ignoring message {MessageId} from unmonitored channel {ChannelName} ({ChannelId}).",
+                    "Ignoring message {MessageId} from unmonitored channel {ChannelName}. Preview: {Preview}",
                     message.ID,
                     channelName,
-                    peerId);
+                    BuildPreview(messageText ?? string.Empty, 50));
                 return;
             }
 
