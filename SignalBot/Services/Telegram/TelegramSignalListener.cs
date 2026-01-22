@@ -215,10 +215,10 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             _logger.Information("Telegram update batch received: {UpdateType}, Items: {Count}",
                 updates.GetType().Name,
-                updates.UpdateList().Count);
+                updates.UpdateList.Count);
 
             // Process all updates
-            foreach (var update in updates.UpdateList())
+            foreach (var update in updates.UpdateList)
             {
                 _logger.Information("Telegram update item: {UpdateType} {Update}", update.GetType().Name, update);
 
