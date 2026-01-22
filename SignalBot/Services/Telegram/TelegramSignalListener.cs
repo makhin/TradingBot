@@ -230,6 +230,16 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 {
                     await ProcessMessage(channelMessage);
                 }
+                else if (update is UpdateEditChannelMessage { message: Message editedChannelMessage })
+                {
+                    _logger.Information("Processing edited channel message");
+                    await ProcessMessage(editedChannelMessage);
+                }
+                else if (update is UpdateEditMessage { message: Message editedMessage })
+                {
+                    _logger.Information("Processing edited message");
+                    await ProcessMessage(editedMessage);
+                }
             }
         }
         catch (Exception ex)
@@ -245,8 +255,8 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
         try
         {
-            // Extract channel/chat ID
-            var peerId = message.Peer.ID;
+            // Extract channel/chat ID - use correct ID from typed Peer
+            var peerId = GetPeerId(message.Peer);
             var channelName = GetChannelName(message.Peer);
             var messageText = message.message;
 
@@ -377,12 +387,26 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         }
     }
 
+    private long GetPeerId(Peer peer)
+    {
+        // Extract the correct ID based on Peer type
+        // WTelegram Peer types have specific ID properties
+        return peer switch
+        {
+            PeerChannel peerChannel => peerChannel.channel_id,
+            PeerChat peerChat => peerChat.chat_id,
+            PeerUser peerUser => peerUser.user_id,
+            _ => peer.ID // Fallback to generic ID
+        };
+    }
+
     private string GetChannelName(Peer peer)
     {
-        if (_channelNames.TryGetValue(peer.ID, out var name))
+        var peerId = GetPeerId(peer);
+        if (_channelNames.TryGetValue(peerId, out var name))
             return name;
 
-        return $"Channel_{peer.ID}";
+        return $"Channel_{peerId}";
     }
 
     private void TrackPeerNamesFromUpdates(UpdatesBase updates)
