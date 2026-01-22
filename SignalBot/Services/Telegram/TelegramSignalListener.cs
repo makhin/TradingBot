@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reflection;
 using SignalBot.Configuration;
 using SignalBot.Models;
 using SignalBot.Services;
@@ -73,6 +74,11 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         // Resolve channel names to IDs and build monitored set
         _monitoredChannelIds = new HashSet<long>();
         _channelNames = new Dictionary<long, string>();
+
+        foreach (var chat in dialogs.chats.Values)
+        {
+            TrackPeerName(chat);
+        }
 
         // Process channel parser mappings (resolve names and IDs)
         foreach (var mapping in _settings.Parsing.ChannelParsers)
@@ -205,9 +211,17 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
     {
         try
         {
+            TrackPeerNamesFromUpdates(updates);
+
+            _logger.Information("Telegram update batch received: {UpdateType}, Items: {Count}",
+                updates.GetType().Name,
+                updates.UpdateList.Count);
+
             // Process all updates
             foreach (var update in updates.UpdateList)
             {
+                _logger.Information("Telegram update item: {UpdateType} {Update}", update.GetType().Name, update);
+
                 if (update is UpdateNewMessage { message: Message message })
                 {
                     await ProcessMessage(message);
@@ -236,7 +250,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             var channelName = GetChannelName(message.Peer);
             var messageText = message.message;
 
-            _logger.Debug(
+            _logger.Information(
                 "Telegram message received: {MessageId} from {ChannelName} ({ChannelId}). HasText: {HasText}, TextLength: {TextLength}, IsForwarded: {IsForwarded}",
                 message.ID,
                 channelName,
@@ -285,7 +299,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             {
                 if (_processedMessageIds.Contains(message.ID))
                 {
-                    _logger.Debug("Duplicate message {MessageId}, skipping", message.ID);
+                    _logger.Information("Duplicate message {MessageId}, skipping", message.ID);
                     return;
                 }
 
@@ -317,7 +331,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 return;
             }
 
-            _logger.Debug("Processing message from {Channel}: {Preview}",
+            _logger.Information("Processing message from {Channel}: {Preview}",
                 channelName, BuildPreview(messageText, 120));
 
             // Parse signal
@@ -369,6 +383,86 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             return name;
 
         return $"Channel_{peer.ID}";
+    }
+
+    private void TrackPeerNamesFromUpdates(UpdatesBase updates)
+    {
+        var chatsProperty = updates.GetType().GetProperty("chats", BindingFlags.Public | BindingFlags.Instance)
+            ?? updates.GetType().GetProperty("Chats", BindingFlags.Public | BindingFlags.Instance);
+        if (chatsProperty == null)
+        {
+            return;
+        }
+
+        var chatsValue = chatsProperty.GetValue(updates);
+        switch (chatsValue)
+        {
+            case System.Collections.IDictionary dictionary:
+                foreach (var value in dictionary.Values)
+                {
+                    if (value != null)
+                    {
+                        TrackPeerName(value);
+                    }
+                }
+
+                break;
+            case System.Collections.IEnumerable enumerable:
+                foreach (var value in enumerable)
+                {
+                    if (value != null)
+                    {
+                        TrackPeerName(value);
+                    }
+                }
+
+                break;
+        }
+    }
+
+    private void TrackPeerName(object chat)
+    {
+        var peerId = TryGetLongProperty(chat, "ID", "id");
+        if (!peerId.HasValue)
+        {
+            return;
+        }
+
+        var title = TryGetStringProperty(chat, "Title", "title");
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return;
+        }
+
+        _channelNames[peerId.Value] = title;
+    }
+
+    private static long? TryGetLongProperty(object target, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var property = target.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+            if (property?.PropertyType == typeof(long) && property.GetValue(target) is long value)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryGetStringProperty(object target, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var property = target.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+            if (property?.PropertyType == typeof(string) && property.GetValue(target) is string value)
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static string BuildPreview(string text, int maxLength)
