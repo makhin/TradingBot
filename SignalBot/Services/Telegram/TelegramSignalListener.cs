@@ -213,9 +213,15 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         {
             TrackPeerNamesFromUpdates(updates);
 
+            _logger.Information("📨 Telegram update: {UpdateType}, {Count} item(s)",
+                updates.GetType().Name,
+                updates.UpdateList.Count());
+
             // Process all updates
             foreach (var update in updates.UpdateList)
             {
+                _logger.Debug("  Update item: {UpdateType}", update.GetType().Name);
+
                 if (update is UpdateNewMessage { message: Message message })
                 {
                     await ProcessMessage(message);
@@ -226,10 +232,12 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 }
                 else if (update is UpdateEditChannelMessage { message: Message editedChannelMessage })
                 {
+                    _logger.Information("  Edited channel message");
                     await ProcessMessage(editedChannelMessage);
                 }
                 else if (update is UpdateEditMessage { message: Message editedMessage })
                 {
+                    _logger.Information("  Edited message");
                     await ProcessMessage(editedMessage);
                 }
             }
@@ -252,14 +260,23 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             var channelName = GetChannelName(message.Peer);
             var messageText = message.message;
 
+            _logger.Information("  📬 Msg #{MessageId} from {ChannelName} ({PeerId}), len={Length}, fwd={IsForwarded}",
+                message.ID,
+                channelName,
+                peerId,
+                messageText?.Length ?? 0,
+                message.fwd_from != null);
+
             // Check if this channel is in our monitored list
             if (!TelegramIdHelper.IsMonitoredChannel(peerId, _monitoredChannelIds))
             {
+                _logger.Information("  ⏭️  Skip: not monitored channel");
                 return;
             }
 
             if (message.fwd_from != null)
             {
+                _logger.Information("  ⏭️  Skip: forwarded message");
                 return;
             }
 
@@ -269,7 +286,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             {
                 if (_processedMessageIds.Contains(message.ID))
                 {
-                    _logger.Information("Duplicate message {MessageId}, skipping", message.ID);
+                    _logger.Information("  ⏭️  Skip: duplicate message #{MessageId}", message.ID);
                     return;
                 }
 
@@ -292,10 +309,11 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             if (string.IsNullOrWhiteSpace(messageText))
             {
+                _logger.Information("  ⏭️  Skip: empty message (media={HasMedia})", message.media != null);
                 return;
             }
 
-            _logger.Information("📩 Message from {ChannelName}:\n{FullText}",
+            _logger.Information("  📩 Full text from {ChannelName}:\n{FullText}",
                 channelName, messageText);
 
             // Parse signal
@@ -310,8 +328,8 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             if (parseResult.IsSuccess && parseResult.Signal != null)
             {
-                _logger.Information("✅ Parsed signal: {Symbol} {Direction}",
-                    parseResult.Signal.Symbol, parseResult.Signal.Direction);
+                _logger.Information("  ✅ Parsed signal: {Symbol} {Direction} @ {Entry}",
+                    parseResult.Signal.Symbol, parseResult.Signal.Direction, parseResult.Signal.Entry);
 
                 // Raise event
                 if (OnSignalReceived == null)
@@ -324,6 +342,15 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 }
 
                 OnSignalReceived.Invoke(parseResult.Signal);
+            }
+            else if (!string.IsNullOrEmpty(parseResult.ErrorMessage))
+            {
+                _logger.Information("  ⚠️  Parse failed: {Error}",
+                    parseResult.ErrorMessage);
+            }
+            else
+            {
+                _logger.Information("  ℹ️  Not a signal (no error, no match)");
             }
         }
         catch (Exception ex)
