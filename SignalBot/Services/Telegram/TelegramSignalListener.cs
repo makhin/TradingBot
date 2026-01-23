@@ -213,15 +213,9 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         {
             TrackPeerNamesFromUpdates(updates);
 
-            _logger.Information("Telegram update batch received: {UpdateType}, Items: {Count}",
-                updates.GetType().Name,
-                updates.UpdateList.Count());
-
             // Process all updates
             foreach (var update in updates.UpdateList)
             {
-                _logger.Information("Telegram update item: {UpdateType} {Update}", update.GetType().Name, update);
-
                 if (update is UpdateNewMessage { message: Message message })
                 {
                     await ProcessMessage(message);
@@ -232,12 +226,10 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 }
                 else if (update is UpdateEditChannelMessage { message: Message editedChannelMessage })
                 {
-                    _logger.Information("Processing edited channel message");
                     await ProcessMessage(editedChannelMessage);
                 }
                 else if (update is UpdateEditMessage { message: Message editedMessage })
                 {
-                    _logger.Information("Processing edited message");
                     await ProcessMessage(editedMessage);
                 }
             }
@@ -260,48 +252,16 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             var channelName = GetChannelName(message.Peer);
             var messageText = message.message;
 
-            _logger.Information(
-                "Telegram message received: {MessageId} from {ChannelName} ({ChannelId}). HasText: {HasText}, TextLength: {TextLength}, IsForwarded: {IsForwarded}",
-                message.ID,
-                channelName,
-                peerId,
-                !string.IsNullOrWhiteSpace(messageText),
-                messageText?.Length ?? 0,
-                message.fwd_from != null);
-
-            _logger.Information(
-                "Message preview {MessageId} from {ChannelName} ({ChannelId}): {Preview}",
-                message.ID,
-                channelName,
-                peerId,
-                BuildPreview(messageText ?? string.Empty, 50));
-
             // Check if this channel is in our monitored list
             if (!TelegramIdHelper.IsMonitoredChannel(peerId, _monitoredChannelIds))
             {
-                _logger.Information(
-                    "Ignoring message {MessageId} from unmonitored channel {ChannelName}. Preview: {Preview}",
-                    message.ID,
-                    channelName,
-                    BuildPreview(messageText ?? string.Empty, 50));
                 return;
             }
 
             if (message.fwd_from != null)
             {
-                _logger.Information(
-                    "Ignoring forwarded message {MessageId} from channel {ChannelName} ({ChannelId})",
-                    message.ID,
-                    channelName,
-                    peerId);
                 return;
             }
-
-            _logger.Information(
-                "Received message {MessageId} from monitored channel {ChannelName} ({ChannelId})",
-                message.ID,
-                channelName,
-                peerId);
 
             // Check for duplicate message
             await _messageLock.WaitAsync();
@@ -332,17 +292,11 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             if (string.IsNullOrWhiteSpace(messageText))
             {
-                _logger.Information(
-                    "Message {MessageId} from {ChannelName} ({ChannelId}) has no text, skipping. HasMedia: {HasMedia}",
-                    message.ID,
-                    channelName,
-                    peerId,
-                    message.media != null);
                 return;
             }
 
-            _logger.Information("Processing message from {Channel}: {Preview}",
-                channelName, BuildPreview(messageText, 120));
+            _logger.Information("📩 Message from {ChannelName}:\n{FullText}",
+                channelName, messageText);
 
             // Parse signal
             var source = new SignalSource
@@ -356,8 +310,8 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             if (parseResult.IsSuccess && parseResult.Signal != null)
             {
-                _logger.Information("Signal received from {Channel}: {Symbol} {Direction}",
-                    channelName, parseResult.Signal.Symbol, parseResult.Signal.Direction);
+                _logger.Information("✅ Parsed signal: {Symbol} {Direction}",
+                    parseResult.Signal.Symbol, parseResult.Signal.Direction);
 
                 // Raise event
                 if (OnSignalReceived == null)
@@ -370,15 +324,6 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 }
 
                 OnSignalReceived.Invoke(parseResult.Signal);
-            }
-            else if (!string.IsNullOrEmpty(parseResult.ErrorMessage))
-            {
-                _logger.Warning(
-                    "Failed to parse signal from {ChannelName} ({ChannelId}): {Error}. Text: {Preview}",
-                    channelName,
-                    peerId,
-                    parseResult.ErrorMessage,
-                    BuildPreview(messageText, 200));
             }
         }
         catch (Exception ex)
