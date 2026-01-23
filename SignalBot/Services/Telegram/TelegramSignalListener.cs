@@ -308,7 +308,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 }
                 else
                 {
-                    _logger.Debug("  Update item: {UpdateType}", update.GetType().Name);
+                    _logger.Information("  ℹ️  Update item: {UpdateType}", update.GetType().Name);
                 }
             }
         }
@@ -332,7 +332,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             // Check if this channel is in our monitored list
             var isMonitored = TelegramIdHelper.IsMonitoredChannel(peerId, _monitoredChannelIds);
-            _logger.Debug("    Checking channel {ChannelName} (ID={PeerId}): isMonitored={IsMonitored}",
+            _logger.Information("    🔍 Checking channel {ChannelName} (ID={PeerId}): isMonitored={IsMonitored}",
                 channelName, peerId, isMonitored);
 
             if (!isMonitored)
@@ -500,7 +500,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         // Log if this is a new peer we're seeing
         if (!_channelNames.ContainsKey(peerId.Value))
         {
-            _logger.Debug("📋 Tracking new peer: ID={Id}, Title='{Title}'", peerId.Value, title);
+            _logger.Information("    📋 Tracking new peer: ID={Id}, Title='{Title}'", peerId.Value, title);
         }
 
         _channelNames[peerId.Value] = title;
