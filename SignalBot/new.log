@@ -1,0 +1,1046 @@
+2026-01-23 21:12:45.651 +00:00 [INF] SignalBot starting up...
+2026-01-23 21:12:46.765 +00:00 [INF] Using Binance Testnet API
+2026-01-23 21:12:46.772 +00:00 [INF] Futures Trading: ENABLED
+2026-01-23 21:12:47.166 +00:00 [INF] Starting SignalBot...
+2026-01-23 21:12:50.561 +00:00 [INF] Futures API connectivity test passed
+2026-01-23 21:12:50.563 +00:00 [INF] Connected to Binance Futures API
+2026-01-23 21:12:50.569 +00:00 [INF] Starting OrderMonitor...
+2026-01-23 21:12:50.870 +00:00 [INF] Started User Data Stream with listen key
+2026-01-23 21:12:50.873 +00:00 [INF] Subscribing to Futures order updates
+2026-01-23 21:12:58.775 +00:00 [INF] Successfully subscribed to order updates
+2026-01-23 21:12:58.785 +00:00 [INF] OrderMonitor started successfully
+2026-01-23 21:12:58.786 +00:00 [INF] Starting TelegramSignalListener...
+2026-01-23 21:12:59.742 +00:00 [INF] Logged in as Makhin (@53323600)
+2026-01-23 21:13:00.793 +00:00 [INF] Found 388 dialogs
+2026-01-23 21:13:00.797 +00:00 [INF] Available channels: 165 total
+2026-01-23 21:13:00.797 +00:00 [INF] === ALL AVAILABLE CHANNELS ===
+2026-01-23 21:13:00.799 +00:00 [INF]   Channel: 'Склероз Махина' | ID: 1234831480 | Username: @<none>
+2026-01-23 21:13:00.799 +00:00 [INF]   Channel: 'Политика Страны' | ID: 1092413834 | Username: @stranaua
+2026-01-23 21:13:00.799 +00:00 [INF]   Channel: 'Вагон-рельсосмазыватель' | ID: 2358095459 | Username: @relsa_smazka
+2026-01-23 21:13:00.800 +00:00 [INF]   Channel: 'Pepper.PL' | ID: 1221347678 | Username: @pl_pepper
+2026-01-23 21:13:00.800 +00:00 [INF]   Channel: 'Военный обозреватель' | ID: 1137332367 | Username: @new_militarycolumnist
+2026-01-23 21:13:00.800 +00:00 [INF]   Channel: 'CryptoNinjas Trading 🥷🏿' | ID: 2243348201 | Username: @i8_sp
+2026-01-23 21:13:00.800 +00:00 [INF]   Channel: 'Бочарик (ага, тот самый)' | ID: 1652257917 | Username: @botcharov
+2026-01-23 21:13:00.800 +00:00 [INF]   Channel: 'МИГ России' | ID: 1279747448 | Username: @mig41
+2026-01-23 21:13:00.800 +00:00 [INF]   Channel: 'LISOVSKIY' | ID: 1942208394 | Username: @LISOVSKIY_PRO
+2026-01-23 21:13:00.801 +00:00 [INF]   Channel: 'Flackelf' | ID: 1395004731 | Username: @andrey_selezov
+2026-01-23 21:13:00.801 +00:00 [INF]   Channel: 'Роман Сапоньков' | ID: 1323132810 | Username: @RSaponkov
+2026-01-23 21:13:00.801 +00:00 [INF]   Channel: 'Анатолий Шарий' | ID: 1343028414 | Username: @ASupersharij
+2026-01-23 21:13:00.801 +00:00 [INF]   Channel: 'Блокнот ⚒️ Перископа' | ID: 1666602871 | Username: @periskop_pacific
+2026-01-23 21:13:00.801 +00:00 [INF]   Channel: 'Равреба пишет' | ID: 1147905409 | Username: @Ravreba
+2026-01-23 21:13:00.801 +00:00 [INF]   Channel: 'историк-алкоголик' | ID: 1283286577 | Username: @istrkalkglk
+2026-01-23 21:13:00.801 +00:00 [INF]   Channel: 'ЖИВОВЪ' | ID: 1490307805 | Username: @zhivoff
+2026-01-23 21:13:00.801 +00:00 [INF]   Channel: 'Fighterbomber' | ID: 1251217154 | Username: @bomber_fighter
+2026-01-23 21:13:00.802 +00:00 [INF]   Channel: 'artjockey' | ID: 1842181039 | Username: @artjockey
+2026-01-23 21:13:00.802 +00:00 [INF]   Channel: 'bmpd' | ID: 1241559280 | Username: @bmpd_cast
+2026-01-23 21:13:00.802 +00:00 [INF]   Channel: 'Пастбище священных коров' | ID: 1682451341 | Username: @tatiana_v_vorontsova
+2026-01-23 21:13:00.802 +00:00 [INF]   Channel: 'Аrtem Kirpichenok' | ID: 1227604263 | Username: @artkirpich
+2026-01-23 21:13:00.802 +00:00 [INF]   Channel: 'Разработчик БПЛА' | ID: 1693385845 | Username: @UAVDEV
+2026-01-23 21:13:00.802 +00:00 [INF]   Channel: 'molodykh.online' | ID: 1132399912 | Username: @molodykhonline
+2026-01-23 21:13:00.802 +00:00 [INF]   Channel: 'Вячеслав Азаров' | ID: 1573428405 | Username: @slav_azaroff
+2026-01-23 21:13:00.803 +00:00 [INF]   Channel: 'QA — вакансии' | ID: 1089317451 | Username: @qa_jobs
+2026-01-23 21:13:00.803 +00:00 [INF]   Channel: 'Marina Akhmedova' | ID: 1147203857 | Username: @Marinaslovo
+2026-01-23 21:13:00.803 +00:00 [INF]   Channel: '[Ex]Freedomist.ru: NEWS' | ID: 1961778709 | Username: @freedomist_news
+2026-01-23 21:13:00.803 +00:00 [INF]   Channel: 'Алиса, что нового?' | ID: 1277711909 | Username: @alice_yndx
+2026-01-23 21:13:00.803 +00:00 [INF]   Channel: 'Коты и кошка Крамника' | ID: 1355817617 | Username: @kramnikcat
+2026-01-23 21:13:00.803 +00:00 [INF]   Channel: 'Варшавская русалка' | ID: 1577023152 | Username: @pl_syrenka
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'Панцервафли/Panzerwaffle' | ID: 1132045485 | Username: @panzwaffle
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'ЭКСТАЗ 🔞' | ID: 2046391103 | Username: @<none>
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'Русский инженер' | ID: 1255807651 | Username: @rusengineer
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'Arestovich / Official' | ID: 1225597716 | Username: @O_Arestovich_official
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'Григорий Пернавский' | ID: 1189069929 | Username: @slonomuch
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'Сергій FLASH | Про технології' | ID: 1836374264 | Username: @serhii_flash
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'Sasha Hov' | ID: 1609596880 | Username: @sasha_hov1
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'Расследования авиакатастроф' | ID: 1380021391 | Username: @rumayday
+2026-01-23 21:13:00.804 +00:00 [INF]   Channel: 'DarkZotovLand' | ID: 1303611368 | Username: @darkzotovland
+2026-01-23 21:13:00.805 +00:00 [INF]   Channel: 'CryptoNinjas Trading 🥷🏿' | ID: 1573488012 | Username: @cryptoninjas_trading_ann
+2026-01-23 21:13:00.805 +00:00 [INF]   Channel: 'Bitcoin Bullets®' | ID: 2453871543 | Username: @Bitcoin_BulletsSignals
+2026-01-23 21:13:00.805 +00:00 [INF]   Channel: 'Wolf of Trading® - ViP' | ID: 2617974841 | Username: @Wolfof_TradingViP1
+2026-01-23 21:13:00.805 +00:00 [INF]   Channel: 'Fat Pig Signals' | ID: 2595715996 | Username: @Fat_Pig_Signals1
+2026-01-23 21:13:00.805 +00:00 [INF]   Channel: 'Центр «РУБИКОН»' | ID: 2251360037 | Username: @icpbtrubicon
+2026-01-23 21:13:00.805 +00:00 [INF]   Channel: 'Бондаренко: Былое и Думы' | ID: 2128282729 | Username: @kost1969
+2026-01-23 21:13:00.805 +00:00 [INF]   Channel: 'artjockey заметки' | ID: 2054798398 | Username: @artjockey_lite
+2026-01-23 21:13:00.805 +00:00 [INF]   Channel: 'Гаджеты и технологии на Вильянов.Ком' | ID: 1031925495 | Username: @vilianov
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'Физика в картинках' | ID: 1238093288 | Username: @physiovisio
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'ПОЕЗДАТЫЕ путешествия 😉' | ID: 1956652556 | Username: @poezdatytrip
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'Trading Signal Test Channel' | ID: 3045070745 | Username: @trading_signal_test
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'MaksNews' | ID: 1489146059 | Username: @MaksNewsOdessa
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'Панские путешествия' | ID: 1542851009 | Username: @pan_sapunov
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'Photographer Alexander Grinn' | ID: 1589555700 | Username: @<none>
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'Fast Reports Info' | ID: 1255201983 | Username: @fastreports
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'Platforma Migranta - Tetiana Chyzh' | ID: 2306684982 | Username: @platformamigranta
+2026-01-23 21:13:00.806 +00:00 [INF]   Channel: 'Шрайк' | ID: 1277887027 | Username: @RomanShrike
+2026-01-23 21:13:00.807 +00:00 [INF]   Channel: 'Васильев Одесский' | ID: 1146695496 | Username: @vasilievodessa
+2026-01-23 21:13:00.807 +00:00 [INF]   Channel: 'Слова в моей голове' | ID: 1088874040 | Username: @slova_v_mojej_golove
+2026-01-23 21:13:00.807 +00:00 [INF]   Channel: 'УРУС_ХАЙ' | ID: 1578923656 | Username: @urus_hay
+2026-01-23 21:13:00.807 +00:00 [INF]   Channel: 'RuTracker.org - официальный канал' | ID: 1083723966 | Username: @rutracker_news
+2026-01-23 21:13:00.807 +00:00 [INF]   Channel: 'DotNetRu' | ID: 1152155387 | Username: @DotNetRu
+2026-01-23 21:13:00.808 +00:00 [INF]   Channel: 'Оператор Шагающей Мясорубки|Española' | ID: 1645220193 | Username: @<none>
+2026-01-23 21:13:00.808 +00:00 [INF]   Channel: 'Саня' | ID: 1135964469 | Username: @<none>
+2026-01-23 21:13:00.808 +00:00 [INF]   Channel: 'Саня Александровна' | ID: 1217850201 | Username: @<none>
+2026-01-23 21:13:00.808 +00:00 [INF]   Channel: 'Политика & Геополитика' | ID: 1610456219 | Username: @homogeopoliticus
+2026-01-23 21:13:00.808 +00:00 [INF]   Channel: 'Рецензии от Шрайка' | ID: 1070271754 | Username: @ShrikeReview
+2026-01-23 21:13:00.808 +00:00 [INF]   Channel: 'Железные Письма' | ID: 1559617512 | Username: @vilianov_live
+2026-01-23 21:13:00.808 +00:00 [INF]   Channel: 'Крэйг Эштон' | ID: 1798945033 | Username: @craigashtonspb
+2026-01-23 21:13:00.808 +00:00 [INF]   Channel: 'popolsku' | ID: 1236939581 | Username: @popolsku
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: '𝐀𝐓𝐎𝐌𝐈𝐂 𝐂𝐇𝐄𝐑𝐑𝐘' | ID: 1313818890 | Username: @atomiccherry
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: 'Соколов-Митрич' | ID: 1205945104 | Username: @smitrich
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: 'БЮРО 1440' | ID: 1827782535 | Username: @bureau_1440
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: 'Зоя' | ID: 1658637911 | Username: @<none>
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: 'Зоя Александровна' | ID: 1815715366 | Username: @<none>
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: 'Книги' | ID: 1603604203 | Username: @<none>
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: 'Путевые заметки махиных' | ID: 1188145542 | Username: @travel_notes_makhin
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: 'IVAN THE INTELLIGENT' | ID: 1792691324 | Username: @ivan_the_intelligent
+2026-01-23 21:13:00.809 +00:00 [INF]   Channel: 'Росс Марсов' | ID: 1302166171 | Username: @rhosmarssov
+2026-01-23 21:13:00.810 +00:00 [INF]   Channel: 'Империя курильщика' | ID: 1590337026 | Username: @georgy_ma
+2026-01-23 21:13:00.810 +00:00 [INF]   Channel: 'татарская княжна бензопилой' | ID: 1250882724 | Username: @nevezhenstvennost
+2026-01-23 21:13:00.810 +00:00 [INF]   Channel: 'Sharavoz IPTV' | ID: 1938188062 | Username: @<none>
+2026-01-23 21:13:00.810 +00:00 [INF]   Channel: 'Чат канала ПОЕЗДАТЫЕ путешествия' | ID: 1911279101 | Username: @<none>
+2026-01-23 21:13:00.810 +00:00 [INF]   Channel: 'Радио Sputnik' | ID: 1076999981 | Username: @radio_sputnik
+2026-01-23 21:13:00.810 +00:00 [INF]   Channel: 'LISOVSKIY PRODUCTION Chat' | ID: 2015171742 | Username: @LISOVSKIY_CHAT
+2026-01-23 21:13:00.810 +00:00 [INF]   Channel: 'Flackelf Chat' | ID: 1995863548 | Username: @<none>
+2026-01-23 21:13:00.810 +00:00 [INF]   Channel: 'Два майора' | ID: 1513431778 | Username: @dva_majors
+2026-01-23 21:13:00.811 +00:00 [INF]   Channel: 'Комменты Сапонькова' | ID: 1168423440 | Username: @Saponkov_comments
+2026-01-23 21:13:00.811 +00:00 [INF]   Channel: 'Сomments' | ID: 1219094968 | Username: @fbchatik
+2026-01-23 21:13:00.811 +00:00 [INF]   Channel: 'Пастбище священных коров' | ID: 1437157421 | Username: @<none>
+2026-01-23 21:13:00.811 +00:00 [INF]   Channel: 'UAVChat' | ID: 1812089312 | Username: @UAVDEVChat
+2026-01-23 21:13:00.811 +00:00 [INF]   Channel: 'molodykh.online Chat' | ID: 1497452626 | Username: @<none>
+2026-01-23 21:13:00.811 +00:00 [INF]   Channel: 'Последний махновец' | ID: 1303101375 | Username: @last_makhnovist
+2026-01-23 21:13:00.811 +00:00 [INF]   Channel: '[Ex]Freedomist: united chat' | ID: 2075226134 | Username: @<none>
+2026-01-23 21:13:00.811 +00:00 [INF]   Channel: '🎄Яндекс Станция, Умный дом и устройства с Алисой' | ID: 1276901291 | Username: @station_yandex
+2026-01-23 21:13:00.812 +00:00 [INF]   Channel: 'LOADING NEWS....' | ID: 3550279579 | Username: @loading_news
+2026-01-23 21:13:00.812 +00:00 [INF]   Channel: 'Всратые Авиаконструкторы' | ID: 1659192801 | Username: @aviamemes
+2026-01-23 21:13:00.812 +00:00 [INF]   Channel: 'ЭКСТАЗ 🔞 Chat' | ID: 1946530945 | Username: @<none>
+2026-01-23 21:13:00.812 +00:00 [INF]   Channel: 'Русский инженер' | ID: 1875466095 | Username: @<none>
+2026-01-23 21:13:00.812 +00:00 [INF]   Channel: 'Красный Фронтовик' | ID: 1154849444 | Username: @rotfront_1917_1945
+2026-01-23 21:13:00.812 +00:00 [INF]   Channel: 'Мушиный слоновник' | ID: 1382330908 | Username: @slonomuhchat
+2026-01-23 21:13:00.812 +00:00 [INF]   Channel: 'Сергій FLASH | Про технології Chat' | ID: 1694108014 | Username: @<none>
+2026-01-23 21:13:00.812 +00:00 [INF]   Channel: 'Чат Расследования авиакатастроф' | ID: 1332803230 | Username: @<none>
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'DarkZotovLand Chat' | ID: 1949350369 | Username: @<none>
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'Вильянов Чат' | ID: 1496030614 | Username: @<none>
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'Физика в картинках - обсуждения' | ID: 2166676698 | Username: @<none>
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'MaksNews Chat' | ID: 1287541656 | Username: @<none>
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'Пан Сапунов. По городам и весям Chat' | ID: 1499779417 | Username: @pan_sapunov_chat
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'Photographer Alexander Grinn (Chat)' | ID: 1244120027 | Username: @<none>
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'Fast Reports Info Chat' | ID: 1666257159 | Username: @<none>
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'УРУС_ХАЙ Chat' | ID: 1559292557 | Username: @<none>
+2026-01-23 21:13:00.813 +00:00 [INF]   Channel: 'Gabrielle Duvoisin' | ID: 2242230044 | Username: @GabrielleDuvoisinMoscow
+2026-01-23 21:13:00.814 +00:00 [INF]   Channel: 'Ежедневная Шагающая Мясорубка' | ID: 1305875731 | Username: @egshm
+2026-01-23 21:13:00.814 +00:00 [INF]   Channel: 'Чат Рецензий 💬' | ID: 1211769106 | Username: @ShrikeReviewChat
+2026-01-23 21:13:00.814 +00:00 [INF]   Channel: 'Чат Железных Писем' | ID: 1511993207 | Username: @<none>
+2026-01-23 21:13:00.814 +00:00 [INF]   Channel: '❄️☃️Чат Крэйга☃️❄️' | ID: 1586721906 | Username: @craigashtonchat
+2026-01-23 21:13:00.814 +00:00 [INF]   Channel: 'Севостьянов - казачий дневник' | ID: 1490982382 | Username: @kazachiydozor
+2026-01-23 21:13:00.814 +00:00 [INF]   Channel: 'РоссПизделись (Модератор)' | ID: 1730531833 | Username: @<none>
+2026-01-23 21:13:00.814 +00:00 [INF]   Channel: 'aigelslv' | ID: 1752909144 | Username: @aigelslv
+2026-01-23 21:13:00.815 +00:00 [INF]   Channel: 'Mi Watch/Band/S1-S4/RW4 news' | ID: 1234274112 | Username: @mi_watch_news
+2026-01-23 21:13:00.815 +00:00 [INF]   Channel: 'Saulius ProAuto | автоподбор, осмотр, пригон 🇵🇱 🇱🇹' | ID: 1812678998 | Username: @sauliusproauto
+2026-01-23 21:13:00.815 +00:00 [INF]   Channel: 'Эксперт, на выезд!' | ID: 1746940269 | Username: @expert_krim
+2026-01-23 21:13:00.815 +00:00 [INF]   Channel: 'Члены МП при ГД мундепы' | ID: 2505287779 | Username: @<none>
+2026-01-23 21:13:00.815 +00:00 [INF]   Channel: 'Богатый Боря' | ID: 1315396301 | Username: @bogatiy_borya
+2026-01-23 21:13:00.815 +00:00 [INF]   Channel: 'Secret Channel of William Forester' | ID: 2217508182 | Username: @williamforrester
+2026-01-23 21:13:00.815 +00:00 [INF]   Channel: 'AnyPlayer' | ID: 1963028942 | Username: @<none>
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'Книжная Ярмарка' | ID: 1520377475 | Username: @b00kfair
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'мамкина ленгвистка' | ID: 1142577446 | Username: @wordsofsnownew
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'Незаслуженный учитель России' | ID: 1127383278 | Username: @leavethekidsalone
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'Шпион, которому никто не пишет' | ID: 1554414395 | Username: @genshab
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'NEXTGAME | Видеоигры | Мемы | Новости' | ID: 1804559591 | Username: @gamepros
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'Mi Watch/Band/S1-S4/RW4 news discussions' | ID: 2355621532 | Username: @<none>
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'Эксперт, на выезд!' | ID: 1801367419 | Username: @krim_expert
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'Bogatiy Borya' | ID: 2781351929 | Username: @<none>
+2026-01-23 21:13:00.816 +00:00 [INF]   Channel: 'Андрей Недовес' | ID: 1216368714 | Username: @a_nedoves
+2026-01-23 21:13:00.817 +00:00 [INF]   Channel: 'Московский строитель 👷🏼‍♂️' | ID: 1874719887 | Username: @stroitel_mos
+2026-01-23 21:13:00.817 +00:00 [INF]   Channel: 'Заяц ПЦ' | ID: 1353951187 | Username: @zayats_pts
+2026-01-23 21:13:00.817 +00:00 [INF]   Channel: '****' | ID: 2100055615 | Username: @<none>
+2026-01-23 21:13:00.817 +00:00 [INF]   Channel: 'Бродяга серых зон' | ID: 1608957666 | Username: @gray_area_wanderer
+2026-01-23 21:13:00.817 +00:00 [INF]   Channel: 'Accept the reality💳' | ID: 1582179432 | Username: @cfw24gawr
+2026-01-23 21:13:00.817 +00:00 [INF]   Channel: 'Stwardnienie rozsiane' | ID: 1199760964 | Username: @StwardnienieRozsiane
+2026-01-23 21:13:00.817 +00:00 [INF]   Channel: 'Wroclove' | ID: 1361095770 | Username: @<none>
+2026-01-23 21:13:00.817 +00:00 [INF]   Channel: 'ДБ' | ID: 1717072489 | Username: @<none>
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: 'Версия Лесева' | ID: 1322607357 | Username: @Lesev_Igor
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: 'Без подписи' | ID: 1555867644 | Username: @bezzpodpisi
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: 'Brave New World' | ID: 1203153795 | Username: @bravenewworldblog
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: 'Пикейные жилеты - обсуждение' | ID: 1580584680 | Username: @<none>
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: 'Пикейные жилеты (Польша)' | ID: 1638798753 | Username: @piquewaistcoats
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: '.' | ID: 1588678078 | Username: @<none>
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: 'Политолог Богатырёв' | ID: 1389991268 | Username: @polit_bogatyr
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: '@userinfobot iD telegram' | ID: 1766930889 | Username: @userinfobotidtele
+2026-01-23 21:13:00.818 +00:00 [INF]   Channel: 'Что там в .NET?' | ID: 1333752299 | Username: @dotnew
+2026-01-23 21:13:00.819 +00:00 [INF]   Channel: 'Юрий Ткачёв' | ID: 1203105091 | Username: @dadzibao
+2026-01-23 21:13:00.819 +00:00 [INF]   Channel: 'lil_artjulia-cookies' | ID: 1761105391 | Username: @lilartjulia
+2026-01-23 21:13:00.819 +00:00 [INF]   Channel: 'Юрий Ткачёв (резерв)' | ID: 1767938884 | Username: @<none>
+2026-01-23 21:13:00.819 +00:00 [INF]   Channel: 'Forbes Russia' | ID: 1087766403 | Username: @forbesrussia
+2026-01-23 21:13:00.819 +00:00 [INF]   Channel: 'Политолог Богатырёв Chat' | ID: 1213031253 | Username: @<none>
+2026-01-23 21:13:00.819 +00:00 [INF]   Channel: 'Вражеские голоса' | ID: 1483144811 | Username: @vgolosa
+2026-01-23 21:13:00.819 +00:00 [INF]   Channel: 'Old Steam Navy' | ID: 1358865541 | Username: @oldsteamnavy
+2026-01-23 21:13:00.820 +00:00 [INF]   Channel: 'ELENA LYOSHENKO' | ID: 1329012238 | Username: @ElenaLyoshenko
+2026-01-23 21:13:00.820 +00:00 [INF]   Channel: 'Три товарища' | ID: 1294407103 | Username: @<none>
+2026-01-23 21:13:00.820 +00:00 [INF]   Channel: 'Анна Долгарева пишет:' | ID: 1190090058 | Username: @<none>
+2026-01-23 21:13:00.820 +00:00 [INF]   Channel: 'Военный фотограф' | ID: 1344605704 | Username: @<none>
+2026-01-23 21:13:00.820 +00:00 [INF]   Channel: 'The Панда' | ID: 1121197193 | Username: @the_panda3
+2026-01-23 21:13:00.820 +00:00 [INF]   Channel: 'Amakhin' | ID: 1298776695 | Username: @<none>
+2026-01-23 21:13:00.820 +00:00 [INF]   Channel: 'Russian Lives Matter' | ID: 1496386442 | Username: @SNGNOVOSTNOY
+2026-01-23 21:13:00.821 +00:00 [INF] === END OF CHANNEL LIST ===
+2026-01-23 21:13:00.833 +00:00 [INF]     📋 Tracking new peer: ID=1234831480, Title='Склероз Махина'
+2026-01-23 21:13:00.835 +00:00 [INF]     📋 Tracking new peer: ID=1092413834, Title='Политика Страны'
+2026-01-23 21:13:00.836 +00:00 [INF]     📋 Tracking new peer: ID=2358095459, Title='Вагон-рельсосмазыватель'
+2026-01-23 21:13:00.836 +00:00 [INF]     📋 Tracking new peer: ID=4627771852, Title='Вагон-рельсосмазыватель'
+2026-01-23 21:13:00.836 +00:00 [INF]     📋 Tracking new peer: ID=1221347678, Title='Pepper.PL'
+2026-01-23 21:13:00.837 +00:00 [INF]     📋 Tracking new peer: ID=1137332367, Title='Военный обозреватель'
+2026-01-23 21:13:00.837 +00:00 [INF]     📋 Tracking new peer: ID=2243348201, Title='CryptoNinjas Trading 🥷🏿'
+2026-01-23 21:13:00.837 +00:00 [INF]     📋 Tracking new peer: ID=1652257917, Title='Бочарик (ага, тот самый)'
+2026-01-23 21:13:00.837 +00:00 [INF]     📋 Tracking new peer: ID=1279747448, Title='МИГ России'
+2026-01-23 21:13:00.837 +00:00 [INF]     📋 Tracking new peer: ID=1942208394, Title='LISOVSKIY'
+2026-01-23 21:13:00.837 +00:00 [INF]     📋 Tracking new peer: ID=1395004731, Title='Flackelf'
+2026-01-23 21:13:00.837 +00:00 [INF]     📋 Tracking new peer: ID=1323132810, Title='Роман Сапоньков'
+2026-01-23 21:13:00.838 +00:00 [INF]     📋 Tracking new peer: ID=1343028414, Title='Анатолий Шарий'
+2026-01-23 21:13:00.838 +00:00 [INF]     📋 Tracking new peer: ID=1666602871, Title='Блокнот ⚒️ Перископа'
+2026-01-23 21:13:00.838 +00:00 [INF]     📋 Tracking new peer: ID=1147905409, Title='Равреба пишет'
+2026-01-23 21:13:00.838 +00:00 [INF]     📋 Tracking new peer: ID=1283286577, Title='историк-алкоголик'
+2026-01-23 21:13:00.838 +00:00 [INF]     📋 Tracking new peer: ID=1490307805, Title='ЖИВОВЪ'
+2026-01-23 21:13:00.839 +00:00 [INF]     📋 Tracking new peer: ID=1251217154, Title='Fighterbomber'
+2026-01-23 21:13:00.839 +00:00 [INF]     📋 Tracking new peer: ID=1842181039, Title='artjockey'
+2026-01-23 21:13:00.839 +00:00 [INF]     📋 Tracking new peer: ID=1241559280, Title='bmpd'
+2026-01-23 21:13:00.839 +00:00 [INF]     📋 Tracking new peer: ID=1682451341, Title='Пастбище священных коров'
+2026-01-23 21:13:00.839 +00:00 [INF]     📋 Tracking new peer: ID=1227604263, Title='Аrtem Kirpichenok'
+2026-01-23 21:13:00.840 +00:00 [INF]     📋 Tracking new peer: ID=1693385845, Title='Разработчик БПЛА'
+2026-01-23 21:13:00.840 +00:00 [INF]     📋 Tracking new peer: ID=1132399912, Title='molodykh.online'
+2026-01-23 21:13:00.840 +00:00 [INF]     📋 Tracking new peer: ID=1573428405, Title='Вячеслав Азаров'
+2026-01-23 21:13:00.840 +00:00 [INF]     📋 Tracking new peer: ID=1089317451, Title='QA — вакансии'
+2026-01-23 21:13:00.842 +00:00 [INF]     📋 Tracking new peer: ID=138542112, Title='QA Jobs - Вакансии и аналитика'
+2026-01-23 21:13:00.842 +00:00 [INF]     📋 Tracking new peer: ID=1147203857, Title='Marina Akhmedova'
+2026-01-23 21:13:00.842 +00:00 [INF]     📋 Tracking new peer: ID=1961778709, Title='[Ex]Freedomist.ru: NEWS'
+2026-01-23 21:13:00.842 +00:00 [INF]     📋 Tracking new peer: ID=1277711909, Title='Алиса, что нового?'
+2026-01-23 21:13:00.842 +00:00 [INF]     📋 Tracking new peer: ID=1355817617, Title='Коты и кошка Крамника'
+2026-01-23 21:13:00.843 +00:00 [INF]     📋 Tracking new peer: ID=1577023152, Title='Варшавская русалка'
+2026-01-23 21:13:00.843 +00:00 [INF]     📋 Tracking new peer: ID=1132045485, Title='Панцервафли/Panzerwaffle'
+2026-01-23 21:13:00.843 +00:00 [INF]     📋 Tracking new peer: ID=2046391103, Title='ЭКСТАЗ 🔞'
+2026-01-23 21:13:00.843 +00:00 [INF]     📋 Tracking new peer: ID=1255807651, Title='Русский инженер'
+2026-01-23 21:13:00.843 +00:00 [INF]     📋 Tracking new peer: ID=1225597716, Title='Arestovich / Official'
+2026-01-23 21:13:00.843 +00:00 [INF]     📋 Tracking new peer: ID=1189069929, Title='Григорий Пернавский'
+2026-01-23 21:13:00.844 +00:00 [INF]     📋 Tracking new peer: ID=1836374264, Title='Сергій FLASH | Про технології'
+2026-01-23 21:13:00.844 +00:00 [INF]     📋 Tracking new peer: ID=1609596880, Title='Sasha Hov'
+2026-01-23 21:13:00.844 +00:00 [INF]     📋 Tracking new peer: ID=1380021391, Title='Расследования авиакатастроф'
+2026-01-23 21:13:00.844 +00:00 [INF]     📋 Tracking new peer: ID=1303611368, Title='DarkZotovLand'
+2026-01-23 21:13:00.844 +00:00 [INF]     📋 Tracking new peer: ID=1573488012, Title='CryptoNinjas Trading 🥷🏿'
+2026-01-23 21:13:00.845 +00:00 [INF]     📋 Tracking new peer: ID=2453871543, Title='Bitcoin Bullets®'
+2026-01-23 21:13:00.845 +00:00 [INF]     📋 Tracking new peer: ID=2617974841, Title='Wolf of Trading® - ViP'
+2026-01-23 21:13:00.845 +00:00 [INF]     📋 Tracking new peer: ID=2595715996, Title='Fat Pig Signals'
+2026-01-23 21:13:00.845 +00:00 [INF]     📋 Tracking new peer: ID=2251360037, Title='Центр «РУБИКОН»'
+2026-01-23 21:13:00.845 +00:00 [INF]     📋 Tracking new peer: ID=2128282729, Title='Бондаренко: Былое и Думы'
+2026-01-23 21:13:00.846 +00:00 [INF]     📋 Tracking new peer: ID=2054798398, Title='artjockey заметки'
+2026-01-23 21:13:00.846 +00:00 [INF]     📋 Tracking new peer: ID=1031925495, Title='Гаджеты и технологии на Вильянов.Ком'
+2026-01-23 21:13:00.846 +00:00 [INF]     📋 Tracking new peer: ID=1238093288, Title='Физика в картинках'
+2026-01-23 21:13:00.846 +00:00 [INF]     📋 Tracking new peer: ID=1956652556, Title='ПОЕЗДАТЫЕ путешествия 😉'
+2026-01-23 21:13:00.846 +00:00 [INF]     📋 Tracking new peer: ID=3045070745, Title='Trading Signal Test Channel'
+2026-01-23 21:13:00.846 +00:00 [INF]     📋 Tracking new peer: ID=1489146059, Title='MaksNews'
+2026-01-23 21:13:00.846 +00:00 [INF]     📋 Tracking new peer: ID=1542851009, Title='Панские путешествия'
+2026-01-23 21:13:00.847 +00:00 [INF]     📋 Tracking new peer: ID=1589555700, Title='Photographer Alexander Grinn'
+2026-01-23 21:13:00.847 +00:00 [INF]     📋 Tracking new peer: ID=1255201983, Title='Fast Reports Info'
+2026-01-23 21:13:00.847 +00:00 [INF]     📋 Tracking new peer: ID=2306684982, Title='Platforma Migranta - Tetiana Chyzh'
+2026-01-23 21:13:00.847 +00:00 [INF]     📋 Tracking new peer: ID=1277887027, Title='Шрайк'
+2026-01-23 21:13:00.847 +00:00 [INF]     📋 Tracking new peer: ID=1146695496, Title='Васильев Одесский'
+2026-01-23 21:13:00.848 +00:00 [INF]     📋 Tracking new peer: ID=1088874040, Title='Слова в моей голове'
+2026-01-23 21:13:00.848 +00:00 [INF]     📋 Tracking new peer: ID=1578923656, Title='УРУС_ХАЙ'
+2026-01-23 21:13:00.848 +00:00 [INF]     📋 Tracking new peer: ID=1083723966, Title='RuTracker.org - официальный канал'
+2026-01-23 21:13:00.848 +00:00 [INF]     📋 Tracking new peer: ID=1152155387, Title='DotNetRu'
+2026-01-23 21:13:00.848 +00:00 [INF]     📋 Tracking new peer: ID=1645220193, Title='Оператор Шагающей Мясорубки|Española'
+2026-01-23 21:13:00.848 +00:00 [INF]     📋 Tracking new peer: ID=1135964469, Title='Саня'
+2026-01-23 21:13:00.849 +00:00 [INF]     📋 Tracking new peer: ID=1217850201, Title='Саня Александровна'
+2026-01-23 21:13:00.849 +00:00 [INF]     📋 Tracking new peer: ID=1610456219, Title='Политика & Геополитика'
+2026-01-23 21:13:00.849 +00:00 [INF]     📋 Tracking new peer: ID=1070271754, Title='Рецензии от Шрайка'
+2026-01-23 21:13:00.849 +00:00 [INF]     📋 Tracking new peer: ID=1559617512, Title='Железные Письма'
+2026-01-23 21:13:00.849 +00:00 [INF]     📋 Tracking new peer: ID=1798945033, Title='Крэйг Эштон'
+2026-01-23 21:13:00.849 +00:00 [INF]     📋 Tracking new peer: ID=1236939581, Title='popolsku'
+2026-01-23 21:13:00.850 +00:00 [INF]     📋 Tracking new peer: ID=1313818890, Title='𝐀𝐓𝐎𝐌𝐈𝐂 𝐂𝐇𝐄𝐑𝐑𝐘'
+2026-01-23 21:13:00.850 +00:00 [INF]     📋 Tracking new peer: ID=1205945104, Title='Соколов-Митрич'
+2026-01-23 21:13:00.850 +00:00 [INF]     📋 Tracking new peer: ID=1827782535, Title='БЮРО 1440'
+2026-01-23 21:13:00.850 +00:00 [INF]     📋 Tracking new peer: ID=1658637911, Title='Зоя'
+2026-01-23 21:13:00.851 +00:00 [INF]     📋 Tracking new peer: ID=978784048, Title='Zoja'
+2026-01-23 21:13:00.851 +00:00 [INF]     📋 Tracking new peer: ID=1815715366, Title='Зоя Александровна'
+2026-01-23 21:13:00.851 +00:00 [INF]     📋 Tracking new peer: ID=1603604203, Title='Книги'
+2026-01-23 21:13:00.852 +00:00 [INF]     📋 Tracking new peer: ID=717603721, Title='Книги'
+2026-01-23 21:13:00.853 +00:00 [INF]     📋 Tracking new peer: ID=1188145542, Title='Путевые заметки махиных'
+2026-01-23 21:13:00.853 +00:00 [INF]     📋 Tracking new peer: ID=1792691324, Title='IVAN THE INTELLIGENT'
+2026-01-23 21:13:00.853 +00:00 [INF]     📋 Tracking new peer: ID=1302166171, Title='Росс Марсов'
+2026-01-23 21:13:00.853 +00:00 [INF]     📋 Tracking new peer: ID=1590337026, Title='Империя курильщика'
+2026-01-23 21:13:00.853 +00:00 [INF]     📋 Tracking new peer: ID=1250882724, Title='татарская княжна бензопилой'
+2026-01-23 21:13:00.853 +00:00 [INF]     📋 Tracking new peer: ID=1938188062, Title='Sharavoz IPTV'
+2026-01-23 21:13:00.854 +00:00 [INF]     📋 Tracking new peer: ID=1911279101, Title='Чат канала ПОЕЗДАТЫЕ путешествия'
+2026-01-23 21:13:00.854 +00:00 [INF]     📋 Tracking new peer: ID=1076999981, Title='Радио Sputnik'
+2026-01-23 21:13:00.854 +00:00 [INF]     📋 Tracking new peer: ID=2015171742, Title='LISOVSKIY PRODUCTION Chat'
+2026-01-23 21:13:00.854 +00:00 [INF]     📋 Tracking new peer: ID=1995863548, Title='Flackelf Chat'
+2026-01-23 21:13:00.854 +00:00 [INF]     📋 Tracking new peer: ID=1513431778, Title='Два майора'
+2026-01-23 21:13:00.854 +00:00 [INF]     📋 Tracking new peer: ID=1168423440, Title='Комменты Сапонькова'
+2026-01-23 21:13:00.854 +00:00 [INF]     📋 Tracking new peer: ID=1219094968, Title='Сomments'
+2026-01-23 21:13:00.855 +00:00 [INF]     📋 Tracking new peer: ID=1437157421, Title='Пастбище священных коров'
+2026-01-23 21:13:00.855 +00:00 [INF]     📋 Tracking new peer: ID=1812089312, Title='UAVChat'
+2026-01-23 21:13:00.855 +00:00 [INF]     📋 Tracking new peer: ID=1497452626, Title='molodykh.online Chat'
+2026-01-23 21:13:00.855 +00:00 [INF]     📋 Tracking new peer: ID=1303101375, Title='Последний махновец'
+2026-01-23 21:13:00.855 +00:00 [INF]     📋 Tracking new peer: ID=2075226134, Title='[Ex]Freedomist: united chat'
+2026-01-23 21:13:00.855 +00:00 [INF]     📋 Tracking new peer: ID=1276901291, Title='🎄Яндекс Станция, Умный дом и устройства с Алисой'
+2026-01-23 21:13:00.855 +00:00 [INF]     📋 Tracking new peer: ID=3550279579, Title='LOADING NEWS....'
+2026-01-23 21:13:00.855 +00:00 [INF]     📋 Tracking new peer: ID=1659192801, Title='Всратые Авиаконструкторы'
+2026-01-23 21:13:00.856 +00:00 [INF]     📋 Tracking new peer: ID=1946530945, Title='ЭКСТАЗ 🔞 Chat'
+2026-01-23 21:13:00.856 +00:00 [INF]     📋 Tracking new peer: ID=1875466095, Title='Русский инженер'
+2026-01-23 21:13:00.856 +00:00 [INF]     📋 Tracking new peer: ID=1154849444, Title='Красный Фронтовик'
+2026-01-23 21:13:00.856 +00:00 [INF]     📋 Tracking new peer: ID=1382330908, Title='Мушиный слоновник'
+2026-01-23 21:13:00.856 +00:00 [INF]     📋 Tracking new peer: ID=1694108014, Title='Сергій FLASH | Про технології Chat'
+2026-01-23 21:13:00.856 +00:00 [INF]     📋 Tracking new peer: ID=1332803230, Title='Чат Расследования авиакатастроф'
+2026-01-23 21:13:00.856 +00:00 [INF]     📋 Tracking new peer: ID=1949350369, Title='DarkZotovLand Chat'
+2026-01-23 21:13:00.857 +00:00 [INF]     📋 Tracking new peer: ID=1496030614, Title='Вильянов Чат'
+2026-01-23 21:13:00.857 +00:00 [INF]     📋 Tracking new peer: ID=2166676698, Title='Физика в картинках - обсуждения'
+2026-01-23 21:13:00.857 +00:00 [INF]     📋 Tracking new peer: ID=1287541656, Title='MaksNews Chat'
+2026-01-23 21:13:00.857 +00:00 [INF]     📋 Tracking new peer: ID=1499779417, Title='Пан Сапунов. По городам и весям Chat'
+2026-01-23 21:13:00.857 +00:00 [INF]     📋 Tracking new peer: ID=1244120027, Title='Photographer Alexander Grinn (Chat)'
+2026-01-23 21:13:00.857 +00:00 [INF]     📋 Tracking new peer: ID=1666257159, Title='Fast Reports Info Chat'
+2026-01-23 21:13:00.857 +00:00 [INF]     📋 Tracking new peer: ID=1559292557, Title='УРУС_ХАЙ Chat'
+2026-01-23 21:13:00.858 +00:00 [INF]     📋 Tracking new peer: ID=2242230044, Title='Gabrielle Duvoisin'
+2026-01-23 21:13:00.858 +00:00 [INF]     📋 Tracking new peer: ID=1305875731, Title='Ежедневная Шагающая Мясорубка'
+2026-01-23 21:13:00.858 +00:00 [INF]     📋 Tracking new peer: ID=1211769106, Title='Чат Рецензий 💬'
+2026-01-23 21:13:00.858 +00:00 [INF]     📋 Tracking new peer: ID=1511993207, Title='Чат Железных Писем'
+2026-01-23 21:13:00.858 +00:00 [INF]     📋 Tracking new peer: ID=1586721906, Title='❄️☃️Чат Крэйга☃️❄️'
+2026-01-23 21:13:00.858 +00:00 [INF]     📋 Tracking new peer: ID=1490982382, Title='Севостьянов - казачий дневник'
+2026-01-23 21:13:00.859 +00:00 [INF]     📋 Tracking new peer: ID=1730531833, Title='РоссПизделись (Модератор)'
+2026-01-23 21:13:00.859 +00:00 [INF]     📋 Tracking new peer: ID=1752909144, Title='aigelslv'
+2026-01-23 21:13:00.859 +00:00 [INF]     📋 Tracking new peer: ID=1234274112, Title='Mi Watch/Band/S1-S4/RW4 news'
+2026-01-23 21:13:00.859 +00:00 [INF]     📋 Tracking new peer: ID=1812678998, Title='Saulius ProAuto | автоподбор, осмотр, пригон 🇵🇱 🇱🇹'
+2026-01-23 21:13:00.859 +00:00 [INF]     📋 Tracking new peer: ID=1746940269, Title='Эксперт, на выезд!'
+2026-01-23 21:13:00.859 +00:00 [INF]     📋 Tracking new peer: ID=2505287779, Title='Члены МП при ГД мундепы'
+2026-01-23 21:13:00.859 +00:00 [INF]     📋 Tracking new peer: ID=4809321647, Title='Члены МП при ГД мундепы'
+2026-01-23 21:13:00.860 +00:00 [INF]     📋 Tracking new peer: ID=1315396301, Title='Богатый Боря'
+2026-01-23 21:13:00.860 +00:00 [INF]     📋 Tracking new peer: ID=728342037, Title='Остатки неудержимых кодеров'
+2026-01-23 21:13:00.860 +00:00 [INF]     📋 Tracking new peer: ID=2217508182, Title='Secret Channel of William Forester'
+2026-01-23 21:13:00.860 +00:00 [INF]     📋 Tracking new peer: ID=1963028942, Title='AnyPlayer'
+2026-01-23 21:13:00.860 +00:00 [INF]     📋 Tracking new peer: ID=1520377475, Title='Книжная Ярмарка'
+2026-01-23 21:13:00.860 +00:00 [INF]     📋 Tracking new peer: ID=511507835, Title='Книжная Ярмарка'
+2026-01-23 21:13:00.860 +00:00 [INF]     📋 Tracking new peer: ID=1142577446, Title='мамкина ленгвистка'
+2026-01-23 21:13:00.860 +00:00 [INF]     📋 Tracking new peer: ID=1127383278, Title='Незаслуженный учитель России'
+2026-01-23 21:13:00.861 +00:00 [INF]     📋 Tracking new peer: ID=1554414395, Title='Шпион, которому никто не пишет'
+2026-01-23 21:13:00.861 +00:00 [INF]     📋 Tracking new peer: ID=1804559591, Title='NEXTGAME | Видеоигры | Мемы | Новости'
+2026-01-23 21:13:00.861 +00:00 [INF]     📋 Tracking new peer: ID=2355621532, Title='Mi Watch/Band/S1-S4/RW4 news discussions'
+2026-01-23 21:13:00.861 +00:00 [INF]     📋 Tracking new peer: ID=1801367419, Title='Эксперт, на выезд!'
+2026-01-23 21:13:00.861 +00:00 [INF]     📋 Tracking new peer: ID=2781351929, Title='Bogatiy Borya'
+2026-01-23 21:13:00.862 +00:00 [INF]     📋 Tracking new peer: ID=2433312826, Title='Айгысӄыаӈӄы — у'рэтнутэнут. Арктика — Родина'
+2026-01-23 21:13:00.862 +00:00 [INF]     📋 Tracking new peer: ID=1216368714, Title='Андрей Недовес'
+2026-01-23 21:13:00.862 +00:00 [INF]     📋 Tracking new peer: ID=1874719887, Title='Московский строитель 👷🏼‍♂️'
+2026-01-23 21:13:00.862 +00:00 [INF]     📋 Tracking new peer: ID=1353951187, Title='Заяц ПЦ'
+2026-01-23 21:13:00.862 +00:00 [INF]     📋 Tracking new peer: ID=2100055615, Title='****'
+2026-01-23 21:13:00.862 +00:00 [INF]     📋 Tracking new peer: ID=1608957666, Title='Бродяга серых зон'
+2026-01-23 21:13:00.863 +00:00 [INF]     📋 Tracking new peer: ID=1582179432, Title='Accept the reality💳'
+2026-01-23 21:13:00.863 +00:00 [INF]     📋 Tracking new peer: ID=1199760964, Title='Stwardnienie rozsiane'
+2026-01-23 21:13:00.863 +00:00 [INF]     📋 Tracking new peer: ID=1361095770, Title='Wroclove'
+2026-01-23 21:13:00.863 +00:00 [INF]     📋 Tracking new peer: ID=1717072489, Title='ДБ'
+2026-01-23 21:13:00.863 +00:00 [INF]     📋 Tracking new peer: ID=1322607357, Title='Версия Лесева'
+2026-01-23 21:13:00.863 +00:00 [INF]     📋 Tracking new peer: ID=1555867644, Title='Без подписи'
+2026-01-23 21:13:00.863 +00:00 [INF]     📋 Tracking new peer: ID=1203153795, Title='Brave New World'
+2026-01-23 21:13:00.864 +00:00 [INF]     📋 Tracking new peer: ID=1580584680, Title='Пикейные жилеты - обсуждение'
+2026-01-23 21:13:00.864 +00:00 [INF]     📋 Tracking new peer: ID=1638798753, Title='Пикейные жилеты (Польша)'
+2026-01-23 21:13:00.864 +00:00 [INF]     📋 Tracking new peer: ID=1588678078, Title='.'
+2026-01-23 21:13:00.864 +00:00 [INF]     📋 Tracking new peer: ID=1389991268, Title='Политолог Богатырёв'
+2026-01-23 21:13:00.864 +00:00 [INF]     📋 Tracking new peer: ID=275678823, Title='PLN-UKR-CYP'
+2026-01-23 21:13:00.864 +00:00 [INF]     📋 Tracking new peer: ID=1766930889, Title='@userinfobot iD telegram'
+2026-01-23 21:13:00.864 +00:00 [INF]     📋 Tracking new peer: ID=1333752299, Title='Что там в .NET?'
+2026-01-23 21:13:00.864 +00:00 [INF]     📋 Tracking new peer: ID=1203105091, Title='Юрий Ткачёв'
+2026-01-23 21:13:00.865 +00:00 [INF]     📋 Tracking new peer: ID=1761105391, Title='lil_artjulia-cookies'
+2026-01-23 21:13:00.865 +00:00 [INF]     📋 Tracking new peer: ID=1767938884, Title='Юрий Ткачёв (резерв)'
+2026-01-23 21:13:00.865 +00:00 [INF]     📋 Tracking new peer: ID=1087766403, Title='Forbes Russia'
+2026-01-23 21:13:00.865 +00:00 [INF]     📋 Tracking new peer: ID=1213031253, Title='Политолог Богатырёв Chat'
+2026-01-23 21:13:00.865 +00:00 [INF]     📋 Tracking new peer: ID=1483144811, Title='Вражеские голоса'
+2026-01-23 21:13:00.865 +00:00 [INF]     📋 Tracking new peer: ID=1358865541, Title='Old Steam Navy'
+2026-01-23 21:13:00.866 +00:00 [INF]     📋 Tracking new peer: ID=1329012238, Title='ELENA LYOSHENKO'
+2026-01-23 21:13:00.866 +00:00 [INF]     📋 Tracking new peer: ID=321833052, Title='три? товарища?'
+2026-01-23 21:13:00.866 +00:00 [INF]     📋 Tracking new peer: ID=1294407103, Title='Три товарища'
+2026-01-23 21:13:00.866 +00:00 [INF]     📋 Tracking new peer: ID=1190090058, Title='Анна Долгарева пишет:'
+2026-01-23 21:13:00.866 +00:00 [INF]     📋 Tracking new peer: ID=1344605704, Title='Военный фотограф'
+2026-01-23 21:13:00.866 +00:00 [INF]     📋 Tracking new peer: ID=1121197193, Title='The Панда'
+2026-01-23 21:13:00.866 +00:00 [INF]     📋 Tracking new peer: ID=1298776695, Title='Amakhin'
+2026-01-23 21:13:00.867 +00:00 [INF]     📋 Tracking new peer: ID=1496386442, Title='Russian Lives Matter'
+2026-01-23 21:13:00.867 +00:00 [INF] === CHANNELS CONFIGURED IN SETTINGS ===
+2026-01-23 21:13:00.867 +00:00 [INF]   Config entry: Name='<null>' | ID=-1002243348201 | Parser=default
+2026-01-23 21:13:00.867 +00:00 [INF]   Config entry: Name='Fat_Pig_Signals1' | ID=0 | Parser=fat-pig
+2026-01-23 21:13:00.867 +00:00 [INF]   Config entry: Name='Bitcoin_BulletsSignals' | ID=0 | Parser=bitcoin-bullets
+2026-01-23 21:13:00.867 +00:00 [INF]   Config entry: Name='Wolfof_TradingViP1' | ID=0 | Parser=bitcoin-bullets
+2026-01-23 21:13:00.868 +00:00 [INF] === END OF CONFIG ===
+2026-01-23 21:13:00.868 +00:00 [INF] === RESOLVING CHANNELS ===
+2026-01-23 21:13:00.868 +00:00 [INF]   Resolving '-1002243348201'...
+2026-01-23 21:13:00.869 +00:00 [INF]     Trying by ID: -1002243348201 -> API format: 2243348201
+2026-01-23 21:13:00.869 +00:00 [INF]     ✅ Found by ID: 'CryptoNinjas Trading 🥷🏿'
+2026-01-23 21:13:00.870 +00:00 [INF]   ✅ SUCCESS: '-1002243348201' -> CryptoNinjas Trading 🥷🏿 (ID: 2243348201), parser: default
+2026-01-23 21:13:00.871 +00:00 [INF]   Resolving 'Fat_Pig_Signals1'...
+2026-01-23 21:13:00.872 +00:00 [INF]     Trying by name: 'Fat_Pig_Signals1' -> normalized: 'fat_pig_signals1'
+2026-01-23 21:13:00.873 +00:00 [INF]     ✅ Found by name: 'Fat Pig Signals' (ID: 2595715996)
+2026-01-23 21:13:00.873 +00:00 [INF]   ✅ SUCCESS: 'Fat_Pig_Signals1' -> Fat Pig Signals (ID: 2595715996), parser: fat-pig
+2026-01-23 21:13:00.873 +00:00 [INF]   Resolving 'Bitcoin_BulletsSignals'...
+2026-01-23 21:13:00.874 +00:00 [INF]     Trying by name: 'Bitcoin_BulletsSignals' -> normalized: 'bitcoin_bulletssignals'
+2026-01-23 21:13:00.874 +00:00 [INF]     ✅ Found by name: 'Bitcoin Bullets®' (ID: 2453871543)
+2026-01-23 21:13:00.874 +00:00 [INF]   ✅ SUCCESS: 'Bitcoin_BulletsSignals' -> Bitcoin Bullets® (ID: 2453871543), parser: bitcoin-bullets
+2026-01-23 21:13:00.874 +00:00 [INF]   Resolving 'Wolfof_TradingViP1'...
+2026-01-23 21:13:00.874 +00:00 [INF]     Trying by name: 'Wolfof_TradingViP1' -> normalized: 'wolfof_tradingvip1'
+2026-01-23 21:13:00.874 +00:00 [INF]     ✅ Found by name: 'Wolf of Trading® - ViP' (ID: 2617974841)
+2026-01-23 21:13:00.874 +00:00 [INF]   ✅ SUCCESS: 'Wolfof_TradingViP1' -> Wolf of Trading® - ViP (ID: 2617974841), parser: bitcoin-bullets
+2026-01-23 21:13:00.874 +00:00 [INF] === END OF RESOLUTION ===
+2026-01-23 21:13:00.877 +00:00 [INF] === FINAL MONITORED CHANNEL IDs ===
+2026-01-23 21:13:00.879 +00:00 [INF]   Monitoring ID 2243348201: CryptoNinjas Trading 🥷🏿
+2026-01-23 21:13:00.880 +00:00 [INF]   Monitoring ID 2595715996: Fat Pig Signals
+2026-01-23 21:13:00.880 +00:00 [INF]   Monitoring ID 2453871543: Bitcoin Bullets®
+2026-01-23 21:13:00.880 +00:00 [INF]   Monitoring ID 2617974841: Wolf of Trading® - ViP
+2026-01-23 21:13:00.881 +00:00 [INF] === Total: 4 channels ===
+2026-01-23 21:13:00.881 +00:00 [INF] TelegramSignalListener started successfully
+2026-01-23 21:13:00.881 +00:00 [INF] Starting TelegramCommandHandler...
+2026-01-23 21:13:01.082 +00:00 [INF] Telegram bot started: @trade_makhin_bot
+2026-01-23 21:13:01.082 +00:00 [INF] TelegramCommandHandler started successfully
+2026-01-23 21:13:01.083 +00:00 [INF] Telegram command handler started
+2026-01-23 21:13:01.083 +00:00 [INF] SignalBot started successfully
+2026-01-23 21:13:01.538 +00:00 [INF] 📨 Telegram update: UpdateShortMessage, 1 item(s)
+2026-01-23 21:13:01.541 +00:00 [INF]   📝 NewMessage from Channel_8556530593 (8556530593): ✅ SignalBot started Monitoring 4 Telegram channel(s) Max concurrent positions: 5
+2026-01-23 21:13:01.550 +00:00 [INF]     🔍 Checking channel Channel_8556530593 (ID=8556530593): isMonitored=false
+2026-01-23 21:13:01.552 +00:00 [INF]     ⏭️  Skip: not monitored (ID 8556530593 not in monitored list)
+2026-01-23 21:13:02.076 +00:00 [INF] SignalBot is running. Press Ctrl+C to stop.
+2026-01-23 21:13:14.135 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:13:14.136 +00:00 [INF]   ℹ️  Update item: UpdateChannelUserTyping
+2026-01-23 21:13:19.342 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:13:19.343 +00:00 [INF]   ℹ️  Update item: UpdateChannelUserTyping
+2026-01-23 21:13:24.361 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:13:24.362 +00:00 [INF]   ℹ️  Update item: UpdateChannelUserTyping
+2026-01-23 21:17:03.928 +00:00 [INF] SignalBot starting up...
+2026-01-23 21:17:05.141 +00:00 [INF] Using Binance Testnet API
+2026-01-23 21:17:05.155 +00:00 [INF] Futures Trading: ENABLED
+2026-01-23 21:17:05.713 +00:00 [INF] Starting SignalBot...
+2026-01-23 21:17:08.803 +00:00 [INF] Futures API connectivity test passed
+2026-01-23 21:17:08.805 +00:00 [INF] Connected to Binance Futures API
+2026-01-23 21:17:08.809 +00:00 [INF] Starting OrderMonitor...
+2026-01-23 21:17:09.109 +00:00 [INF] Started User Data Stream with listen key
+2026-01-23 21:17:09.111 +00:00 [INF] Subscribing to Futures order updates
+2026-01-23 21:17:18.368 +00:00 [INF] Successfully subscribed to order updates
+2026-01-23 21:17:18.377 +00:00 [INF] OrderMonitor started successfully
+2026-01-23 21:17:18.378 +00:00 [INF] Starting TelegramSignalListener...
+2026-01-23 21:17:19.348 +00:00 [INF] Logged in as Makhin (@53323600)
+2026-01-23 21:17:19.895 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:17:19.897 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:17:20.392 +00:00 [INF] Found 388 dialogs
+2026-01-23 21:17:20.394 +00:00 [INF] Available channels: 165 total
+2026-01-23 21:17:20.394 +00:00 [INF] === ALL AVAILABLE CHANNELS ===
+2026-01-23 21:17:20.396 +00:00 [INF]   Channel: 'Склероз Махина' | ID: 1234831480 | Username: @<none>
+2026-01-23 21:17:20.397 +00:00 [INF]   Channel: 'Политика Страны' | ID: 1092413834 | Username: @stranaua
+2026-01-23 21:17:20.397 +00:00 [INF]   Channel: 'Pepper.PL' | ID: 1221347678 | Username: @pl_pepper
+2026-01-23 21:17:20.397 +00:00 [INF]   Channel: 'Вагон-рельсосмазыватель' | ID: 2358095459 | Username: @relsa_smazka
+2026-01-23 21:17:20.397 +00:00 [INF]   Channel: 'Военный обозреватель' | ID: 1137332367 | Username: @new_militarycolumnist
+2026-01-23 21:17:20.398 +00:00 [INF]   Channel: 'CryptoNinjas Trading 🥷🏿' | ID: 2243348201 | Username: @i8_sp
+2026-01-23 21:17:20.398 +00:00 [INF]   Channel: 'Бочарик (ага, тот самый)' | ID: 1652257917 | Username: @botcharov
+2026-01-23 21:17:20.398 +00:00 [INF]   Channel: 'МИГ России' | ID: 1279747448 | Username: @mig41
+2026-01-23 21:17:20.398 +00:00 [INF]   Channel: 'LISOVSKIY' | ID: 1942208394 | Username: @LISOVSKIY_PRO
+2026-01-23 21:17:20.398 +00:00 [INF]   Channel: 'Flackelf' | ID: 1395004731 | Username: @andrey_selezov
+2026-01-23 21:17:20.399 +00:00 [INF]   Channel: 'Роман Сапоньков' | ID: 1323132810 | Username: @RSaponkov
+2026-01-23 21:17:20.399 +00:00 [INF]   Channel: 'Анатолий Шарий' | ID: 1343028414 | Username: @ASupersharij
+2026-01-23 21:17:20.399 +00:00 [INF]   Channel: 'Блокнот ⚒️ Перископа' | ID: 1666602871 | Username: @periskop_pacific
+2026-01-23 21:17:20.399 +00:00 [INF]   Channel: 'Равреба пишет' | ID: 1147905409 | Username: @Ravreba
+2026-01-23 21:17:20.400 +00:00 [INF]   Channel: 'историк-алкоголик' | ID: 1283286577 | Username: @istrkalkglk
+2026-01-23 21:17:20.400 +00:00 [INF]   Channel: 'ЖИВОВЪ' | ID: 1490307805 | Username: @zhivoff
+2026-01-23 21:17:20.400 +00:00 [INF]   Channel: 'Fighterbomber' | ID: 1251217154 | Username: @bomber_fighter
+2026-01-23 21:17:20.401 +00:00 [INF]   Channel: 'artjockey' | ID: 1842181039 | Username: @artjockey
+2026-01-23 21:17:20.401 +00:00 [INF]   Channel: 'bmpd' | ID: 1241559280 | Username: @bmpd_cast
+2026-01-23 21:17:20.401 +00:00 [INF]   Channel: 'Пастбище священных коров' | ID: 1682451341 | Username: @tatiana_v_vorontsova
+2026-01-23 21:17:20.401 +00:00 [INF]   Channel: 'Аrtem Kirpichenok' | ID: 1227604263 | Username: @artkirpich
+2026-01-23 21:17:20.401 +00:00 [INF]   Channel: 'Разработчик БПЛА' | ID: 1693385845 | Username: @UAVDEV
+2026-01-23 21:17:20.401 +00:00 [INF]   Channel: 'molodykh.online' | ID: 1132399912 | Username: @molodykhonline
+2026-01-23 21:17:20.402 +00:00 [INF]   Channel: 'Вячеслав Азаров' | ID: 1573428405 | Username: @slav_azaroff
+2026-01-23 21:17:20.402 +00:00 [INF]   Channel: 'QA — вакансии' | ID: 1089317451 | Username: @qa_jobs
+2026-01-23 21:17:20.402 +00:00 [INF]   Channel: 'Marina Akhmedova' | ID: 1147203857 | Username: @Marinaslovo
+2026-01-23 21:17:20.402 +00:00 [INF]   Channel: '[Ex]Freedomist.ru: NEWS' | ID: 1961778709 | Username: @freedomist_news
+2026-01-23 21:17:20.402 +00:00 [INF]   Channel: 'Алиса, что нового?' | ID: 1277711909 | Username: @alice_yndx
+2026-01-23 21:17:20.403 +00:00 [INF]   Channel: 'Коты и кошка Крамника' | ID: 1355817617 | Username: @kramnikcat
+2026-01-23 21:17:20.403 +00:00 [INF]   Channel: 'Варшавская русалка' | ID: 1577023152 | Username: @pl_syrenka
+2026-01-23 21:17:20.403 +00:00 [INF]   Channel: 'Панцервафли/Panzerwaffle' | ID: 1132045485 | Username: @panzwaffle
+2026-01-23 21:17:20.403 +00:00 [INF]   Channel: 'ЭКСТАЗ 🔞' | ID: 2046391103 | Username: @<none>
+2026-01-23 21:17:20.403 +00:00 [INF]   Channel: 'Русский инженер' | ID: 1255807651 | Username: @rusengineer
+2026-01-23 21:17:20.403 +00:00 [INF]   Channel: 'Arestovich / Official' | ID: 1225597716 | Username: @O_Arestovich_official
+2026-01-23 21:17:20.403 +00:00 [INF]   Channel: 'Григорий Пернавский' | ID: 1189069929 | Username: @slonomuch
+2026-01-23 21:17:20.404 +00:00 [INF]   Channel: 'Сергій FLASH | Про технології' | ID: 1836374264 | Username: @serhii_flash
+2026-01-23 21:17:20.404 +00:00 [INF]   Channel: 'Sasha Hov' | ID: 1609596880 | Username: @sasha_hov1
+2026-01-23 21:17:20.404 +00:00 [INF]   Channel: 'Расследования авиакатастроф' | ID: 1380021391 | Username: @rumayday
+2026-01-23 21:17:20.404 +00:00 [INF]   Channel: 'DarkZotovLand' | ID: 1303611368 | Username: @darkzotovland
+2026-01-23 21:17:20.404 +00:00 [INF]   Channel: 'CryptoNinjas Trading 🥷🏿' | ID: 1573488012 | Username: @cryptoninjas_trading_ann
+2026-01-23 21:17:20.405 +00:00 [INF]   Channel: 'Bitcoin Bullets®' | ID: 2453871543 | Username: @Bitcoin_BulletsSignals
+2026-01-23 21:17:20.405 +00:00 [INF]   Channel: 'Wolf of Trading® - ViP' | ID: 2617974841 | Username: @Wolfof_TradingViP1
+2026-01-23 21:17:20.405 +00:00 [INF]   Channel: 'Fat Pig Signals' | ID: 2595715996 | Username: @Fat_Pig_Signals1
+2026-01-23 21:17:20.405 +00:00 [INF]   Channel: 'Центр «РУБИКОН»' | ID: 2251360037 | Username: @icpbtrubicon
+2026-01-23 21:17:20.405 +00:00 [INF]   Channel: 'Бондаренко: Былое и Думы' | ID: 2128282729 | Username: @kost1969
+2026-01-23 21:17:20.405 +00:00 [INF]   Channel: 'artjockey заметки' | ID: 2054798398 | Username: @artjockey_lite
+2026-01-23 21:17:20.405 +00:00 [INF]   Channel: 'Гаджеты и технологии на Вильянов.Ком' | ID: 1031925495 | Username: @vilianov
+2026-01-23 21:17:20.406 +00:00 [INF]   Channel: 'Физика в картинках' | ID: 1238093288 | Username: @physiovisio
+2026-01-23 21:17:20.406 +00:00 [INF]   Channel: 'ПОЕЗДАТЫЕ путешествия 😉' | ID: 1956652556 | Username: @poezdatytrip
+2026-01-23 21:17:20.406 +00:00 [INF]   Channel: 'Trading Signal Test Channel' | ID: 3045070745 | Username: @trading_signal_test
+2026-01-23 21:17:20.406 +00:00 [INF]   Channel: 'MaksNews' | ID: 1489146059 | Username: @MaksNewsOdessa
+2026-01-23 21:17:20.406 +00:00 [INF]   Channel: 'Панские путешествия' | ID: 1542851009 | Username: @pan_sapunov
+2026-01-23 21:17:20.407 +00:00 [INF]   Channel: 'Photographer Alexander Grinn' | ID: 1589555700 | Username: @<none>
+2026-01-23 21:17:20.407 +00:00 [INF]   Channel: 'Fast Reports Info' | ID: 1255201983 | Username: @fastreports
+2026-01-23 21:17:20.407 +00:00 [INF]   Channel: 'Platforma Migranta - Tetiana Chyzh' | ID: 2306684982 | Username: @platformamigranta
+2026-01-23 21:17:20.407 +00:00 [INF]   Channel: 'Шрайк' | ID: 1277887027 | Username: @RomanShrike
+2026-01-23 21:17:20.407 +00:00 [INF]   Channel: 'Васильев Одесский' | ID: 1146695496 | Username: @vasilievodessa
+2026-01-23 21:17:20.408 +00:00 [INF]   Channel: 'Слова в моей голове' | ID: 1088874040 | Username: @slova_v_mojej_golove
+2026-01-23 21:17:20.408 +00:00 [INF]   Channel: 'УРУС_ХАЙ' | ID: 1578923656 | Username: @urus_hay
+2026-01-23 21:17:20.408 +00:00 [INF]   Channel: 'RuTracker.org - официальный канал' | ID: 1083723966 | Username: @rutracker_news
+2026-01-23 21:17:20.408 +00:00 [INF]   Channel: 'DotNetRu' | ID: 1152155387 | Username: @DotNetRu
+2026-01-23 21:17:20.408 +00:00 [INF]   Channel: 'Оператор Шагающей Мясорубки|Española' | ID: 1645220193 | Username: @<none>
+2026-01-23 21:17:20.408 +00:00 [INF]   Channel: 'Саня' | ID: 1135964469 | Username: @<none>
+2026-01-23 21:17:20.409 +00:00 [INF]   Channel: 'Саня Александровна' | ID: 1217850201 | Username: @<none>
+2026-01-23 21:17:20.409 +00:00 [INF]   Channel: 'Политика & Геополитика' | ID: 1610456219 | Username: @homogeopoliticus
+2026-01-23 21:17:20.409 +00:00 [INF]   Channel: 'Рецензии от Шрайка' | ID: 1070271754 | Username: @ShrikeReview
+2026-01-23 21:17:20.409 +00:00 [INF]   Channel: 'Железные Письма' | ID: 1559617512 | Username: @vilianov_live
+2026-01-23 21:17:20.409 +00:00 [INF]   Channel: 'Крэйг Эштон' | ID: 1798945033 | Username: @craigashtonspb
+2026-01-23 21:17:20.409 +00:00 [INF]   Channel: 'popolsku' | ID: 1236939581 | Username: @popolsku
+2026-01-23 21:17:20.410 +00:00 [INF]   Channel: '𝐀𝐓𝐎𝐌𝐈𝐂 𝐂𝐇𝐄𝐑𝐑𝐘' | ID: 1313818890 | Username: @atomiccherry
+2026-01-23 21:17:20.410 +00:00 [INF]   Channel: 'Соколов-Митрич' | ID: 1205945104 | Username: @smitrich
+2026-01-23 21:17:20.410 +00:00 [INF]   Channel: 'БЮРО 1440' | ID: 1827782535 | Username: @bureau_1440
+2026-01-23 21:17:20.410 +00:00 [INF]   Channel: 'Зоя' | ID: 1658637911 | Username: @<none>
+2026-01-23 21:17:20.410 +00:00 [INF]   Channel: 'Зоя Александровна' | ID: 1815715366 | Username: @<none>
+2026-01-23 21:17:20.411 +00:00 [INF]   Channel: 'Книги' | ID: 1603604203 | Username: @<none>
+2026-01-23 21:17:20.411 +00:00 [INF]   Channel: 'Путевые заметки махиных' | ID: 1188145542 | Username: @travel_notes_makhin
+2026-01-23 21:17:20.411 +00:00 [INF]   Channel: 'IVAN THE INTELLIGENT' | ID: 1792691324 | Username: @ivan_the_intelligent
+2026-01-23 21:17:20.411 +00:00 [INF]   Channel: 'Росс Марсов' | ID: 1302166171 | Username: @rhosmarssov
+2026-01-23 21:17:20.411 +00:00 [INF]   Channel: 'Империя курильщика' | ID: 1590337026 | Username: @georgy_ma
+2026-01-23 21:17:20.411 +00:00 [INF]   Channel: 'татарская княжна бензопилой' | ID: 1250882724 | Username: @nevezhenstvennost
+2026-01-23 21:17:20.412 +00:00 [INF]   Channel: 'Sharavoz IPTV' | ID: 1938188062 | Username: @<none>
+2026-01-23 21:17:20.412 +00:00 [INF]   Channel: 'Чат канала ПОЕЗДАТЫЕ путешествия' | ID: 1911279101 | Username: @<none>
+2026-01-23 21:17:20.412 +00:00 [INF]   Channel: 'Радио Sputnik' | ID: 1076999981 | Username: @radio_sputnik
+2026-01-23 21:17:20.412 +00:00 [INF]   Channel: 'LISOVSKIY PRODUCTION Chat' | ID: 2015171742 | Username: @LISOVSKIY_CHAT
+2026-01-23 21:17:20.412 +00:00 [INF]   Channel: 'Flackelf Chat' | ID: 1995863548 | Username: @<none>
+2026-01-23 21:17:20.412 +00:00 [INF]   Channel: 'Два майора' | ID: 1513431778 | Username: @dva_majors
+2026-01-23 21:17:20.413 +00:00 [INF]   Channel: 'Комменты Сапонькова' | ID: 1168423440 | Username: @Saponkov_comments
+2026-01-23 21:17:20.413 +00:00 [INF]   Channel: 'Сomments' | ID: 1219094968 | Username: @fbchatik
+2026-01-23 21:17:20.413 +00:00 [INF]   Channel: 'Пастбище священных коров' | ID: 1437157421 | Username: @<none>
+2026-01-23 21:17:20.413 +00:00 [INF]   Channel: 'UAVChat' | ID: 1812089312 | Username: @UAVDEVChat
+2026-01-23 21:17:20.413 +00:00 [INF]   Channel: 'molodykh.online Chat' | ID: 1497452626 | Username: @<none>
+2026-01-23 21:17:20.414 +00:00 [INF]   Channel: 'Последний махновец' | ID: 1303101375 | Username: @last_makhnovist
+2026-01-23 21:17:20.414 +00:00 [INF]   Channel: '[Ex]Freedomist: united chat' | ID: 2075226134 | Username: @<none>
+2026-01-23 21:17:20.414 +00:00 [INF]   Channel: '🎄Яндекс Станция, Умный дом и устройства с Алисой' | ID: 1276901291 | Username: @station_yandex
+2026-01-23 21:17:20.414 +00:00 [INF]   Channel: 'LOADING NEWS....' | ID: 3550279579 | Username: @loading_news
+2026-01-23 21:17:20.414 +00:00 [INF]   Channel: 'Всратые Авиаконструкторы' | ID: 1659192801 | Username: @aviamemes
+2026-01-23 21:17:20.415 +00:00 [INF]   Channel: 'ЭКСТАЗ 🔞 Chat' | ID: 1946530945 | Username: @<none>
+2026-01-23 21:17:20.415 +00:00 [INF]   Channel: 'Русский инженер' | ID: 1875466095 | Username: @<none>
+2026-01-23 21:17:20.415 +00:00 [INF]   Channel: 'Красный Фронтовик' | ID: 1154849444 | Username: @rotfront_1917_1945
+2026-01-23 21:17:20.415 +00:00 [INF]   Channel: 'Мушиный слоновник' | ID: 1382330908 | Username: @slonomuhchat
+2026-01-23 21:17:20.415 +00:00 [INF]   Channel: 'Сергій FLASH | Про технології Chat' | ID: 1694108014 | Username: @<none>
+2026-01-23 21:17:20.415 +00:00 [INF]   Channel: 'Чат Расследования авиакатастроф' | ID: 1332803230 | Username: @<none>
+2026-01-23 21:17:20.415 +00:00 [INF]   Channel: 'DarkZotovLand Chat' | ID: 1949350369 | Username: @<none>
+2026-01-23 21:17:20.415 +00:00 [INF]   Channel: 'Вильянов Чат' | ID: 1496030614 | Username: @<none>
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'Физика в картинках - обсуждения' | ID: 2166676698 | Username: @<none>
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'MaksNews Chat' | ID: 1287541656 | Username: @<none>
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'Пан Сапунов. По городам и весям Chat' | ID: 1499779417 | Username: @pan_sapunov_chat
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'Photographer Alexander Grinn (Chat)' | ID: 1244120027 | Username: @<none>
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'Fast Reports Info Chat' | ID: 1666257159 | Username: @<none>
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'УРУС_ХАЙ Chat' | ID: 1559292557 | Username: @<none>
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'Gabrielle Duvoisin' | ID: 2242230044 | Username: @GabrielleDuvoisinMoscow
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'Ежедневная Шагающая Мясорубка' | ID: 1305875731 | Username: @egshm
+2026-01-23 21:17:20.416 +00:00 [INF]   Channel: 'Чат Рецензий 💬' | ID: 1211769106 | Username: @ShrikeReviewChat
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: 'Чат Железных Писем' | ID: 1511993207 | Username: @<none>
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: '❄️☃️Чат Крэйга☃️❄️' | ID: 1586721906 | Username: @craigashtonchat
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: 'Севостьянов - казачий дневник' | ID: 1490982382 | Username: @kazachiydozor
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: 'РоссПизделись (Модератор)' | ID: 1730531833 | Username: @<none>
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: 'aigelslv' | ID: 1752909144 | Username: @aigelslv
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: 'Mi Watch/Band/S1-S4/RW4 news' | ID: 1234274112 | Username: @mi_watch_news
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: 'Saulius ProAuto | автоподбор, осмотр, пригон 🇵🇱 🇱🇹' | ID: 1812678998 | Username: @sauliusproauto
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: 'Эксперт, на выезд!' | ID: 1746940269 | Username: @expert_krim
+2026-01-23 21:17:20.417 +00:00 [INF]   Channel: 'Члены МП при ГД мундепы' | ID: 2505287779 | Username: @<none>
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'Богатый Боря' | ID: 1315396301 | Username: @bogatiy_borya
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'Secret Channel of William Forester' | ID: 2217508182 | Username: @williamforrester
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'AnyPlayer' | ID: 1963028942 | Username: @<none>
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'Книжная Ярмарка' | ID: 1520377475 | Username: @b00kfair
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'мамкина ленгвистка' | ID: 1142577446 | Username: @wordsofsnownew
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'Незаслуженный учитель России' | ID: 1127383278 | Username: @leavethekidsalone
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'Шпион, которому никто не пишет' | ID: 1554414395 | Username: @genshab
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'NEXTGAME | Видеоигры | Мемы | Новости' | ID: 1804559591 | Username: @gamepros
+2026-01-23 21:17:20.418 +00:00 [INF]   Channel: 'Mi Watch/Band/S1-S4/RW4 news discussions' | ID: 2355621532 | Username: @<none>
+2026-01-23 21:17:20.419 +00:00 [INF]   Channel: 'Эксперт, на выезд!' | ID: 1801367419 | Username: @krim_expert
+2026-01-23 21:17:20.419 +00:00 [INF]   Channel: 'Bogatiy Borya' | ID: 2781351929 | Username: @<none>
+2026-01-23 21:17:20.419 +00:00 [INF]   Channel: 'Андрей Недовес' | ID: 1216368714 | Username: @a_nedoves
+2026-01-23 21:17:20.419 +00:00 [INF]   Channel: 'Московский строитель 👷🏼‍♂️' | ID: 1874719887 | Username: @stroitel_mos
+2026-01-23 21:17:20.419 +00:00 [INF]   Channel: 'Заяц ПЦ' | ID: 1353951187 | Username: @zayats_pts
+2026-01-23 21:17:20.419 +00:00 [INF]   Channel: '****' | ID: 2100055615 | Username: @<none>
+2026-01-23 21:17:20.419 +00:00 [INF]   Channel: 'Бродяга серых зон' | ID: 1608957666 | Username: @gray_area_wanderer
+2026-01-23 21:17:20.419 +00:00 [INF]   Channel: 'Accept the reality💳' | ID: 1582179432 | Username: @cfw24gawr
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: 'Stwardnienie rozsiane' | ID: 1199760964 | Username: @StwardnienieRozsiane
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: 'Wroclove' | ID: 1361095770 | Username: @<none>
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: 'ДБ' | ID: 1717072489 | Username: @<none>
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: 'Версия Лесева' | ID: 1322607357 | Username: @Lesev_Igor
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: 'Без подписи' | ID: 1555867644 | Username: @bezzpodpisi
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: 'Brave New World' | ID: 1203153795 | Username: @bravenewworldblog
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: 'Пикейные жилеты - обсуждение' | ID: 1580584680 | Username: @<none>
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: 'Пикейные жилеты (Польша)' | ID: 1638798753 | Username: @piquewaistcoats
+2026-01-23 21:17:20.420 +00:00 [INF]   Channel: '.' | ID: 1588678078 | Username: @<none>
+2026-01-23 21:17:20.421 +00:00 [INF]   Channel: 'Политолог Богатырёв' | ID: 1389991268 | Username: @polit_bogatyr
+2026-01-23 21:17:20.421 +00:00 [INF]   Channel: '@userinfobot iD telegram' | ID: 1766930889 | Username: @userinfobotidtele
+2026-01-23 21:17:20.421 +00:00 [INF]   Channel: 'Что там в .NET?' | ID: 1333752299 | Username: @dotnew
+2026-01-23 21:17:20.421 +00:00 [INF]   Channel: 'Юрий Ткачёв' | ID: 1203105091 | Username: @dadzibao
+2026-01-23 21:17:20.421 +00:00 [INF]   Channel: 'lil_artjulia-cookies' | ID: 1761105391 | Username: @lilartjulia
+2026-01-23 21:17:20.421 +00:00 [INF]   Channel: 'Юрий Ткачёв (резерв)' | ID: 1767938884 | Username: @<none>
+2026-01-23 21:17:20.421 +00:00 [INF]   Channel: 'Forbes Russia' | ID: 1087766403 | Username: @forbesrussia
+2026-01-23 21:17:20.422 +00:00 [INF]   Channel: 'Политолог Богатырёв Chat' | ID: 1213031253 | Username: @<none>
+2026-01-23 21:17:20.422 +00:00 [INF]   Channel: 'Вражеские голоса' | ID: 1483144811 | Username: @vgolosa
+2026-01-23 21:17:20.422 +00:00 [INF]   Channel: 'Old Steam Navy' | ID: 1358865541 | Username: @oldsteamnavy
+2026-01-23 21:17:20.422 +00:00 [INF]   Channel: 'ELENA LYOSHENKO' | ID: 1329012238 | Username: @ElenaLyoshenko
+2026-01-23 21:17:20.422 +00:00 [INF]   Channel: 'Три товарища' | ID: 1294407103 | Username: @<none>
+2026-01-23 21:17:20.422 +00:00 [INF]   Channel: 'Анна Долгарева пишет:' | ID: 1190090058 | Username: @<none>
+2026-01-23 21:17:20.422 +00:00 [INF]   Channel: 'Военный фотограф' | ID: 1344605704 | Username: @<none>
+2026-01-23 21:17:20.422 +00:00 [INF]   Channel: 'The Панда' | ID: 1121197193 | Username: @the_panda3
+2026-01-23 21:17:20.423 +00:00 [INF]   Channel: 'Amakhin' | ID: 1298776695 | Username: @<none>
+2026-01-23 21:17:20.423 +00:00 [INF]   Channel: 'Russian Lives Matter' | ID: 1496386442 | Username: @SNGNOVOSTNOY
+2026-01-23 21:17:20.423 +00:00 [INF] === END OF CHANNEL LIST ===
+2026-01-23 21:17:20.435 +00:00 [INF]     📋 Tracking new peer: ID=1234831480, Title='Склероз Махина'
+2026-01-23 21:17:20.437 +00:00 [INF]     📋 Tracking new peer: ID=1092413834, Title='Политика Страны'
+2026-01-23 21:17:20.437 +00:00 [INF]     📋 Tracking new peer: ID=1221347678, Title='Pepper.PL'
+2026-01-23 21:17:20.437 +00:00 [INF]     📋 Tracking new peer: ID=2358095459, Title='Вагон-рельсосмазыватель'
+2026-01-23 21:17:20.438 +00:00 [INF]     📋 Tracking new peer: ID=4627771852, Title='Вагон-рельсосмазыватель'
+2026-01-23 21:17:20.438 +00:00 [INF]     📋 Tracking new peer: ID=1137332367, Title='Военный обозреватель'
+2026-01-23 21:17:20.438 +00:00 [INF]     📋 Tracking new peer: ID=2243348201, Title='CryptoNinjas Trading 🥷🏿'
+2026-01-23 21:17:20.438 +00:00 [INF]     📋 Tracking new peer: ID=1652257917, Title='Бочарик (ага, тот самый)'
+2026-01-23 21:17:20.438 +00:00 [INF]     📋 Tracking new peer: ID=1279747448, Title='МИГ России'
+2026-01-23 21:17:20.438 +00:00 [INF]     📋 Tracking new peer: ID=1942208394, Title='LISOVSKIY'
+2026-01-23 21:17:20.439 +00:00 [INF]     📋 Tracking new peer: ID=1395004731, Title='Flackelf'
+2026-01-23 21:17:20.439 +00:00 [INF]     📋 Tracking new peer: ID=1323132810, Title='Роман Сапоньков'
+2026-01-23 21:17:20.439 +00:00 [INF]     📋 Tracking new peer: ID=1343028414, Title='Анатолий Шарий'
+2026-01-23 21:17:20.439 +00:00 [INF]     📋 Tracking new peer: ID=1666602871, Title='Блокнот ⚒️ Перископа'
+2026-01-23 21:17:20.439 +00:00 [INF]     📋 Tracking new peer: ID=1147905409, Title='Равреба пишет'
+2026-01-23 21:17:20.439 +00:00 [INF]     📋 Tracking new peer: ID=1283286577, Title='историк-алкоголик'
+2026-01-23 21:17:20.439 +00:00 [INF]     📋 Tracking new peer: ID=1490307805, Title='ЖИВОВЪ'
+2026-01-23 21:17:20.440 +00:00 [INF]     📋 Tracking new peer: ID=1251217154, Title='Fighterbomber'
+2026-01-23 21:17:20.440 +00:00 [INF]     📋 Tracking new peer: ID=1842181039, Title='artjockey'
+2026-01-23 21:17:20.440 +00:00 [INF]     📋 Tracking new peer: ID=1241559280, Title='bmpd'
+2026-01-23 21:17:20.440 +00:00 [INF]     📋 Tracking new peer: ID=1682451341, Title='Пастбище священных коров'
+2026-01-23 21:17:20.440 +00:00 [INF]     📋 Tracking new peer: ID=1227604263, Title='Аrtem Kirpichenok'
+2026-01-23 21:17:20.440 +00:00 [INF]     📋 Tracking new peer: ID=1693385845, Title='Разработчик БПЛА'
+2026-01-23 21:17:20.440 +00:00 [INF]     📋 Tracking new peer: ID=1132399912, Title='molodykh.online'
+2026-01-23 21:17:20.441 +00:00 [INF]     📋 Tracking new peer: ID=1573428405, Title='Вячеслав Азаров'
+2026-01-23 21:17:20.441 +00:00 [INF]     📋 Tracking new peer: ID=1089317451, Title='QA — вакансии'
+2026-01-23 21:17:20.442 +00:00 [INF]     📋 Tracking new peer: ID=138542112, Title='QA Jobs - Вакансии и аналитика'
+2026-01-23 21:17:20.442 +00:00 [INF]     📋 Tracking new peer: ID=1147203857, Title='Marina Akhmedova'
+2026-01-23 21:17:20.443 +00:00 [INF]     📋 Tracking new peer: ID=1961778709, Title='[Ex]Freedomist.ru: NEWS'
+2026-01-23 21:17:20.443 +00:00 [INF]     📋 Tracking new peer: ID=1277711909, Title='Алиса, что нового?'
+2026-01-23 21:17:20.443 +00:00 [INF]     📋 Tracking new peer: ID=1355817617, Title='Коты и кошка Крамника'
+2026-01-23 21:17:20.443 +00:00 [INF]     📋 Tracking new peer: ID=1577023152, Title='Варшавская русалка'
+2026-01-23 21:17:20.443 +00:00 [INF]     📋 Tracking new peer: ID=1132045485, Title='Панцервафли/Panzerwaffle'
+2026-01-23 21:17:20.443 +00:00 [INF]     📋 Tracking new peer: ID=2046391103, Title='ЭКСТАЗ 🔞'
+2026-01-23 21:17:20.443 +00:00 [INF]     📋 Tracking new peer: ID=1255807651, Title='Русский инженер'
+2026-01-23 21:17:20.444 +00:00 [INF]     📋 Tracking new peer: ID=1225597716, Title='Arestovich / Official'
+2026-01-23 21:17:20.444 +00:00 [INF]     📋 Tracking new peer: ID=1189069929, Title='Григорий Пернавский'
+2026-01-23 21:17:20.444 +00:00 [INF]     📋 Tracking new peer: ID=1836374264, Title='Сергій FLASH | Про технології'
+2026-01-23 21:17:20.444 +00:00 [INF]     📋 Tracking new peer: ID=1609596880, Title='Sasha Hov'
+2026-01-23 21:17:20.444 +00:00 [INF]     📋 Tracking new peer: ID=1380021391, Title='Расследования авиакатастроф'
+2026-01-23 21:17:20.444 +00:00 [INF]     📋 Tracking new peer: ID=1303611368, Title='DarkZotovLand'
+2026-01-23 21:17:20.444 +00:00 [INF]     📋 Tracking new peer: ID=1573488012, Title='CryptoNinjas Trading 🥷🏿'
+2026-01-23 21:17:20.445 +00:00 [INF]     📋 Tracking new peer: ID=2453871543, Title='Bitcoin Bullets®'
+2026-01-23 21:17:20.445 +00:00 [INF]     📋 Tracking new peer: ID=2617974841, Title='Wolf of Trading® - ViP'
+2026-01-23 21:17:20.445 +00:00 [INF]     📋 Tracking new peer: ID=2595715996, Title='Fat Pig Signals'
+2026-01-23 21:17:20.445 +00:00 [INF]     📋 Tracking new peer: ID=2251360037, Title='Центр «РУБИКОН»'
+2026-01-23 21:17:20.445 +00:00 [INF]     📋 Tracking new peer: ID=2128282729, Title='Бондаренко: Былое и Думы'
+2026-01-23 21:17:20.445 +00:00 [INF]     📋 Tracking new peer: ID=2054798398, Title='artjockey заметки'
+2026-01-23 21:17:20.445 +00:00 [INF]     📋 Tracking new peer: ID=1031925495, Title='Гаджеты и технологии на Вильянов.Ком'
+2026-01-23 21:17:20.445 +00:00 [INF]     📋 Tracking new peer: ID=1238093288, Title='Физика в картинках'
+2026-01-23 21:17:20.446 +00:00 [INF]     📋 Tracking new peer: ID=1956652556, Title='ПОЕЗДАТЫЕ путешествия 😉'
+2026-01-23 21:17:20.446 +00:00 [INF]     📋 Tracking new peer: ID=3045070745, Title='Trading Signal Test Channel'
+2026-01-23 21:17:20.446 +00:00 [INF]     📋 Tracking new peer: ID=1489146059, Title='MaksNews'
+2026-01-23 21:17:20.446 +00:00 [INF]     📋 Tracking new peer: ID=1542851009, Title='Панские путешествия'
+2026-01-23 21:17:20.446 +00:00 [INF]     📋 Tracking new peer: ID=1589555700, Title='Photographer Alexander Grinn'
+2026-01-23 21:17:20.446 +00:00 [INF]     📋 Tracking new peer: ID=1255201983, Title='Fast Reports Info'
+2026-01-23 21:17:20.446 +00:00 [INF]     📋 Tracking new peer: ID=2306684982, Title='Platforma Migranta - Tetiana Chyzh'
+2026-01-23 21:17:20.447 +00:00 [INF]     📋 Tracking new peer: ID=1277887027, Title='Шрайк'
+2026-01-23 21:17:20.447 +00:00 [INF]     📋 Tracking new peer: ID=1146695496, Title='Васильев Одесский'
+2026-01-23 21:17:20.447 +00:00 [INF]     📋 Tracking new peer: ID=1088874040, Title='Слова в моей голове'
+2026-01-23 21:17:20.447 +00:00 [INF]     📋 Tracking new peer: ID=1578923656, Title='УРУС_ХАЙ'
+2026-01-23 21:17:20.447 +00:00 [INF]     📋 Tracking new peer: ID=1083723966, Title='RuTracker.org - официальный канал'
+2026-01-23 21:17:20.447 +00:00 [INF]     📋 Tracking new peer: ID=1152155387, Title='DotNetRu'
+2026-01-23 21:17:20.447 +00:00 [INF]     📋 Tracking new peer: ID=1645220193, Title='Оператор Шагающей Мясорубки|Española'
+2026-01-23 21:17:20.448 +00:00 [INF]     📋 Tracking new peer: ID=1135964469, Title='Саня'
+2026-01-23 21:17:20.448 +00:00 [INF]     📋 Tracking new peer: ID=1217850201, Title='Саня Александровна'
+2026-01-23 21:17:20.448 +00:00 [INF]     📋 Tracking new peer: ID=1610456219, Title='Политика & Геополитика'
+2026-01-23 21:17:20.448 +00:00 [INF]     📋 Tracking new peer: ID=1070271754, Title='Рецензии от Шрайка'
+2026-01-23 21:17:20.448 +00:00 [INF]     📋 Tracking new peer: ID=1559617512, Title='Железные Письма'
+2026-01-23 21:17:20.448 +00:00 [INF]     📋 Tracking new peer: ID=1798945033, Title='Крэйг Эштон'
+2026-01-23 21:17:20.448 +00:00 [INF]     📋 Tracking new peer: ID=1236939581, Title='popolsku'
+2026-01-23 21:17:20.448 +00:00 [INF]     📋 Tracking new peer: ID=1313818890, Title='𝐀𝐓𝐎𝐌𝐈𝐂 𝐂𝐇𝐄𝐑𝐑𝐘'
+2026-01-23 21:17:20.449 +00:00 [INF]     📋 Tracking new peer: ID=1205945104, Title='Соколов-Митрич'
+2026-01-23 21:17:20.449 +00:00 [INF]     📋 Tracking new peer: ID=1827782535, Title='БЮРО 1440'
+2026-01-23 21:17:20.449 +00:00 [INF]     📋 Tracking new peer: ID=1658637911, Title='Зоя'
+2026-01-23 21:17:20.449 +00:00 [INF]     📋 Tracking new peer: ID=978784048, Title='Zoja'
+2026-01-23 21:17:20.450 +00:00 [INF]     📋 Tracking new peer: ID=1815715366, Title='Зоя Александровна'
+2026-01-23 21:17:20.450 +00:00 [INF]     📋 Tracking new peer: ID=1603604203, Title='Книги'
+2026-01-23 21:17:20.451 +00:00 [INF]     📋 Tracking new peer: ID=717603721, Title='Книги'
+2026-01-23 21:17:20.452 +00:00 [INF]     📋 Tracking new peer: ID=1188145542, Title='Путевые заметки махиных'
+2026-01-23 21:17:20.452 +00:00 [INF]     📋 Tracking new peer: ID=1792691324, Title='IVAN THE INTELLIGENT'
+2026-01-23 21:17:20.452 +00:00 [INF]     📋 Tracking new peer: ID=1302166171, Title='Росс Марсов'
+2026-01-23 21:17:20.452 +00:00 [INF]     📋 Tracking new peer: ID=1590337026, Title='Империя курильщика'
+2026-01-23 21:17:20.452 +00:00 [INF]     📋 Tracking new peer: ID=1250882724, Title='татарская княжна бензопилой'
+2026-01-23 21:17:20.452 +00:00 [INF]     📋 Tracking new peer: ID=1938188062, Title='Sharavoz IPTV'
+2026-01-23 21:17:20.452 +00:00 [INF]     📋 Tracking new peer: ID=1911279101, Title='Чат канала ПОЕЗДАТЫЕ путешествия'
+2026-01-23 21:17:20.452 +00:00 [INF]     📋 Tracking new peer: ID=1076999981, Title='Радио Sputnik'
+2026-01-23 21:17:20.453 +00:00 [INF]     📋 Tracking new peer: ID=2015171742, Title='LISOVSKIY PRODUCTION Chat'
+2026-01-23 21:17:20.453 +00:00 [INF]     📋 Tracking new peer: ID=1995863548, Title='Flackelf Chat'
+2026-01-23 21:17:20.453 +00:00 [INF]     📋 Tracking new peer: ID=1513431778, Title='Два майора'
+2026-01-23 21:17:20.453 +00:00 [INF]     📋 Tracking new peer: ID=1168423440, Title='Комменты Сапонькова'
+2026-01-23 21:17:20.453 +00:00 [INF]     📋 Tracking new peer: ID=1219094968, Title='Сomments'
+2026-01-23 21:17:20.453 +00:00 [INF]     📋 Tracking new peer: ID=1437157421, Title='Пастбище священных коров'
+2026-01-23 21:17:20.453 +00:00 [INF]     📋 Tracking new peer: ID=1812089312, Title='UAVChat'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=1497452626, Title='molodykh.online Chat'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=1303101375, Title='Последний махновец'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=2075226134, Title='[Ex]Freedomist: united chat'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=1276901291, Title='🎄Яндекс Станция, Умный дом и устройства с Алисой'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=3550279579, Title='LOADING NEWS....'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=1659192801, Title='Всратые Авиаконструкторы'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=1946530945, Title='ЭКСТАЗ 🔞 Chat'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=1875466095, Title='Русский инженер'
+2026-01-23 21:17:20.454 +00:00 [INF]     📋 Tracking new peer: ID=1154849444, Title='Красный Фронтовик'
+2026-01-23 21:17:20.455 +00:00 [INF]     📋 Tracking new peer: ID=1382330908, Title='Мушиный слоновник'
+2026-01-23 21:17:20.455 +00:00 [INF]     📋 Tracking new peer: ID=1694108014, Title='Сергій FLASH | Про технології Chat'
+2026-01-23 21:17:20.455 +00:00 [INF]     📋 Tracking new peer: ID=1332803230, Title='Чат Расследования авиакатастроф'
+2026-01-23 21:17:20.455 +00:00 [INF]     📋 Tracking new peer: ID=1949350369, Title='DarkZotovLand Chat'
+2026-01-23 21:17:20.455 +00:00 [INF]     📋 Tracking new peer: ID=1496030614, Title='Вильянов Чат'
+2026-01-23 21:17:20.455 +00:00 [INF]     📋 Tracking new peer: ID=2166676698, Title='Физика в картинках - обсуждения'
+2026-01-23 21:17:20.455 +00:00 [INF]     📋 Tracking new peer: ID=1287541656, Title='MaksNews Chat'
+2026-01-23 21:17:20.456 +00:00 [INF]     📋 Tracking new peer: ID=1499779417, Title='Пан Сапунов. По городам и весям Chat'
+2026-01-23 21:17:20.456 +00:00 [INF]     📋 Tracking new peer: ID=1244120027, Title='Photographer Alexander Grinn (Chat)'
+2026-01-23 21:17:20.456 +00:00 [INF]     📋 Tracking new peer: ID=1666257159, Title='Fast Reports Info Chat'
+2026-01-23 21:17:20.456 +00:00 [INF]     📋 Tracking new peer: ID=1559292557, Title='УРУС_ХАЙ Chat'
+2026-01-23 21:17:20.456 +00:00 [INF]     📋 Tracking new peer: ID=2242230044, Title='Gabrielle Duvoisin'
+2026-01-23 21:17:20.456 +00:00 [INF]     📋 Tracking new peer: ID=1305875731, Title='Ежедневная Шагающая Мясорубка'
+2026-01-23 21:17:20.456 +00:00 [INF]     📋 Tracking new peer: ID=1211769106, Title='Чат Рецензий 💬'
+2026-01-23 21:17:20.457 +00:00 [INF]     📋 Tracking new peer: ID=1511993207, Title='Чат Железных Писем'
+2026-01-23 21:17:20.457 +00:00 [INF]     📋 Tracking new peer: ID=1586721906, Title='❄️☃️Чат Крэйга☃️❄️'
+2026-01-23 21:17:20.457 +00:00 [INF]     📋 Tracking new peer: ID=1490982382, Title='Севостьянов - казачий дневник'
+2026-01-23 21:17:20.457 +00:00 [INF]     📋 Tracking new peer: ID=1730531833, Title='РоссПизделись (Модератор)'
+2026-01-23 21:17:20.457 +00:00 [INF]     📋 Tracking new peer: ID=1752909144, Title='aigelslv'
+2026-01-23 21:17:20.457 +00:00 [INF]     📋 Tracking new peer: ID=1234274112, Title='Mi Watch/Band/S1-S4/RW4 news'
+2026-01-23 21:17:20.458 +00:00 [INF]     📋 Tracking new peer: ID=1812678998, Title='Saulius ProAuto | автоподбор, осмотр, пригон 🇵🇱 🇱🇹'
+2026-01-23 21:17:20.458 +00:00 [INF]     📋 Tracking new peer: ID=1746940269, Title='Эксперт, на выезд!'
+2026-01-23 21:17:20.458 +00:00 [INF]     📋 Tracking new peer: ID=2505287779, Title='Члены МП при ГД мундепы'
+2026-01-23 21:17:20.458 +00:00 [INF]     📋 Tracking new peer: ID=4809321647, Title='Члены МП при ГД мундепы'
+2026-01-23 21:17:20.458 +00:00 [INF]     📋 Tracking new peer: ID=1315396301, Title='Богатый Боря'
+2026-01-23 21:17:20.458 +00:00 [INF]     📋 Tracking new peer: ID=728342037, Title='Остатки неудержимых кодеров'
+2026-01-23 21:17:20.458 +00:00 [INF]     📋 Tracking new peer: ID=2217508182, Title='Secret Channel of William Forester'
+2026-01-23 21:17:20.458 +00:00 [INF]     📋 Tracking new peer: ID=1963028942, Title='AnyPlayer'
+2026-01-23 21:17:20.459 +00:00 [INF]     📋 Tracking new peer: ID=1520377475, Title='Книжная Ярмарка'
+2026-01-23 21:17:20.459 +00:00 [INF]     📋 Tracking new peer: ID=511507835, Title='Книжная Ярмарка'
+2026-01-23 21:17:20.459 +00:00 [INF]     📋 Tracking new peer: ID=1142577446, Title='мамкина ленгвистка'
+2026-01-23 21:17:20.459 +00:00 [INF]     📋 Tracking new peer: ID=1127383278, Title='Незаслуженный учитель России'
+2026-01-23 21:17:20.459 +00:00 [INF]     📋 Tracking new peer: ID=1554414395, Title='Шпион, которому никто не пишет'
+2026-01-23 21:17:20.459 +00:00 [INF]     📋 Tracking new peer: ID=1804559591, Title='NEXTGAME | Видеоигры | Мемы | Новости'
+2026-01-23 21:17:20.459 +00:00 [INF]     📋 Tracking new peer: ID=2355621532, Title='Mi Watch/Band/S1-S4/RW4 news discussions'
+2026-01-23 21:17:20.459 +00:00 [INF]     📋 Tracking new peer: ID=1801367419, Title='Эксперт, на выезд!'
+2026-01-23 21:17:20.460 +00:00 [INF]     📋 Tracking new peer: ID=2781351929, Title='Bogatiy Borya'
+2026-01-23 21:17:20.460 +00:00 [INF]     📋 Tracking new peer: ID=2433312826, Title='Айгысӄыаӈӄы — у'рэтнутэнут. Арктика — Родина'
+2026-01-23 21:17:20.460 +00:00 [INF]     📋 Tracking new peer: ID=1216368714, Title='Андрей Недовес'
+2026-01-23 21:17:20.461 +00:00 [INF]     📋 Tracking new peer: ID=1874719887, Title='Московский строитель 👷🏼‍♂️'
+2026-01-23 21:17:20.461 +00:00 [INF]     📋 Tracking new peer: ID=1353951187, Title='Заяц ПЦ'
+2026-01-23 21:17:20.461 +00:00 [INF]     📋 Tracking new peer: ID=2100055615, Title='****'
+2026-01-23 21:17:20.461 +00:00 [INF]     📋 Tracking new peer: ID=1608957666, Title='Бродяга серых зон'
+2026-01-23 21:17:20.461 +00:00 [INF]     📋 Tracking new peer: ID=1582179432, Title='Accept the reality💳'
+2026-01-23 21:17:20.461 +00:00 [INF]     📋 Tracking new peer: ID=1199760964, Title='Stwardnienie rozsiane'
+2026-01-23 21:17:20.461 +00:00 [INF]     📋 Tracking new peer: ID=1361095770, Title='Wroclove'
+2026-01-23 21:17:20.461 +00:00 [INF]     📋 Tracking new peer: ID=1717072489, Title='ДБ'
+2026-01-23 21:17:20.462 +00:00 [INF]     📋 Tracking new peer: ID=1322607357, Title='Версия Лесева'
+2026-01-23 21:17:20.462 +00:00 [INF]     📋 Tracking new peer: ID=1555867644, Title='Без подписи'
+2026-01-23 21:17:20.462 +00:00 [INF]     📋 Tracking new peer: ID=1203153795, Title='Brave New World'
+2026-01-23 21:17:20.462 +00:00 [INF]     📋 Tracking new peer: ID=1580584680, Title='Пикейные жилеты - обсуждение'
+2026-01-23 21:17:20.462 +00:00 [INF]     📋 Tracking new peer: ID=1638798753, Title='Пикейные жилеты (Польша)'
+2026-01-23 21:17:20.462 +00:00 [INF]     📋 Tracking new peer: ID=1588678078, Title='.'
+2026-01-23 21:17:20.462 +00:00 [INF]     📋 Tracking new peer: ID=1389991268, Title='Политолог Богатырёв'
+2026-01-23 21:17:20.463 +00:00 [INF]     📋 Tracking new peer: ID=275678823, Title='PLN-UKR-CYP'
+2026-01-23 21:17:20.463 +00:00 [INF]     📋 Tracking new peer: ID=1766930889, Title='@userinfobot iD telegram'
+2026-01-23 21:17:20.463 +00:00 [INF]     📋 Tracking new peer: ID=1333752299, Title='Что там в .NET?'
+2026-01-23 21:17:20.463 +00:00 [INF]     📋 Tracking new peer: ID=1203105091, Title='Юрий Ткачёв'
+2026-01-23 21:17:20.463 +00:00 [INF]     📋 Tracking new peer: ID=1761105391, Title='lil_artjulia-cookies'
+2026-01-23 21:17:20.463 +00:00 [INF]     📋 Tracking new peer: ID=1767938884, Title='Юрий Ткачёв (резерв)'
+2026-01-23 21:17:20.464 +00:00 [INF]     📋 Tracking new peer: ID=1087766403, Title='Forbes Russia'
+2026-01-23 21:17:20.464 +00:00 [INF]     📋 Tracking new peer: ID=1213031253, Title='Политолог Богатырёв Chat'
+2026-01-23 21:17:20.464 +00:00 [INF]     📋 Tracking new peer: ID=1483144811, Title='Вражеские голоса'
+2026-01-23 21:17:20.464 +00:00 [INF]     📋 Tracking new peer: ID=1358865541, Title='Old Steam Navy'
+2026-01-23 21:17:20.464 +00:00 [INF]     📋 Tracking new peer: ID=1329012238, Title='ELENA LYOSHENKO'
+2026-01-23 21:17:20.464 +00:00 [INF]     📋 Tracking new peer: ID=321833052, Title='три? товарища?'
+2026-01-23 21:17:20.464 +00:00 [INF]     📋 Tracking new peer: ID=1294407103, Title='Три товарища'
+2026-01-23 21:17:20.464 +00:00 [INF]     📋 Tracking new peer: ID=1190090058, Title='Анна Долгарева пишет:'
+2026-01-23 21:17:20.465 +00:00 [INF]     📋 Tracking new peer: ID=1344605704, Title='Военный фотограф'
+2026-01-23 21:17:20.465 +00:00 [INF]     📋 Tracking new peer: ID=1121197193, Title='The Панда'
+2026-01-23 21:17:20.465 +00:00 [INF]     📋 Tracking new peer: ID=1298776695, Title='Amakhin'
+2026-01-23 21:17:20.465 +00:00 [INF]     📋 Tracking new peer: ID=1496386442, Title='Russian Lives Matter'
+2026-01-23 21:17:20.465 +00:00 [INF] === CHANNELS CONFIGURED IN SETTINGS ===
+2026-01-23 21:17:20.465 +00:00 [INF]   Config entry: Name='<null>' | ID=-1002243348201 | Parser=default
+2026-01-23 21:17:20.465 +00:00 [INF]   Config entry: Name='Fat_Pig_Signals1' | ID=0 | Parser=fat-pig
+2026-01-23 21:17:20.466 +00:00 [INF]   Config entry: Name='Bitcoin_BulletsSignals' | ID=0 | Parser=bitcoin-bullets
+2026-01-23 21:17:20.466 +00:00 [INF]   Config entry: Name='Wolfof_TradingViP1' | ID=0 | Parser=bitcoin-bullets
+2026-01-23 21:17:20.466 +00:00 [INF] === END OF CONFIG ===
+2026-01-23 21:17:20.466 +00:00 [INF] === RESOLVING CHANNELS ===
+2026-01-23 21:17:20.466 +00:00 [INF]   Resolving '-1002243348201'...
+2026-01-23 21:17:20.467 +00:00 [INF]     Trying by ID: -1002243348201 -> API format: 2243348201
+2026-01-23 21:17:20.468 +00:00 [INF]     ✅ Found by ID: 'CryptoNinjas Trading 🥷🏿'
+2026-01-23 21:17:20.469 +00:00 [INF]   ✅ SUCCESS: '-1002243348201' -> CryptoNinjas Trading 🥷🏿 (ID: 2243348201), parser: default
+2026-01-23 21:17:20.469 +00:00 [INF]   Resolving 'Fat_Pig_Signals1'...
+2026-01-23 21:17:20.471 +00:00 [INF]     Trying by name: 'Fat_Pig_Signals1' -> normalized: 'fat_pig_signals1'
+2026-01-23 21:17:20.471 +00:00 [INF]     ✅ Found by name: 'Fat Pig Signals' (ID: 2595715996)
+2026-01-23 21:17:20.471 +00:00 [INF]   ✅ SUCCESS: 'Fat_Pig_Signals1' -> Fat Pig Signals (ID: 2595715996), parser: fat-pig
+2026-01-23 21:17:20.472 +00:00 [INF]   Resolving 'Bitcoin_BulletsSignals'...
+2026-01-23 21:17:20.472 +00:00 [INF]     Trying by name: 'Bitcoin_BulletsSignals' -> normalized: 'bitcoin_bulletssignals'
+2026-01-23 21:17:20.472 +00:00 [INF]     ✅ Found by name: 'Bitcoin Bullets®' (ID: 2453871543)
+2026-01-23 21:17:20.472 +00:00 [INF]   ✅ SUCCESS: 'Bitcoin_BulletsSignals' -> Bitcoin Bullets® (ID: 2453871543), parser: bitcoin-bullets
+2026-01-23 21:17:20.472 +00:00 [INF]   Resolving 'Wolfof_TradingViP1'...
+2026-01-23 21:17:20.472 +00:00 [INF]     Trying by name: 'Wolfof_TradingViP1' -> normalized: 'wolfof_tradingvip1'
+2026-01-23 21:17:20.472 +00:00 [INF]     ✅ Found by name: 'Wolf of Trading® - ViP' (ID: 2617974841)
+2026-01-23 21:17:20.472 +00:00 [INF]   ✅ SUCCESS: 'Wolfof_TradingViP1' -> Wolf of Trading® - ViP (ID: 2617974841), parser: bitcoin-bullets
+2026-01-23 21:17:20.473 +00:00 [INF] === END OF RESOLUTION ===
+2026-01-23 21:17:20.475 +00:00 [INF] === FINAL MONITORED CHANNEL IDs ===
+2026-01-23 21:17:20.477 +00:00 [INF]   Monitoring ID 2243348201: CryptoNinjas Trading 🥷🏿
+2026-01-23 21:17:20.477 +00:00 [INF]   Monitoring ID 2595715996: Fat Pig Signals
+2026-01-23 21:17:20.477 +00:00 [INF]   Monitoring ID 2453871543: Bitcoin Bullets®
+2026-01-23 21:17:20.477 +00:00 [INF]   Monitoring ID 2617974841: Wolf of Trading® - ViP
+2026-01-23 21:17:20.478 +00:00 [INF] === Total: 4 channels ===
+2026-01-23 21:17:20.479 +00:00 [INF] TelegramSignalListener started successfully
+2026-01-23 21:17:20.479 +00:00 [INF] Starting TelegramCommandHandler...
+2026-01-23 21:17:20.701 +00:00 [INF] Telegram bot started: @trade_makhin_bot
+2026-01-23 21:17:20.701 +00:00 [INF] TelegramCommandHandler started successfully
+2026-01-23 21:17:20.701 +00:00 [INF] Telegram command handler started
+2026-01-23 21:17:20.701 +00:00 [INF] SignalBot started successfully
+2026-01-23 21:17:21.114 +00:00 [INF] 📨 Telegram update: UpdateShortMessage, 1 item(s)
+2026-01-23 21:17:21.116 +00:00 [INF]   📝 NewMessage from Channel_8556530593 (8556530593): ✅ SignalBot started Monitoring 4 Telegram channel(s) Max concurrent positions: 5
+2026-01-23 21:17:21.126 +00:00 [INF]     🔍 Checking channel Channel_8556530593 (ID=8556530593): isMonitored=false
+2026-01-23 21:17:21.128 +00:00 [INF]     ⏭️  Skip: not monitored (ID 8556530593 not in monitored list)
+2026-01-23 21:17:21.616 +00:00 [INF] SignalBot is running. Press Ctrl+C to stop.
+2026-01-23 21:17:33.028 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:17:33.029 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:17:34.382 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:17:34.382 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:17:37.219 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:17:37.219 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:17:37.984 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:17:37.984 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:17:42.366 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:17:42.367 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:03.528 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:18:03.528 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:11.608 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:11.609 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:11.670 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:11.670 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:22.050 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:22.050 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:22.601 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:22.601 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:31.045 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:31.045 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:37.997 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:37.998 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:39.424 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:39.424 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:50.912 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:50.913 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:54.365 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:54.365 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:18:59.916 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:18:59.917 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:19:08.857 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:19:08.857 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:19:15.497 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:19:15.498 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:21:13.456 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:21:13.458 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:21:14.855 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:21:14.855 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:21:33.046 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:21:33.046 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:22:03.722 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:22:03.722 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:22:10.663 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:22:10.664 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:22:30.161 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:22:30.161 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:22:34.033 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:22:34.034 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:22:47.468 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:22:47.468 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:22:47.744 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:22:47.744 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:22:59.100 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:22:59.100 +00:00 [INF]   ℹ️  Update item: UpdateReadHistoryInbox
+2026-01-23 21:23:14.960 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:23:14.961 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:23:18.603 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:23:18.603 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:23:24.207 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:23:24.207 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:23:25.402 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:23:25.402 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:23:28.755 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:23:28.755 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:23:35.248 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:23:35.248 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:23:40.409 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:23:40.409 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:23:45.346 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:23:45.346 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:24:10.314 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:24:10.314 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:24:36.649 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:24:36.649 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:24:37.525 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:24:37.525 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:24:43.841 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:24:43.842 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:24:58.395 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:24:58.395 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:25:14.856 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:25:14.856 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:25:50.101 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:25:50.101 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:26:02.852 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:26:02.852 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:26:04.493 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:26:04.494 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:26:32.948 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:26:32.948 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:26:37.634 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:26:37.635 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:26:42.687 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:26:42.687 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:27:02.967 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:27:02.967 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:27:18.035 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:27:18.035 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:27:19.664 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:27:19.664 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:27:27.199 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:27:27.199 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:27:39.844 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:27:39.844 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:28:13.129 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:28:13.129 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:28:24.516 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:28:24.516 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:28:25.636 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:28:25.636 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:28:26.749 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:28:26.749 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:28:31.013 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:28:31.014 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:28:35.755 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:28:35.755 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:29:00.468 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:29:00.468 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:29:11.187 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:29:11.187 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:29:11.640 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:29:11.640 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:29:19.086 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:29:19.087 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:29:19.144 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:29:19.145 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:29:49.731 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:29:49.731 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:29:54.102 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:29:54.102 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:30:01.054 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:30:01.055 +00:00 [INF]   📝 EditChannelMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#SportRabat   🔹Koszulka Paris Saint-Germain PSG Nike 30 MESSI 29.95zł ❗️🔥(regular...
+2026-01-23 21:30:01.055 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:30:01.055 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:30:03.540 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:30:03.540 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:30:12.415 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:30:12.415 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:30:13.514 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:30:13.514 +00:00 [INF]   📝 EditChannelMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#Amazon.pl   🔹Domek drewniany dla kota - Kerbl Rustica 140.08zł ❗️🔥(regularnie 17...
+2026-01-23 21:30:13.514 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:30:13.514 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:30:19.884 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:30:19.884 +00:00 [INF]   📝 EditChannelMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#Amazon.it   🔹Smartfon Google Pixel 10 Pro 256 GB | 779,83€ z dostawą 3265zł ❗️🔥(...
+2026-01-23 21:30:19.884 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:30:19.885 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:30:25.604 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:30:25.604 +00:00 [INF]   📝 EditChannelMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#adidas   🔹Buty adidas Terrex AX4 r. 41 1/3 - 46, 47 1/3 224.55zł ❗️🔥          🔰...
+2026-01-23 21:30:25.604 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:30:25.604 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:30:36.886 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:30:36.886 +00:00 [INF]   📝 EditChannelMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#Steam   🔹Rockstar Games Sale - steam 23.7zł ❗️🔥(regularnie 79zl)          🔰http...
+2026-01-23 21:30:36.886 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:30:36.886 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:30:42.502 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:30:42.502 +00:00 [INF]   📝 EditChannelMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#Eneba   🔹Doładowanie portfela PlayStation Store o wartości 200 PLN @ Eneba 178.54...
+2026-01-23 21:30:42.502 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:30:42.502 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:30:46.214 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:30:46.214 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:30:56.984 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:30:56.984 +00:00 [INF]   📝 EditChannelMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#Biedronka   🔹Banany kg 3.49zł ❗️🔥(regularnie 6.99zl)          🔰https://pepper.t...
+2026-01-23 21:30:56.984 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:30:56.984 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:31:03.472 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:31:03.472 +00:00 [INF]   📝 EditChannelMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#Kaufland   🔹Jaja L 10 szt. jajka @Kaufland 7.99zł ❗️🔥(regularnie 11.49zl)       ...
+2026-01-23 21:31:03.472 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:31:03.472 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:31:16.883 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:31:16.883 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:31:19.517 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:31:19.517 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:31:27.034 +00:00 [INF] 📨 Telegram update: Updates, 1 item(s)
+2026-01-23 21:31:27.034 +00:00 [INF]   📝 NewMessage from Pepper.PL (1221347678): Gorąca okazja❗️🔥#eSky.pl   🔹SYCYLIA ( Włochy ) na tydzień! Noclegi w 3 hotelu + śniadania + loty w...
+2026-01-23 21:31:27.034 +00:00 [INF]     🔍 Checking channel Pepper.PL (ID=1221347678): isMonitored=false
+2026-01-23 21:31:27.034 +00:00 [INF]     ⏭️  Skip: not monitored (ID 1221347678 not in monitored list)
+2026-01-23 21:32:09.202 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:32:09.202 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:32:38.622 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:32:38.622 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:33:27.839 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:33:27.839 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:33:29.390 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:33:29.390 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:33:48.121 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:33:48.122 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:34:00.901 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:34:00.902 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:34:01.208 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:34:01.208 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:34:27.880 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:34:27.880 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:34:55.611 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:34:55.612 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:35:09.973 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:35:09.973 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:35:39.391 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:35:39.391 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:35:50.832 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:35:50.832 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:36:08.642 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:36:08.642 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:36:19.180 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:36:19.181 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:36:56.459 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:36:56.460 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:36:57.906 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:36:57.906 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:37:18.477 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:37:18.478 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:37:29.859 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:37:29.859 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:37:36.192 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:37:36.192 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:38:06.441 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:38:06.442 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:38:09.633 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:38:09.633 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:38:23.993 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:38:23.993 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:38:31.557 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:38:31.557 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:38:47.012 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:38:47.012 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:39:04.402 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:39:04.403 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:39:11.527 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:39:11.527 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:39:46.937 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:39:46.937 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:39:53.219 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:39:53.219 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:40:01.187 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:40:01.187 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:40:07.906 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:40:07.906 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:40:12.225 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:40:12.225 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
+2026-01-23 21:40:14.725 +00:00 [INF] 📨 Telegram update: UpdateShort, 1 item(s)
+2026-01-23 21:40:14.726 +00:00 [INF]   ℹ️  Update item: UpdateUserStatus
