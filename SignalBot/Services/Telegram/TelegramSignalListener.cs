@@ -28,6 +28,12 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
     private HashSet<long> _monitoredChannelIds = new();
     private Dictionary<long, string> _channelNames = new();
 
+    // Polling mechanism for broadcast channels
+    private Dictionary<long, int> _lastMessageIds = new();
+    private Dictionary<long, InputPeer> _channelInputPeers = new();
+    private Timer? _pollingTimer;
+    private const int PollingIntervalSeconds = 30;
+
     public event Action<TradingSignal>? OnSignalReceived;
 
     public bool IsListening => IsRunning;
@@ -178,10 +184,18 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             _logger.Information("  Monitoring ID {Id}: {Name}", id, name);
         }
         _logger.Information("=== Total: {Count} channels ===", _monitoredChannelIds.Count);
+
+        // Initialize polling mechanism for monitored channels
+        await InitializePollingAsync(channelsById, ct);
     }
 
     protected override Task OnStopAsync(CancellationToken ct)
     {
+        // Stop polling timer
+        _pollingTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+        _pollingTimer?.Dispose();
+        _pollingTimer = null;
+
         if (_client != null)
         {
             _client.OnUpdates -= OnUpdate;
@@ -194,8 +208,111 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
     protected override ValueTask OnDisposeAsync()
     {
+        _pollingTimer?.Dispose();
         _messageLock.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    private async Task InitializePollingAsync(Dictionary<long, Channel> channelsById, CancellationToken ct)
+    {
+        _logger.Information("=== INITIALIZING POLLING MECHANISM ===");
+
+        foreach (var channelId in _monitoredChannelIds)
+        {
+            if (!channelsById.TryGetValue(channelId, out var channel))
+            {
+                _logger.Warning("Cannot initialize polling for channel {ChannelId}: not found", channelId);
+                continue;
+            }
+
+            try
+            {
+                // Create InputPeer for this channel
+                var inputPeer = channel;
+                _channelInputPeers[channelId] = inputPeer;
+
+                // Get latest message to initialize last message ID
+                var history = await _client!.Messages_GetHistory(inputPeer, limit: 1);
+
+                if (history.Messages.Length > 0 && history.Messages[0] is Message lastMsg)
+                {
+                    _lastMessageIds[channelId] = lastMsg.ID;
+                    _logger.Information("  Channel {Name} (ID: {Id}): last message ID = {MessageId}",
+                        _channelNames[channelId], channelId, lastMsg.ID);
+                }
+                else
+                {
+                    _lastMessageIds[channelId] = 0;
+                    _logger.Information("  Channel {Name} (ID: {Id}): no messages yet",
+                        _channelNames[channelId], channelId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to initialize polling for channel {Name} (ID: {Id})",
+                    _channelNames.GetValueOrDefault(channelId, "Unknown"), channelId);
+            }
+        }
+
+        // Start polling timer
+        _logger.Information("Starting polling timer (interval: {Seconds} seconds)", PollingIntervalSeconds);
+        _pollingTimer = new Timer(
+            _ => _ = PollChannelsAsync(),
+            null,
+            TimeSpan.FromSeconds(PollingIntervalSeconds),
+            TimeSpan.FromSeconds(PollingIntervalSeconds));
+
+        _logger.Information("=== POLLING INITIALIZED ===");
+    }
+
+    private async Task PollChannelsAsync()
+    {
+        if (_client == null)
+            return;
+
+        foreach (var channelId in _monitoredChannelIds.ToList())
+        {
+            try
+            {
+                if (!_channelInputPeers.TryGetValue(channelId, out var inputPeer))
+                    continue;
+
+                // Get messages since last message ID
+                var lastMessageId = _lastMessageIds.GetValueOrDefault(channelId, 0);
+                var history = await _client.Messages_GetHistory(inputPeer, limit: 20);
+
+                // Process new messages in chronological order (oldest first)
+                var newMessages = history.Messages
+                    .OfType<Message>()
+                    .Where(m => m.ID > lastMessageId)
+                    .OrderBy(m => m.ID)
+                    .ToList();
+
+                if (newMessages.Any())
+                {
+                    _logger.Information("📬 Polling found {Count} new message(s) in {Channel}",
+                        newMessages.Count, _channelNames.GetValueOrDefault(channelId, "Unknown"));
+
+                    foreach (var message in newMessages)
+                    {
+                        _logger.Information("  📝 NewChannelMessage from {ChannelName} ({ChannelId}): {Preview}",
+                            _channelNames.GetValueOrDefault(channelId, "Unknown"),
+                            channelId,
+                            BuildPreview(message.message ?? "", 100));
+
+                        await ProcessMessage(message);
+
+                        // Update last message ID
+                        _lastMessageIds[channelId] = message.ID;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error polling channel {Name} (ID: {Id})",
+                    _channelNames.GetValueOrDefault(channelId, "Unknown"), channelId);
+            }
+        }
     }
 
     private void ConfigureClientLogging()
