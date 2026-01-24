@@ -17,6 +17,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     private readonly BinanceRestClient _client;
     private readonly ExecutionValidator _validator;
     private readonly ILogger _logger;
+    private readonly Dictionary<string, int> _quantityPrecisionCache = new();
 
     public FuturesOrderExecutor(
         BinanceRestClient client,
@@ -29,6 +30,69 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     }
 
     /// <summary>
+    /// Normalizes quantity to the valid precision for the symbol
+    /// </summary>
+    private async Task<decimal> NormalizeQuantityAsync(string symbol, decimal quantity, CancellationToken ct)
+    {
+        // Check cache first
+        if (!_quantityPrecisionCache.TryGetValue(symbol, out var precision))
+        {
+            // Get exchange info for this symbol
+            var exchangeInfo = await _client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync(ct);
+            if (exchangeInfo.Success)
+            {
+                var symbolInfo = exchangeInfo.Data.Symbols.FirstOrDefault(s => s.Name == symbol);
+                if (symbolInfo != null)
+                {
+                    // Get LOT_SIZE filter to determine precision
+                    var lotSizeFilter = symbolInfo.LotSizeFilter;
+                    if (lotSizeFilter != null)
+                    {
+                        // Calculate precision from step size
+                        // For example: stepSize = 0.001 => precision = 3
+                        var stepSize = lotSizeFilter.StepSize;
+                        precision = BitConverter.GetBytes(decimal.GetBits(stepSize)[3])[2];
+
+                        _logger.Debug("Symbol {Symbol}: StepSize={StepSize}, Precision={Precision}",
+                            symbol, stepSize, precision);
+                    }
+                    else
+                    {
+                        // Default to 8 if no filter found
+                        precision = 8;
+                        _logger.Warning("No LOT_SIZE filter found for {Symbol}, using default precision {Precision}",
+                            symbol, precision);
+                    }
+
+                    _quantityPrecisionCache[symbol] = precision;
+                }
+                else
+                {
+                    _logger.Warning("Symbol {Symbol} not found in exchange info, using default precision 8", symbol);
+                    precision = 8;
+                }
+            }
+            else
+            {
+                _logger.Warning("Failed to get exchange info: {Error}, using default precision 8",
+                    exchangeInfo.Error?.Message);
+                precision = 8;
+            }
+        }
+
+        // Round to the correct precision
+        var normalized = Math.Round(quantity, precision);
+
+        if (normalized != quantity)
+        {
+            _logger.Debug("Normalized quantity for {Symbol}: {Original} => {Normalized} (precision: {Precision})",
+                symbol, quantity, normalized, precision);
+        }
+
+        return normalized;
+    }
+
+    /// <summary>
     /// Places a market order
     /// </summary>
     public async Task<ExecutionResult> PlaceMarketOrderAsync(
@@ -38,6 +102,9 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         CancellationToken ct = default)
     {
         var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
+
+        // Normalize quantity to valid precision
+        quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
 
         _logger.Information("Placing Futures market {Side} order: {Symbol} x{Quantity}", side, symbol, quantity);
 
@@ -83,6 +150,9 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         CancellationToken ct = default)
     {
         var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
+
+        // Normalize quantity to valid precision
+        quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
 
         _logger.Information("Placing Futures limit {Side} order: {Symbol} x{Quantity} @ {Price}",
             side, symbol, quantity, price);
@@ -132,6 +202,9 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         // Stop loss closes position, so opposite side
         var side = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
 
+        // Normalize quantity to valid precision
+        quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
+
         _logger.Information("Placing Futures stop loss: {Symbol} x{Quantity}, Stop: {StopPrice}",
             symbol, quantity, stopPrice);
 
@@ -180,6 +253,9 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     {
         // Take profit closes position, so opposite side
         var side = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
+
+        // Normalize quantity to valid precision
+        quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
 
         _logger.Information("Placing Futures take profit: {Symbol} x{Quantity}, TP: {TakeProfitPrice}",
             symbol, quantity, takeProfitPrice);
