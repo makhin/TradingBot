@@ -128,6 +128,28 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         var order = result.Data;
         decimal avgPrice = order.AveragePrice;
 
+        _logger.Information("Futures market order placed: {OrderId}, Initial Avg Price: {AvgPrice}, Filled: {FilledQty}",
+            order.Id, avgPrice, order.QuantityFilled);
+
+        // For market orders, AveragePrice might be 0 initially
+        // Query the order to get actual execution price
+        if (avgPrice == 0)
+        {
+            _logger.Debug("AveragePrice is 0, querying order details for {Symbol} order {OrderId}", symbol, order.Id);
+
+            var orderResult = await _client.UsdFuturesApi.Trading.GetOrderAsync(symbol, order.Id, ct: ct);
+            if (orderResult.Success && orderResult.Data != null)
+            {
+                avgPrice = orderResult.Data.AveragePrice;
+                _logger.Information("Retrieved actual execution price: {AvgPrice} for order {OrderId}", avgPrice, order.Id);
+            }
+            else
+            {
+                _logger.Warning("Failed to retrieve order details for {OrderId}: {Error}",
+                    order.Id, orderResult.Error?.Message);
+            }
+        }
+
         _logger.Information("Futures market order filled: {OrderId}, Avg Price: {AvgPrice}, Filled: {FilledQty}",
             order.Id, avgPrice, order.QuantityFilled);
 
