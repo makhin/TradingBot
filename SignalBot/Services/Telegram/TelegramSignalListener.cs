@@ -71,16 +71,16 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         var allChannels = dialogs.chats.Values.OfType<Channel>().ToList();
         _logger.Information("Available channels: {Count} total", allChannels.Count);
 
-        // LOG ALL AVAILABLE CHANNELS
-        _logger.Information("=== ALL AVAILABLE CHANNELS ===");
-        foreach (var ch in allChannels)
-        {
-            _logger.Information("  Channel: '{Title}' | ID: {Id} | Username: @{Username}",
-                ch.Title,
-                ch.ID,
-                ch.username ?? "<none>");
-        }
-        _logger.Information("=== END OF CHANNEL LIST ===");
+        // LOG ALL AVAILABLE CHANNELS (commented out - enable for debugging)
+        // _logger.Information("=== ALL AVAILABLE CHANNELS ===");
+        // foreach (var ch in allChannels)
+        // {
+        //     _logger.Information("  Channel: '{Title}' | ID: {Id} | Username: @{Username}",
+        //         ch.Title,
+        //         ch.ID,
+        //         ch.username ?? "<none>");
+        // }
+        // _logger.Information("=== END OF CHANNEL LIST ===");
 
         var channelsByUsername = allChannels
             .Where(c => !string.IsNullOrWhiteSpace(c.username))
@@ -97,19 +97,19 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             TrackPeerName(chat);
         }
 
-        // LOG CONFIGURED CHANNELS TO MONITOR
-        _logger.Information("=== CHANNELS CONFIGURED IN SETTINGS ===");
-        foreach (var mapping in _settings.Parsing.ChannelParsers)
-        {
-            _logger.Information("  Config entry: Name='{Name}' | ID={Id} | Parser={Parser}",
-                mapping.ChannelName ?? "<null>",
-                mapping.ChannelId,
-                mapping.Parser);
-        }
-        _logger.Information("=== END OF CONFIG ===");
+        // LOG CONFIGURED CHANNELS TO MONITOR (commented out - enable for debugging)
+        // _logger.Information("=== CHANNELS CONFIGURED IN SETTINGS ===");
+        // foreach (var mapping in _settings.Parsing.ChannelParsers)
+        // {
+        //     _logger.Information("  Config entry: Name='{Name}' | ID={Id} | Parser={Parser}",
+        //         mapping.ChannelName ?? "<null>",
+        //         mapping.ChannelId,
+        //         mapping.Parser);
+        // }
+        // _logger.Information("=== END OF CONFIG ===");
 
         // Process channel parser mappings (resolve names and IDs)
-        _logger.Information("=== RESOLVING CHANNELS ===");
+        // _logger.Information("=== RESOLVING CHANNELS ===");
         foreach (var mapping in _settings.Parsing.ChannelParsers)
         {
             Channel? channel = null;
@@ -118,22 +118,22 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 ? mapping.ChannelName
                 : mapping.ChannelId.ToString();
 
-            _logger.Information("  Resolving '{Identifier}'...", identifier);
+            // _logger.Information("  Resolving '{Identifier}'...", identifier);
 
             // Try to resolve by ID first
             if (mapping.ChannelId != 0)
             {
                 var searchId = TelegramIdHelper.ConvertToApiFormat(mapping.ChannelId);
-                _logger.Information("    Trying by ID: {OriginalId} -> API format: {SearchId}",
-                    mapping.ChannelId, searchId);
+                // _logger.Information("    Trying by ID: {OriginalId} -> API format: {SearchId}",
+                //     mapping.ChannelId, searchId);
 
                 if (channelsById.TryGetValue(searchId, out channel))
                 {
-                    _logger.Information("    ✅ Found by ID: '{Title}'", channel.Title);
+                    // _logger.Information("    ✅ Found by ID: '{Title}'", channel.Title);
                 }
                 else
                 {
-                    _logger.Information("    ❌ Not found by ID {SearchId}", searchId);
+                    // _logger.Information("    ❌ Not found by ID {SearchId}", searchId);
                 }
             }
 
@@ -141,17 +141,17 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             if (channel == null && !string.IsNullOrWhiteSpace(mapping.ChannelName))
             {
                 var normalizedName = TelegramIdHelper.NormalizeUsername(mapping.ChannelName).ToLowerInvariant();
-                _logger.Information("    Trying by name: '{OriginalName}' -> normalized: '{NormalizedName}'",
-                    mapping.ChannelName, normalizedName);
+                // _logger.Information("    Trying by name: '{OriginalName}' -> normalized: '{NormalizedName}'",
+                //     mapping.ChannelName, normalizedName);
 
                 if (channelsByUsername.TryGetValue(normalizedName, out channel))
                 {
-                    _logger.Information("    ✅ Found by name: '{Title}' (ID: {Id})",
-                        channel.Title, channel.ID);
+                    // _logger.Information("    ✅ Found by name: '{Title}' (ID: {Id})",
+                    //     channel.Title, channel.ID);
                 }
                 else
                 {
-                    _logger.Information("    ❌ Not found by name '{NormalizedName}'", normalizedName);
+                    // _logger.Information("    ❌ Not found by name '{NormalizedName}'", normalizedName);
                 }
             }
 
@@ -161,29 +161,25 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 _monitoredChannelIds.Add(channel.ID);
                 _channelNames[channel.ID] = channel.Title;
 
-                _logger.Information(
-                    "  ✅ SUCCESS: '{Identifier}' -> {Title} (ID: {Id}), parser: {Parser}",
-                    identifier, channel.Title, channel.ID, mapping.Parser);
+                _logger.Information("Resolved channel: {Title} (ID: {Id})", channel.Title, channel.ID);
             }
             else
             {
-                _logger.Warning(
-                    "  ❌ FAILED: Channel '{Identifier}' not found in dialogs. Make sure you have access to it.",
-                    identifier);
+                _logger.Warning("Channel '{Identifier}' not found in dialogs", identifier);
             }
         }
-        _logger.Information("=== END OF RESOLUTION ===");
+        // _logger.Information("=== END OF RESOLUTION ===");
 
         // Notify SignalParser about resolved channel IDs
         _parser.UpdateChannelMappings(_settings.Parsing.ChannelParsers);
 
-        _logger.Information("=== FINAL MONITORED CHANNEL IDs ===");
-        foreach (var id in _monitoredChannelIds)
-        {
-            var name = _channelNames.TryGetValue(id, out var n) ? n : "Unknown";
-            _logger.Information("  Monitoring ID {Id}: {Name}", id, name);
-        }
-        _logger.Information("=== Total: {Count} channels ===", _monitoredChannelIds.Count);
+        _logger.Information("Monitoring {Count} channel(s)", _monitoredChannelIds.Count);
+        // Detailed list (commented out - enable for debugging)
+        // foreach (var id in _monitoredChannelIds)
+        // {
+        //     var name = _channelNames.TryGetValue(id, out var n) ? n : "Unknown";
+        //     _logger.Information("  - {Name} (ID: {Id})", name, id);
+        // }
 
         // Initialize polling mechanism for monitored channels
         await InitializePollingAsync(channelsById, ct);
@@ -215,7 +211,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
     private async Task InitializePollingAsync(Dictionary<long, Channel> channelsById, CancellationToken ct)
     {
-        _logger.Information("=== INITIALIZING POLLING MECHANISM ===");
+        _logger.Information("Initializing polling mechanism for broadcast channels (interval: {Seconds}s)", PollingIntervalSeconds);
 
         foreach (var channelId in _monitoredChannelIds)
         {
@@ -237,32 +233,29 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 if (history.Messages.Length > 0 && history.Messages[0] is Message lastMsg)
                 {
                     _lastMessageIds[channelId] = lastMsg.ID;
-                    _logger.Information("  Channel {Name} (ID: {Id}): last message ID = {MessageId}",
-                        _channelNames[channelId], channelId, lastMsg.ID);
+                    // _logger.Information("  Channel {Name}: initialized at message ID {MessageId}",
+                    //     _channelNames[channelId], lastMsg.ID);
                 }
                 else
                 {
                     _lastMessageIds[channelId] = 0;
-                    _logger.Information("  Channel {Name} (ID: {Id}): no messages yet",
-                        _channelNames[channelId], channelId);
                 }
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to initialize polling for channel {Name} (ID: {Id})",
-                    _channelNames.GetValueOrDefault(channelId, "Unknown"), channelId);
+                _logger.Error(ex, "Failed to initialize polling for channel {Name}",
+                    _channelNames.GetValueOrDefault(channelId, "Unknown"));
             }
         }
 
         // Start polling timer
-        _logger.Information("Starting polling timer (interval: {Seconds} seconds)", PollingIntervalSeconds);
         _pollingTimer = new Timer(
             _ => _ = PollChannelsAsync(),
             null,
             TimeSpan.FromSeconds(PollingIntervalSeconds),
             TimeSpan.FromSeconds(PollingIntervalSeconds));
 
-        _logger.Information("=== POLLING INITIALIZED ===");
+        _logger.Information("Polling initialized successfully");
     }
 
     private async Task PollChannelsAsync()
@@ -290,15 +283,14 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
                 if (newMessages.Any())
                 {
-                    _logger.Information("📬 Polling found {Count} new message(s) in {Channel}",
+                    _logger.Information("Polling found {Count} new message(s) in {Channel}",
                         newMessages.Count, _channelNames.GetValueOrDefault(channelId, "Unknown"));
 
                     foreach (var message in newMessages)
                     {
-                        _logger.Information("  📝 NewChannelMessage from {ChannelName} ({ChannelId}): {Preview}",
-                            _channelNames.GetValueOrDefault(channelId, "Unknown"),
-                            channelId,
-                            BuildPreview(message.message ?? "", 100));
+                        // Detailed preview (commented out - enable for debugging)
+                        // _logger.Information("  📝 Message preview: {Preview}",
+                        //     BuildPreview(message.message ?? "", 100));
 
                         await ProcessMessage(message);
 
@@ -379,9 +371,10 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
         {
             TrackPeerNamesFromUpdates(updates);
 
-            _logger.Information("📨 Telegram update: {UpdateType}, {Count} item(s)",
-                updates.GetType().Name,
-                updates.UpdateList.Count());
+            // Detailed update logging (commented out - enable for debugging)
+            // _logger.Information("📨 Telegram update: {UpdateType}, {Count} item(s)",
+            //     updates.GetType().Name,
+            //     updates.UpdateList.Count());
 
             // Process all updates
             foreach (var update in updates.UpdateList)
@@ -411,22 +404,22 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                     updateTypeDesc = "EditMessage";
                 }
 
-                // Log with channel and text preview
+                // Process message if found
                 if (msg != null)
                 {
-                    var peerId = GetPeerId(msg.Peer);
-                    var channelName = GetChannelName(msg.Peer);
-                    var textPreview = BuildPreview(msg.message ?? "", 100);
-
-                    _logger.Information("  📝 {UpdateType} from {ChannelName} ({PeerId}): {Preview}",
-                        updateTypeDesc, channelName, peerId, textPreview);
+                    // Detailed message logging (commented out - enable for debugging)
+                    // var peerId = GetPeerId(msg.Peer);
+                    // var channelName = GetChannelName(msg.Peer);
+                    // var textPreview = BuildPreview(msg.message ?? "", 100);
+                    // _logger.Information("  📝 {UpdateType} from {ChannelName} ({PeerId}): {Preview}",
+                    //     updateTypeDesc, channelName, peerId, textPreview);
 
                     await ProcessMessage(msg);
                 }
-                else
-                {
-                    _logger.Information("  ℹ️  Update item: {UpdateType}", update.GetType().Name);
-                }
+                // else
+                // {
+                //     _logger.Information("  ℹ️  Update item: {UpdateType}", update.GetType().Name);
+                // }
             }
         }
         catch (Exception ex)
@@ -449,18 +442,18 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             // Check if this channel is in our monitored list
             var isMonitored = TelegramIdHelper.IsMonitoredChannel(peerId, _monitoredChannelIds);
-            _logger.Information("    🔍 Checking channel {ChannelName} (ID={PeerId}): isMonitored={IsMonitored}",
-                channelName, peerId, isMonitored);
+            // _logger.Information("    🔍 Checking channel {ChannelName} (ID={PeerId}): isMonitored={IsMonitored}",
+            //     channelName, peerId, isMonitored);
 
             if (!isMonitored)
             {
-                _logger.Information("    ⏭️  Skip: not monitored (ID {PeerId} not in monitored list)", peerId);
+                // _logger.Information("    ⏭️  Skip: not monitored (ID {PeerId})", peerId);
                 return;
             }
 
             if (message.fwd_from != null)
             {
-                _logger.Information("    ⏭️  Skip: forwarded");
+                // _logger.Information("    ⏭️  Skip: forwarded message");
                 return;
             }
 
@@ -470,7 +463,7 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             {
                 if (_processedMessageIds.Contains(message.ID))
                 {
-                    _logger.Information("    ⏭️  Skip: duplicate");
+                    // _logger.Information("    ⏭️  Skip: duplicate message");
                     return;
                 }
 
@@ -493,12 +486,12 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             if (string.IsNullOrWhiteSpace(messageText))
             {
-                _logger.Information("    ⏭️  Skip: empty (media={HasMedia})", message.media != null);
+                // _logger.Information("    ⏭️  Skip: empty message");
                 return;
             }
 
-            _logger.Information("    📩 FULL TEXT:\n{FullText}",
-                messageText);
+            _logger.Information("New message from {ChannelName}:\n{FullText}",
+                channelName, messageText);
 
             // Parse signal
             var source = new SignalSource
@@ -512,16 +505,15 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
             if (parseResult.IsSuccess && parseResult.Signal != null)
             {
-                _logger.Information("    ✅ SIGNAL: {Symbol} {Direction} @ {Entry}",
+                _logger.Information("✅ SIGNAL: {Symbol} {Direction} @ {Entry}",
                     parseResult.Signal.Symbol, parseResult.Signal.Direction, parseResult.Signal.Entry);
 
                 // Raise event
                 if (OnSignalReceived == null)
                 {
                     _logger.Warning(
-                        "Signal parsed but no subscribers attached. Signal from {Channel} ({ChannelId}) ignored.",
-                        channelName,
-                        peerId);
+                        "Signal parsed but no subscribers attached. Signal from {Channel} ignored.",
+                        channelName);
                     return;
                 }
 
@@ -529,13 +521,12 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             }
             else if (!string.IsNullOrEmpty(parseResult.ErrorMessage))
             {
-                _logger.Information("    ⚠️  Parse error: {Error}",
-                    parseResult.ErrorMessage);
+                _logger.Warning("Parse error: {Error}", parseResult.ErrorMessage);
             }
-            else
-            {
-                _logger.Information("    ℹ️  Not a signal");
-            }
+            // else
+            // {
+            //     _logger.Information("Not a trading signal");
+            // }
         }
         catch (Exception ex)
         {
@@ -614,11 +605,11 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
             return;
         }
 
-        // Log if this is a new peer we're seeing
-        if (!_channelNames.ContainsKey(peerId.Value))
-        {
-            _logger.Information("    📋 Tracking new peer: ID={Id}, Title='{Title}'", peerId.Value, title);
-        }
+        // Track peer name (logging disabled to reduce verbosity)
+        // if (!_channelNames.ContainsKey(peerId.Value))
+        // {
+        //     _logger.Information("Tracking new peer: ID={Id}, Title='{Title}'", peerId.Value, title);
+        // }
 
         _channelNames[peerId.Value] = title;
     }
