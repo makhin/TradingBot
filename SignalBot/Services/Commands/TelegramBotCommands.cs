@@ -126,10 +126,48 @@ public class TelegramBotCommands : IBotCommands
                 var pnl = pos.RealizedPnl + pos.UnrealizedPnl;
                 var pnlEmoji = pnl >= 0 ? "📈" : "📉";
 
+                decimal? markPrice = null;
+                decimal? entryDeltaPercent = null;
+                decimal? stopLossDeltaPercent = null;
+
+                try
+                {
+                    markPrice = await _client.GetMarkPriceAsync(pos.Symbol, ct);
+                    if (markPrice > 0 && pos.ActualEntryPrice > 0)
+                    {
+                        entryDeltaPercent = (markPrice - pos.ActualEntryPrice) / pos.ActualEntryPrice * 100m;
+                    }
+
+                    if (markPrice > 0 && pos.CurrentStopLoss > 0)
+                    {
+                        stopLossDeltaPercent = (markPrice - pos.CurrentStopLoss) / pos.CurrentStopLoss * 100m;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning(ex, "Failed to fetch mark price for {Symbol}", pos.Symbol);
+                }
+
                 sb.AppendLine($"**{pos.Symbol}** {direction}");
                 sb.AppendLine($"  Entry: `{pos.ActualEntryPrice:F4}`");
                 sb.AppendLine($"  Qty: `{pos.RemainingQuantity:F4}` / `{pos.InitialQuantity:F4}`");
                 sb.AppendLine($"  SL: `{pos.CurrentStopLoss:F4}`");
+                if (markPrice.HasValue)
+                {
+                    var entryDeltaText = entryDeltaPercent.HasValue
+                        ? $" ({entryDeltaPercent:+0.00;-0.00}%)"
+                        : string.Empty;
+                    var stopLossDeltaText = stopLossDeltaPercent.HasValue
+                        ? $" ({stopLossDeltaPercent:+0.00;-0.00}%)"
+                        : string.Empty;
+
+                    sb.AppendLine($"  Mark: `{markPrice.Value:F4}`{entryDeltaText}");
+                    sb.AppendLine($"  Distance to SL: `{markPrice.Value - pos.CurrentStopLoss:+0.0000;-0.0000}`{stopLossDeltaText}");
+                }
+                else
+                {
+                    sb.AppendLine("  Mark: `N/A`");
+                }
                 sb.AppendLine($"  Targets hit: `{pos.TargetsHit}` / `{pos.Targets.Count}`");
                 sb.AppendLine($"  P&L: {pnlEmoji} `{pnl:+0.00;-0.00} USDT`");
                 sb.AppendLine();
