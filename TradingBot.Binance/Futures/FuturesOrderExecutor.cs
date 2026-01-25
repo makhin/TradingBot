@@ -132,21 +132,41 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
             order.Id, avgPrice, order.QuantityFilled);
 
         // For market orders, AveragePrice might be 0 initially
-        // Query the order to get actual execution price
+        // Retry multiple times with delay to get actual execution price
         if (avgPrice == 0)
         {
             _logger.Debug("AveragePrice is 0, querying order details for {Symbol} order {OrderId}", symbol, order.Id);
 
-            var orderResult = await _client.UsdFuturesApi.Trading.GetOrderAsync(symbol, order.Id, ct: ct);
-            if (orderResult.Success && orderResult.Data != null)
+            // Retry up to 3 times with increasing delays (100ms, 200ms, 300ms)
+            for (int attempt = 1; attempt <= 3 && avgPrice == 0; attempt++)
             {
-                avgPrice = orderResult.Data.AveragePrice;
-                _logger.Information("Retrieved actual execution price: {AvgPrice} for order {OrderId}", avgPrice, order.Id);
+                await Task.Delay(attempt * 100, ct);
+
+                var orderResult = await _client.UsdFuturesApi.Trading.GetOrderAsync(symbol, order.Id, ct: ct);
+                if (orderResult.Success && orderResult.Data != null)
+                {
+                    avgPrice = orderResult.Data.AveragePrice;
+                    if (avgPrice > 0)
+                    {
+                        _logger.Information("Retrieved actual execution price: {AvgPrice} for order {OrderId} (attempt {Attempt})",
+                            avgPrice, order.Id, attempt);
+                        break;
+                    }
+                    else
+                    {
+                        _logger.Debug("Attempt {Attempt}: AveragePrice still 0, retrying...", attempt);
+                    }
+                }
+                else
+                {
+                    _logger.Warning("Failed to retrieve order details for {OrderId} (attempt {Attempt}): {Error}",
+                        order.Id, attempt, orderResult.Error?.Message);
+                }
             }
-            else
+
+            if (avgPrice == 0)
             {
-                _logger.Warning("Failed to retrieve order details for {OrderId}: {Error}",
-                    order.Id, orderResult.Error?.Message);
+                _logger.Error("Failed to retrieve execution price for order {OrderId} after 3 attempts", order.Id);
             }
         }
 
