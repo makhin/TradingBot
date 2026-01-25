@@ -8,6 +8,11 @@ public sealed class DefaultSignalParser : SignalMessageParserBase
 {
     public override string Name => "default";
 
+    public DefaultSignalParser()
+        : base("USDT")
+    {
+    }
+
     public DefaultSignalParser(IOptions<SignalBotSettings> settings)
         : base(settings.Value.Trading.DefaultSymbolSuffix)
     {
