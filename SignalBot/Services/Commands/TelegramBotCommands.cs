@@ -7,6 +7,8 @@ using TradingBot.Binance.Futures.Interfaces;
 using TradingBot.Core.Models;
 using Serilog;
 using SignalBot.Services;
+using Microsoft.Extensions.Options;
+using SignalBot.Configuration;
 
 namespace SignalBot.Services.Commands;
 
@@ -22,6 +24,8 @@ public class TelegramBotCommands : IBotCommands
     private readonly IFuturesOrderExecutor _orderExecutor;
     private readonly IBinanceFuturesClient _client;
     private readonly ITradeStatisticsService _tradeStatistics;
+    private readonly string _quoteCurrency;
+    private readonly string _symbolExample;
     private readonly ILogger _logger;
 
     public TelegramBotCommands(
@@ -32,6 +36,7 @@ public class TelegramBotCommands : IBotCommands
         IFuturesOrderExecutor orderExecutor,
         IBinanceFuturesClient client,
         ITradeStatisticsService tradeStatistics,
+        IOptions<SignalBotSettings> settings,
         ILogger? logger = null)
     {
         _controller = controller;
@@ -41,6 +46,10 @@ public class TelegramBotCommands : IBotCommands
         _orderExecutor = orderExecutor;
         _client = client;
         _tradeStatistics = tradeStatistics;
+        _quoteCurrency = string.IsNullOrWhiteSpace(settings.Value.Trading.DefaultSymbolSuffix)
+            ? "USDT"
+            : settings.Value.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
+        _symbolExample = $"BTC{_quoteCurrency}";
         _logger = logger ?? Log.ForContext<TelegramBotCommands>();
     }
 
@@ -49,20 +58,20 @@ public class TelegramBotCommands : IBotCommands
         try
         {
             var positions = await _store.GetOpenPositionsAsync(ct);
-            var balance = await _client.GetBalanceAsync("USDT", ct);
+            var balance = await _client.GetBalanceAsync(_quoteCurrency, ct);
             var cooldownStatus = _cooldownManager.GetStatus();
 
             var sb = new StringBuilder();
             sb.AppendLine("🤖 **SignalBot Status**");
             sb.AppendLine();
             sb.AppendLine($"Mode: `{_controller.CurrentMode}`");
-            sb.AppendLine($"Balance: `{balance:F2} USDT`");
+            sb.AppendLine($"Balance: `{balance:F2} {_quoteCurrency}`");
             sb.AppendLine($"Open positions: `{positions.Count}`");
 
             if (positions.Any())
             {
                 decimal totalPnl = positions.Sum(p => p.RealizedPnl + p.UnrealizedPnl);
-                sb.AppendLine($"Total P&L: `{totalPnl:+0.00;-0.00} USDT`");
+                sb.AppendLine($"Total P&L: `{totalPnl:+0.00;-0.00} {_quoteCurrency}`");
             }
 
             var statsReport = await _tradeStatistics.GetReportAsync(ct: ct);
@@ -74,9 +83,9 @@ public class TelegramBotCommands : IBotCommands
                 {
                     sb.AppendLine(
                         $"{window.Name}: trades `{window.TradeCount}`, " +
-                        $"profit `{window.Profit:+0.00;-0.00} USDT`, " +
-                        $"loss `{window.Loss:+0.00;-0.00} USDT`, " +
-                        $"net `{window.Net:+0.00;-0.00} USDT`");
+                        $"profit `{window.Profit:+0.00;-0.00} {_quoteCurrency}`, " +
+                        $"loss `{window.Loss:+0.00;-0.00} {_quoteCurrency}`, " +
+                        $"net `{window.Net:+0.00;-0.00} {_quoteCurrency}`");
                 }
             }
 
@@ -169,7 +178,7 @@ public class TelegramBotCommands : IBotCommands
                     sb.AppendLine("  Mark: `N/A`");
                 }
                 sb.AppendLine($"  Targets hit: `{pos.TargetsHit}` / `{pos.Targets.Count}`");
-                sb.AppendLine($"  P&L: {pnlEmoji} `{pnl:+0.00;-0.00} USDT`");
+                sb.AppendLine($"  P&L: {pnlEmoji} `{pnl:+0.00;-0.00} {_quoteCurrency}`");
                 sb.AppendLine();
             }
 
@@ -363,7 +372,7 @@ public class TelegramBotCommands : IBotCommands
             "/pause - Pause trading (ignore new signals)\n" +
             "/resume - Resume trading\n" +
             "/closeall - Close all open positions\n" +
-            "/close BTCUSDT - Close specific position\n" +
+            $"/close {_symbolExample} - Close specific position\n" +
             "/resetcooldown - Reset cooldown period\n" +
             "/stop - Emergency stop (close all & stop bot)\n" +
             "/help - Show this help message\n" +

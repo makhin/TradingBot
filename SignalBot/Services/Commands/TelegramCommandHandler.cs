@@ -2,6 +2,7 @@ using SignalBot.Configuration;
 using SignalBot.Services;
 using System;
 using System.Threading;
+using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -25,6 +26,7 @@ public class TelegramCommandHandler : ServiceBase
     private readonly TelegramBotClient _botClient;
     private readonly long _authorizedChatId;
     private readonly TelegramCommandRetrySettings _retrySettings;
+    private readonly string _symbolExample;
     private int _consecutiveErrors;
 
     public TelegramCommandHandler(
@@ -32,6 +34,7 @@ public class TelegramCommandHandler : ServiceBase
         string botToken,
         long authorizedChatId,
         TelegramCommandRetrySettings retrySettings,
+        IOptions<SignalBotSettings> settings,
         ILogger? logger = null)
         : base(logger)
     {
@@ -39,6 +42,10 @@ public class TelegramCommandHandler : ServiceBase
         _botClient = new TelegramBotClient(botToken);
         _authorizedChatId = authorizedChatId;
         _retrySettings = retrySettings;
+        var suffix = string.IsNullOrWhiteSpace(settings.Value.Trading.DefaultSymbolSuffix)
+            ? "USDT"
+            : settings.Value.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
+        _symbolExample = $"BTC{suffix}";
     }
 
     protected override async Task OnStartAsync(CancellationToken ct)
@@ -159,7 +166,7 @@ public class TelegramCommandHandler : ServiceBase
             ["/closeall"] = () => _commands.CloseAllAsync(ct),
             ["/close"] = () => args.Length > 0
                 ? _commands.ClosePositionAsync(args[0], ct)
-                : Task.FromResult("❌ Usage: /close BTCUSDT"),
+                : Task.FromResult($"❌ Usage: /close {_symbolExample}"),
             ["/resetcooldown"] = () => _commands.ResetCooldownAsync(ct),
             ["/stop"] = () => _commands.EmergencyStopAsync(ct)
         };

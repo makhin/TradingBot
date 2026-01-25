@@ -1,10 +1,17 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
+using SignalBot.Configuration;
 
 namespace SignalBot.Services.Telegram;
 
 public sealed class BitcoinBulletsParser : SignalMessageParserBase
 {
     public override string Name => "bitcoin-bullets";
+
+    public BitcoinBulletsParser(IOptions<SignalBotSettings> settings)
+        : base(settings.Value.Trading.DefaultSymbolSuffix)
+    {
+    }
 
     private static readonly Regex ParserRegex = new Regex(
         @"Coin\s*:\s*\#(?<symbol>[A-Za-z0-9]+)/USDT\s*.*?
