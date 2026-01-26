@@ -13,6 +13,7 @@ using CryptoExchange.Net.Authentication;
 using Serilog;
 using ComplexBot.Models;
 using ComplexBot.Utils;
+using System.Runtime.Loader;
 
 namespace ComplexBot;
 
@@ -388,15 +389,61 @@ class LiveTradingRunner
             telegram);
 
         using var cts = new CancellationTokenSource();
+
+        void RequestShutdown(string reason, bool waitForCompletion)
+        {
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            cts.Cancel();
+
+            if (waitForCompletion)
+            {
+                shutdownHandler.InitiateShutdownAsync(reason, CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            else
+            {
+                _ = shutdownHandler.InitiateShutdownAsync(reason, cts.Token);
+            }
+        }
+
         Console.CancelKeyPress += (s, e) =>
         {
             Log.Warning("Ctrl+C detected - initiating graceful shutdown");
             e.Cancel = true;
 
             // Initiate shutdown in background (don't block signal handler)
-            _ = shutdownHandler.InitiateShutdownAsync("User interrupt (Ctrl+C)", cts.Token);
+            RequestShutdown("User interrupt (Ctrl+C)", waitForCompletion: false);
+        };
 
-            cts.Cancel();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            Log.Warning("Process exit detected - initiating graceful shutdown");
+            try
+            {
+                RequestShutdown("Process exit", waitForCompletion: true);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Graceful shutdown failed during process exit");
+            }
+        };
+
+        AssemblyLoadContext.Default.Unloading += _ =>
+        {
+            Log.Warning("SIGTERM received - initiating graceful shutdown");
+            try
+            {
+                RequestShutdown("SIGTERM", waitForCompletion: true);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Graceful shutdown failed during SIGTERM");
+            }
         };
 
         try
