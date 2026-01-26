@@ -7,6 +7,7 @@ public class NotificationSettings
 {
     public string TelegramBotToken { get; set; } = string.Empty;
     public string TelegramChatId { get; set; } = string.Empty;
+    public List<long> TelegramAuthorizedUserIds { get; set; } = new();
 
     public TelegramCommandRetrySettings TelegramCommandRetry { get; set; } = new();
 

@@ -295,6 +295,7 @@ class Program
                     sp.GetRequiredService<IBotCommands>(),
                     settings.TelegramBotToken,
                     long.Parse(settings.TelegramChatId),
+                    settings.TelegramAuthorizedUserIds,
                     settings.TelegramCommandRetry,
                     sp.GetRequiredService<IOptions<SignalBotSettings>>(),
                     sp.GetRequiredService<ILogger>());

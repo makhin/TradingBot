@@ -25,6 +25,7 @@ public class TelegramCommandHandler : ServiceBase
     private readonly IBotCommands _commands;
     private readonly TelegramBotClient _botClient;
     private readonly long _authorizedChatId;
+    private readonly IReadOnlySet<long> _authorizedUserIds;
     private readonly TelegramCommandRetrySettings _retrySettings;
     private readonly string _symbolExample;
     private int _consecutiveErrors;
@@ -33,6 +34,7 @@ public class TelegramCommandHandler : ServiceBase
         IBotCommands commands,
         string botToken,
         long authorizedChatId,
+        IReadOnlyCollection<long> authorizedUserIds,
         TelegramCommandRetrySettings retrySettings,
         IOptions<SignalBotSettings> settings,
         ILogger? logger = null)
@@ -41,6 +43,7 @@ public class TelegramCommandHandler : ServiceBase
         _commands = commands;
         _botClient = new TelegramBotClient(botToken);
         _authorizedChatId = authorizedChatId;
+        _authorizedUserIds = new HashSet<long>(authorizedUserIds ?? Array.Empty<long>());
         _retrySettings = retrySettings;
         var suffix = string.IsNullOrWhiteSpace(settings.Value.Trading.DefaultSymbolSuffix)
             ? "USDT"
@@ -88,6 +91,21 @@ public class TelegramCommandHandler : ServiceBase
                 await botClient.SendMessage(
                     chatId,
                     "❌ Unauthorized. This bot is private.",
+                    cancellationToken: ct);
+                return;
+            }
+
+            var userId = message.From?.Id;
+            if (_authorizedUserIds.Count > 0 &&
+                (!userId.HasValue || !_authorizedUserIds.Contains(userId.Value)))
+            {
+                _logger.Warning(
+                    "Unauthorized command attempt from user {UserId} in chat {ChatId}",
+                    userId,
+                    chatId);
+                await botClient.SendMessage(
+                    chatId,
+                    "❌ Unauthorized. Your account is not allowed to use this bot.",
                     cancellationToken: ct);
                 return;
             }
