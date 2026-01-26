@@ -317,8 +317,11 @@ public class SignalBotRunner
     private async Task<(bool IsValid, TradingSignal? ValidatedSignal, decimal Balance)> TryValidateSignalAsync(
         TradingSignal signal)
     {
-        var balance = await _client.GetBalanceAsync("USDT", _cts!.Token);
-        _logger.Information("Current USDT balance: {Balance}", balance);
+        var quoteCurrency = string.IsNullOrWhiteSpace(_settings.Trading.DefaultSymbolSuffix)
+            ? "USDT"
+            : _settings.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
+        var balance = await _client.GetBalanceAsync(quoteCurrency, _cts!.Token);
+        _logger.Information("Current {Currency} balance: {Balance}", quoteCurrency, balance);
 
         var validationResult = await _signalValidator.ValidateAndAdjustAsync(signal, balance, _cts.Token);
         if (!validationResult.IsSuccess || validationResult.ValidatedSignal == null)

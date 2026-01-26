@@ -1,10 +1,22 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
+using SignalBot.Configuration;
 
 namespace SignalBot.Services.Telegram;
 
 public sealed class DefaultSignalParser : SignalMessageParserBase
 {
     public override string Name => "default";
+
+    public DefaultSignalParser()
+        : base("USDT")
+    {
+    }
+
+    public DefaultSignalParser(IOptions<SignalBotSettings> settings)
+        : base(settings.Value.Trading.DefaultSymbolSuffix)
+    {
+    }
 
     private static readonly Regex ParserRegex = new Regex(
         @"\#(?<symbol>\w+)/USDT\s*-\s*(?<direction>Long|Short)\s*

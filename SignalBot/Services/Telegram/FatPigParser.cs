@@ -1,10 +1,17 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
+using SignalBot.Configuration;
 
 namespace SignalBot.Services.Telegram;
 
 public sealed class FatPigParser : SignalMessageParserBase
 {
     public override string Name => "fat-pig";
+
+    public FatPigParser(IOptions<SignalBotSettings> settings)
+        : base(settings.Value.Trading.DefaultSymbolSuffix)
+    {
+    }
 
     private static readonly Regex ParserRegex = new Regex(
         @"Coin\s*:\s*\#(?<symbol>[A-Za-z0-9]+)/USDT\s*.*?

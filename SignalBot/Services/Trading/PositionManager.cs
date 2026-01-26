@@ -5,6 +5,8 @@ using TradingBot.Binance.Futures.Interfaces;
 using TradingBot.Core.Models;
 using TradingBot.Core.Notifications;
 using Serilog;
+using Microsoft.Extensions.Options;
+using SignalBot.Configuration;
 
 namespace SignalBot.Services.Trading;
 
@@ -17,12 +19,14 @@ public class PositionManager : IPositionManager
     private readonly IFuturesOrderExecutor _orderExecutor;
     private readonly ITradeStatisticsService _tradeStatistics;
     private readonly INotifier? _notifier;
+    private readonly string _quoteCurrency;
     private readonly ILogger _logger;
 
     public PositionManager(
         IPositionStore<SignalPosition> store,
         IFuturesOrderExecutor orderExecutor,
         ITradeStatisticsService tradeStatistics,
+        IOptions<SignalBotSettings> settings,
         INotifier? notifier = null,
         ILogger? logger = null)
     {
@@ -30,6 +34,9 @@ public class PositionManager : IPositionManager
         _orderExecutor = orderExecutor;
         _tradeStatistics = tradeStatistics;
         _notifier = notifier;
+        _quoteCurrency = string.IsNullOrWhiteSpace(settings.Value.Trading.DefaultSymbolSuffix)
+            ? "USDT"
+            : settings.Value.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
         _logger = logger ?? Log.ForContext<PositionManager>();
     }
 
@@ -120,7 +127,7 @@ public class PositionManager : IPositionManager
                 $"🎯 Target {targetIndex + 1} hit!\n" +
                 $"Symbol: {position.Symbol}\n" +
                 $"Price: {fillPrice}\n" +
-                $"PnL: {pnl:+0.00;-0.00} USDT\n" +
+                $"PnL: {pnl:+0.00;-0.00} {_quoteCurrency}\n" +
                 $"Remaining: {newRemaining}",
                 ct);
         }
@@ -180,7 +187,7 @@ public class PositionManager : IPositionManager
                 $"Symbol: {position.Symbol}\n" +
                 $"Entry: {position.ActualEntryPrice}\n" +
                 $"Exit: {fillPrice}\n" +
-                $"Total PnL: {updatedPosition.RealizedPnl:+0.00;-0.00} USDT",
+                $"Total PnL: {updatedPosition.RealizedPnl:+0.00;-0.00} {_quoteCurrency}",
                 ct);
         }
 

@@ -9,8 +9,17 @@ public abstract class SignalMessageParserBase : ISignalMessageParser
     protected const RegexOptions CommonRegexOptions =
         RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace;
 
+    private readonly string _symbolSuffix;
+
     protected abstract Regex Pattern { get; }
     public abstract string Name { get; }
+
+    protected SignalMessageParserBase(string symbolSuffix)
+    {
+        _symbolSuffix = string.IsNullOrWhiteSpace(symbolSuffix)
+            ? "USDT"
+            : symbolSuffix.Trim().ToUpperInvariant();
+    }
 
     public SignalParserResult Parse(string text, SignalSource source, int defaultLeverage)
     {
@@ -71,7 +80,7 @@ public abstract class SignalMessageParserBase : ISignalMessageParser
 
     protected virtual string BuildSymbol(string rawSymbol)
     {
-        return rawSymbol.ToUpperInvariant() + "USDT";
+        return rawSymbol.ToUpperInvariant() + _symbolSuffix;
     }
 
     private static bool TryParseEntry(Match match, out decimal entry)
