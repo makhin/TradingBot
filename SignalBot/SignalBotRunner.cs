@@ -232,24 +232,30 @@ public class SignalBotRunner
     private async void HandleSignalReceived(TradingSignal signal)
     {
         await _signalProcessingLock.WaitAsync();
+        var normalizedSignal = NormalizeSignalSymbol(signal);
         try
         {
-            using var signalContext = LogContext.PushProperty("SignalId", signal.Id);
+            using var signalContext = LogContext.PushProperty("SignalId", normalizedSignal.Id);
+            if (!string.Equals(signal.Symbol, normalizedSignal.Symbol, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.Information("Mapped signal symbol from {SignalSymbol} to {ExecutionSymbol}",
+                    signal.Symbol, normalizedSignal.Symbol);
+            }
             _logger.Information("Received signal: {Symbol} {Direction} @ {Entry}",
-                signal.Symbol, signal.Direction, signal.Entry);
+                normalizedSignal.Symbol, normalizedSignal.Direction, normalizedSignal.Entry);
 
-            var (canProcess, rejectReason, existingPosition) = await CanProcessSignalAsync(signal);
+            var (canProcess, rejectReason, existingPosition) = await CanProcessSignalAsync(normalizedSignal);
             if (!canProcess)
             {
                 _logger.Warning("Signal ignored: {Reason}", rejectReason);
                 if (existingPosition != null)
                 {
-                    await HandleDuplicateSignal(signal, existingPosition);
+                    await HandleDuplicateSignal(normalizedSignal, existingPosition);
                 }
                 return;
             }
 
-            var (isValid, validatedSignal, balance) = await TryValidateSignalAsync(signal);
+            var (isValid, validatedSignal, balance) = await TryValidateSignalAsync(normalizedSignal);
             if (!isValid || validatedSignal == null)
             {
                 return;
@@ -269,11 +275,11 @@ public class SignalBotRunner
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Error processing signal for {Symbol}", signal.Symbol);
+            _logger.Error(ex, "Error processing signal for {Symbol}", normalizedSignal.Symbol);
 
             await SendNotificationAsync(
                 $"❌ Error executing signal\n" +
-                $"Symbol: {signal.Symbol}\n" +
+                $"Symbol: {normalizedSignal.Symbol}\n" +
                 $"Error: {ex.Message}",
                 _cts!.Token);
         }
@@ -281,6 +287,35 @@ public class SignalBotRunner
         {
             _signalProcessingLock.Release();
         }
+    }
+
+    private TradingSignal NormalizeSignalSymbol(TradingSignal signal)
+    {
+        var signalSuffix = string.IsNullOrWhiteSpace(_settings.Trading.SignalSymbolSuffix)
+            ? "USDT"
+            : _settings.Trading.SignalSymbolSuffix.Trim().ToUpperInvariant();
+        var executionSuffix = string.IsNullOrWhiteSpace(_settings.Trading.DefaultSymbolSuffix)
+            ? "USDT"
+            : _settings.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
+
+        if (string.Equals(signalSuffix, executionSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return signal;
+        }
+
+        if (!signal.Symbol.EndsWith(signalSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return signal;
+        }
+
+        var baseSymbol = signal.Symbol[..^signalSuffix.Length];
+        if (string.IsNullOrWhiteSpace(baseSymbol))
+        {
+            return signal;
+        }
+
+        var mappedSymbol = baseSymbol + executionSuffix;
+        return signal with { Symbol = mappedSymbol };
     }
 
     private async Task<(bool CanProcess, string? RejectReason, SignalPosition? ExistingPosition)> CanProcessSignalAsync(

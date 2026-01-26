@@ -5,6 +5,7 @@ namespace SignalBot.Configuration;
 /// </summary>
 public class TradingSettings
 {
+    public string SignalSymbolSuffix { get; set; } = "USDT";
     public string DefaultSymbolSuffix { get; set; } = "USDT";
     public string MarginType { get; set; } = "Isolated";
     public string PositionMode { get; set; } = "OneWay";
