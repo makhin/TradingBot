@@ -9,7 +9,7 @@ public sealed class BitcoinBulletsParser : SignalMessageParserBase
     public override string Name => "bitcoin-bullets";
 
     public BitcoinBulletsParser(IOptions<SignalBotSettings> settings)
-        : base(settings.Value.Trading.DefaultSymbolSuffix)
+        : base(settings.Value.Trading.SignalSymbolSuffix)
     {
     }
 
