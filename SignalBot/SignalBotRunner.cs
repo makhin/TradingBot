@@ -244,6 +244,11 @@ public class SignalBotRunner
             _logger.Information("Received signal: {Symbol} {Direction} @ {Entry}",
                 normalizedSignal.Symbol, normalizedSignal.Direction, normalizedSignal.Entry);
 
+            if (!await EnsureExecutionSymbolSupportedAsync(normalizedSignal))
+            {
+                return;
+            }
+
             var (canProcess, rejectReason, existingPosition) = await CanProcessSignalAsync(normalizedSignal);
             if (!canProcess)
             {
@@ -286,6 +291,35 @@ public class SignalBotRunner
         finally
         {
             _signalProcessingLock.Release();
+        }
+    }
+
+    private async Task<bool> EnsureExecutionSymbolSupportedAsync(TradingSignal signal)
+    {
+        try
+        {
+            if (await _client.SymbolExistsAsync(signal.Symbol, _cts!.Token))
+            {
+                return true;
+            }
+
+            _logger.Warning("Symbol {Symbol} is not available for futures trading", signal.Symbol);
+            await SendNotificationAsync(
+                $"❌ Symbol not available for futures trading\n" +
+                $"Symbol: {signal.Symbol}\n" +
+                $"Tip: ensure the USDC contract exists or adjust the quote suffix.",
+                _cts!.Token);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Failed to verify symbol availability for {Symbol}", signal.Symbol);
+            await SendNotificationAsync(
+                $"❌ Failed to verify symbol availability\n" +
+                $"Symbol: {signal.Symbol}\n" +
+                $"Error: {ex.Message}",
+                _cts!.Token);
+            return false;
         }
     }
 
