@@ -289,7 +289,7 @@ public class BinanceFuturesClient : IBinanceFuturesClient
             }
 
             _symbolsCache = exchangeInfo.Data.Symbols
-                .Select(s => s.Symbol)
+                .Select(s => s.Name)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             _symbolsCacheUpdatedAt = DateTime.UtcNow;
 

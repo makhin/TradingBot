@@ -10,6 +10,7 @@ using TradingBot.Core.Models;
 using Moq;
 using Xunit;
 using Serilog;
+using Microsoft.Extensions.Options;
 
 namespace SignalBot.Tests;
 
@@ -36,6 +37,14 @@ public class BotCommandsTests
         _mockClient = new Mock<IBinanceFuturesClient>();
         _mockTradeStatistics = new Mock<ITradeStatisticsService>();
 
+        var settings = Options.Create(new SignalBotSettings
+        {
+            Trading = new TradingSettings
+            {
+                DefaultSymbolSuffix = "USDT"
+            }
+        });
+
         _commands = new TelegramBotCommands(
             _controller,
             _cooldownManager,
@@ -44,6 +53,7 @@ public class BotCommandsTests
             _mockOrderExecutor.Object,
             _mockClient.Object,
             _mockTradeStatistics.Object,
+            settings,
             _logger);
     }
 
