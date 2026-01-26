@@ -43,4 +43,9 @@ public interface IBinanceFuturesClient : IBinanceClient
     /// Gets mark price for a symbol
     /// </summary>
     Task<decimal> GetMarkPriceAsync(string symbol, CancellationToken ct = default);
+
+    /// <summary>
+    /// Checks whether a futures symbol exists on the exchange
+    /// </summary>
+    Task<bool> SymbolExistsAsync(string symbol, CancellationToken ct = default);
 }

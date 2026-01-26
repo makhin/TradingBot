@@ -9,7 +9,7 @@ public sealed class FatPigParser : SignalMessageParserBase
     public override string Name => "fat-pig";
 
     public FatPigParser(IOptions<SignalBotSettings> settings)
-        : base(settings.Value.Trading.DefaultSymbolSuffix)
+        : base(settings.Value.Trading.SignalSymbolSuffix)
     {
     }
 

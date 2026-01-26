@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Threading;
 using Binance.Net.Clients;
 using Binance.Net.Enums;
 using TradingBot.Core.Models;
@@ -16,6 +18,10 @@ public class BinanceFuturesClient : IBinanceFuturesClient
 {
     private readonly BinanceRestClient _client;
     private readonly ILogger _logger;
+    private readonly SemaphoreSlim _exchangeInfoLock = new(1, 1);
+    private HashSet<string>? _symbolsCache;
+    private DateTime _symbolsCacheUpdatedAt = DateTime.MinValue;
+    private static readonly TimeSpan SymbolsCacheTtl = TimeSpan.FromMinutes(30);
 
     public BinanceFuturesClient(BinanceRestClient client, ILogger? logger = null)
     {
@@ -252,7 +258,48 @@ public class BinanceFuturesClient : IBinanceFuturesClient
         return result.Data.MarkPrice;
     }
 
+    public async Task<bool> SymbolExistsAsync(string symbol, CancellationToken ct = default)
+    {
+        var symbols = await GetSymbolsAsync(ct);
+        return symbols.Contains(symbol);
+    }
+
     #endregion
+
+    private async Task<HashSet<string>> GetSymbolsAsync(CancellationToken ct)
+    {
+        if (_symbolsCache != null && DateTime.UtcNow - _symbolsCacheUpdatedAt < SymbolsCacheTtl)
+        {
+            return _symbolsCache;
+        }
+
+        await _exchangeInfoLock.WaitAsync(ct);
+        try
+        {
+            if (_symbolsCache != null && DateTime.UtcNow - _symbolsCacheUpdatedAt < SymbolsCacheTtl)
+            {
+                return _symbolsCache;
+            }
+
+            var exchangeInfo = await _client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync(ct);
+            if (!exchangeInfo.Success)
+            {
+                _logger.Error("Failed to get Futures exchange info: {Error}", exchangeInfo.Error?.Message);
+                throw new Exception($"Failed to get exchange info: {exchangeInfo.Error?.Message}");
+            }
+
+            _symbolsCache = exchangeInfo.Data.Symbols
+                .Select(s => s.Symbol)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            _symbolsCacheUpdatedAt = DateTime.UtcNow;
+
+            return _symbolsCache;
+        }
+        finally
+        {
+            _exchangeInfoLock.Release();
+        }
+    }
 
     private static BinanceKlineInterval MapKlineInterval(TradingBot.Core.Models.KlineInterval interval)
     {

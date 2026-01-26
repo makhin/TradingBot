@@ -14,7 +14,7 @@ public sealed class DefaultSignalParser : SignalMessageParserBase
     }
 
     public DefaultSignalParser(IOptions<SignalBotSettings> settings)
-        : base(settings.Value.Trading.DefaultSymbolSuffix)
+        : base(settings.Value.Trading.SignalSymbolSuffix)
     {
     }
 
