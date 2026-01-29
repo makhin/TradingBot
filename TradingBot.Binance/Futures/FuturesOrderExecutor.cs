@@ -244,27 +244,28 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         // Stop loss closes position, so opposite side
         var side = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
 
-        // Normalize quantity to valid precision
-        quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
+        // Normalize quantity to valid precision for logging purposes
+        var normalizedQuantity = await NormalizeQuantityAsync(symbol, quantity, ct);
 
-        _logger.Information("Placing Futures stop loss (conditional): {Symbol} x{Quantity}, Stop: {StopPrice}",
-            symbol, quantity, stopPrice);
+        _logger.Information(
+            "Placing Futures stop loss (conditional, close position): {Symbol} x{Quantity}, Stop: {StopPrice}",
+            symbol, normalizedQuantity, stopPrice);
 
         var result = await _client.UsdFuturesApi.Trading.PlaceConditionalOrderAsync(
             symbol: symbol,
             side: side,
             type: ConditionalOrderType.StopMarket,
-            quantity: quantity,
+            quantity: null,
             price: null,
             positionSide: null,
             timeInForce: null,
-            reduceOnly: true,
+            reduceOnly: null,
             clientOrderId: null,
             triggerPrice: stopPrice,
             activationPrice: null,
             callbackRate: null,
             workingType: null,
-            closePosition: null,
+            closePosition: true,
             priceProtect: null,
             priceMatch: null,
             selfTradePreventionMode: null,
@@ -272,7 +273,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
             receiveWindow: null,
             ct: ct);
 
-        if (!result.Success || result.Data?.Success != true)
+        if (!result.Success || result.Data == null)
         {
             _logger.Error("Futures stop loss order failed: {Error}", result.Error?.Message);
             return new ExecutionResult
@@ -282,12 +283,12 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
             };
         }
 
-        _logger.Information("Futures stop loss order placed: {OrderId}", result.Data.AlgoId);
+        _logger.Information("Futures stop loss order placed: {OrderId}", result.Data.Id);
 
         return new ExecutionResult
         {
             IsAcceptable = true,
-            OrderId = result.Data.AlgoId,
+            OrderId = result.Data.Id,
             ExpectedPrice = stopPrice,
             ActualPrice = stopPrice,
             SlippagePercent = 0,
@@ -336,7 +337,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
             receiveWindow: null,
             ct: ct);
 
-        if (!result.Success || result.Data?.Success != true)
+        if (!result.Success || result.Data == null)
         {
             _logger.Error("Futures take profit order failed: {Error}", result.Error?.Message);
             return new ExecutionResult
@@ -346,12 +347,12 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
             };
         }
 
-        _logger.Information("Futures take profit order placed: {OrderId}", result.Data.AlgoId);
+        _logger.Information("Futures take profit order placed: {OrderId}", result.Data.Id);
 
         return new ExecutionResult
         {
             IsAcceptable = true,
-            OrderId = result.Data.AlgoId,
+            OrderId = result.Data.Id,
             ExpectedPrice = takeProfitPrice,
             ActualPrice = takeProfitPrice,
             SlippagePercent = 0,

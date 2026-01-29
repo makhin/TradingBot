@@ -49,10 +49,10 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
 
         var result = await _socketClient.UsdFuturesApi.Account.SubscribeToUserDataUpdatesAsync(
             listenKey,
-            onLeverageUpdate: null,
-            onMarginUpdate: null,
-            onAccountUpdate: null,
-            onOrderUpdate: data =>
+            null,
+            null,
+            null,
+            data =>
             {
                 var order = data.Data.UpdateData;
                 var direction = order.Side == OrderSide.Buy ? TradeDirection.Long : TradeDirection.Short;
@@ -75,18 +75,20 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
                 _logger.Debug("Order update: {Symbol} {OrderId} {Status}", update.Symbol, update.OrderId, update.Status);
                 onOrderUpdate(update);
             },
-            onTradeUpdate: null,
-            onListenKeyExpired: null,
-            onStrategyUpdate: null,
-            onGridUpdate: null,
-            onConditionOrderTriggerRejectUpdate: null,
-            onAlgoOrderUpdate: data =>
+            null,
+            null,
+            null,
+            null,
+            null,
+            data =>
             {
                 var order = data.Data.Order;
                 var direction = order.Side == OrderSide.Buy ? TradeDirection.Long : TradeDirection.Short;
                 var status = order.Status is AlgoOrderStatus.Triggered or AlgoOrderStatus.Finished
                     ? "Filled"
                     : order.Status.ToString();
+
+                var averageFillPrice = order.AverageFillPrice ?? 0m;
 
                 var update = new OrderUpdate
                 {
@@ -96,11 +98,11 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
                     Direction = direction,
                     Quantity = order.Quantity,
                     Price = order.Price,
-                    AveragePrice = order.AverageFillPrice > 0 ? order.AverageFillPrice : order.Price,
-                    QuantityFilled = order.QuantityFilled,
+                    AveragePrice = averageFillPrice > 0 ? averageFillPrice : order.Price,
+                    QuantityFilled = order.QuantityFilled ?? 0m,
                     UpdateTime = data.Data.Timestamp,
                     OrderType = order.Type.ToString(),
-                    TimeInForce = order.TimeInForce?.ToString()
+                    TimeInForce = order.TimeInForce.ToString()
                 };
 
                 _logger.Debug(
@@ -108,7 +110,7 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
                     update.Symbol, update.OrderId, update.Status);
                 onOrderUpdate(update);
             },
-            ct: ct);
+            ct);
 
         if (!result.Success)
         {
