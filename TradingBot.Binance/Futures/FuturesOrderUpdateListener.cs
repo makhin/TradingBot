@@ -75,7 +75,39 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
                 _logger.Debug("Order update: {Symbol} {OrderId} {Status}", update.Symbol, update.OrderId, update.Status);
                 onOrderUpdate(update);
             },
+            onTradeUpdate: null,
             onListenKeyExpired: null,
+            onStrategyUpdate: null,
+            onGridUpdate: null,
+            onConditionOrderTriggerRejectUpdate: null,
+            onAlgoOrderUpdate: data =>
+            {
+                var order = data.Data.Order;
+                var direction = order.Side == OrderSide.Buy ? TradeDirection.Long : TradeDirection.Short;
+                var status = order.Status is AlgoOrderStatus.Triggered or AlgoOrderStatus.Finished
+                    ? "Filled"
+                    : order.Status.ToString();
+
+                var update = new OrderUpdate
+                {
+                    Symbol = order.Symbol,
+                    OrderId = order.Id,
+                    Status = status,
+                    Direction = direction,
+                    Quantity = order.Quantity,
+                    Price = order.Price,
+                    AveragePrice = order.AverageFillPrice > 0 ? order.AverageFillPrice : order.Price,
+                    QuantityFilled = order.QuantityFilled,
+                    UpdateTime = data.Data.Timestamp,
+                    OrderType = order.Type.ToString(),
+                    TimeInForce = order.TimeInForce?.ToString()
+                };
+
+                _logger.Debug(
+                    "Algo order update: {Symbol} {OrderId} {Status}",
+                    update.Symbol, update.OrderId, update.Status);
+                onOrderUpdate(update);
+            },
             ct: ct);
 
         if (!result.Success)
