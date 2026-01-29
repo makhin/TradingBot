@@ -248,9 +248,11 @@ public class PriceDeviationTests
             _retryPolicy,
             _logger);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => trader.ExecuteSignalAsync(signal, 10000m));
+        // Act
+        var result = await trader.ExecuteSignalAsync(signal, 10000m);
+
+        // Assert
+        Assert.Equal(PositionStatus.Cancelled, result.Status);
 
         _mockPositionManager.Verify(
             x => x.SavePositionAsync(

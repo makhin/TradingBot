@@ -140,6 +140,46 @@ public class BotCommandsTests
     }
 
     [Fact]
+    public async Task ClosePositionAsync_UsesOppositeSideForLong()
+    {
+        // Arrange
+        var position = CreateTestPosition("BTCUSDT", 100m, 50m);
+
+        _mockStore.Setup(x => x.GetPositionBySymbolAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(position);
+
+        _mockStore.Setup(x => x.SavePositionAsync(It.IsAny<SignalPosition>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _mockOrderExecutor.Setup(x => x.PlaceMarketOrderAsync(
+                position.Symbol,
+                It.IsAny<TradeDirection>(),
+                position.RemainingQuantity,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            {
+                IsAcceptable = true,
+                ActualPrice = position.ActualEntryPrice
+            });
+
+        _mockTradeStatistics.Setup(x => x.RecordClosedPositionAsync(
+                It.IsAny<SignalPosition>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _commands.ClosePositionAsync(position.Symbol);
+
+        // Assert
+        _mockOrderExecutor.Verify(x => x.PlaceMarketOrderAsync(
+            position.Symbol,
+            TradeDirection.Short,
+            position.RemainingQuantity,
+            It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Contains("closed", result);
+    }
+
+    [Fact]
     public async Task EmergencyStopAsync_SetsModeToEmergencyStop()
     {
         // Arrange

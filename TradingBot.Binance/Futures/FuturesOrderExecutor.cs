@@ -250,25 +250,13 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         _logger.Information("Placing Futures stop loss: {Symbol} x{Quantity}, Stop: {StopPrice}",
             symbol, quantity, stopPrice);
 
-        var result = await _client.UsdFuturesApi.Trading.PlaceConditionalOrderAsync(
+        var result = await _client.UsdFuturesApi.Trading.PlaceOrderAsync(
             symbol: symbol,
             side: side,
-            type: ConditionalOrderType.StopMarket,
+            type: FuturesOrderType.StopMarket,
             quantity: quantity,
-            price: null,
-            positionSide: null,
-            timeInForce: null,
+            stopPrice: stopPrice,
             reduceOnly: true,
-            clientOrderId: null,
-            triggerPrice: stopPrice,
-            activationPrice: null,
-            callbackRate: null,
-            workingType: null,
-            closePosition: null,
-            priceProtect: null,
-            priceMatch: null,
-            selfTradePreventionMode: null,
-            goodTillDate: null,
             ct: ct);
 
         if (!result.Success)
@@ -313,25 +301,13 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         _logger.Information("Placing Futures take profit: {Symbol} x{Quantity}, TP: {TakeProfitPrice}",
             symbol, quantity, takeProfitPrice);
 
-        var result = await _client.UsdFuturesApi.Trading.PlaceConditionalOrderAsync(
+        var result = await _client.UsdFuturesApi.Trading.PlaceOrderAsync(
             symbol: symbol,
             side: side,
-            type: ConditionalOrderType.TakeProfitMarket,
+            type: FuturesOrderType.TakeProfitMarket,
             quantity: quantity,
-            price: null,
-            positionSide: null,
-            timeInForce: null,
+            stopPrice: takeProfitPrice,
             reduceOnly: true,
-            clientOrderId: null,
-            triggerPrice: takeProfitPrice,
-            activationPrice: null,
-            callbackRate: null,
-            workingType: null,
-            closePosition: null,
-            priceProtect: null,
-            priceMatch: null,
-            selfTradePreventionMode: null,
-            goodTillDate: null,
             ct: ct);
 
         if (!result.Success)

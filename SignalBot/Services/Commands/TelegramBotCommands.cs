@@ -75,7 +75,7 @@ public class TelegramBotCommands : IBotCommands
             }
 
             var statsReport = await _tradeStatistics.GetReportAsync(ct: ct);
-            if (statsReport.Windows.Any())
+            if (statsReport?.Windows?.Any() == true)
             {
                 sb.AppendLine();
                 sb.AppendLine("📈 **Trade Stats**");
@@ -409,8 +409,8 @@ public class TelegramBotCommands : IBotCommands
 
         // Close position at market
         var direction = position.Direction == SignalDirection.Long
-            ? TradeDirection.Long
-            : TradeDirection.Short;
+            ? TradeDirection.Short
+            : TradeDirection.Long;
 
         var closeResult = await _orderExecutor.PlaceMarketOrderAsync(
             position.Symbol,

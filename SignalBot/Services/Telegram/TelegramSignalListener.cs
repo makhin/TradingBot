@@ -490,6 +490,13 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
                 return;
             }
 
+            if (!SignalMessageHeuristics.LooksLikeSignal(messageText))
+            {
+                _logger.Debug("Skipping non-signal message from {ChannelName} (ID {MessageId})",
+                    channelName, message.ID);
+                return;
+            }
+
             _logger.Information("New message from {ChannelName}:\n{FullText}",
                 channelName, messageText);
 
@@ -555,6 +562,8 @@ public class TelegramSignalListener : ServiceBase, ITelegramSignalListener
 
         return $"Channel_{peerId}";
     }
+
+    
 
     private void TrackPeerNamesFromUpdates(UpdatesBase updates)
     {
