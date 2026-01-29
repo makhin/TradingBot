@@ -180,14 +180,52 @@ public class SignalTrader : ISignalTrader
                 signal.AdjustedStopLoss,
                 ct);
 
-            if (slResult.OrderId.HasValue)
+            if (slResult.IsAcceptable && slResult.OrderId.HasValue)
             {
                 position = position with { StopLossOrderId = slResult.OrderId.Value };
             }
             else
             {
-                _logger.Warning("Failed to place stop loss for {Symbol}: {Reason}",
+                _logger.Error("Stop loss placement failed for {Symbol}: {Reason}. Closing position at market.",
                     signal.Symbol, slResult.RejectReason);
+
+                var closeDirection = tradeDirection == TradeDirection.Long
+                    ? TradeDirection.Short
+                    : TradeDirection.Long;
+                var closeResult = await _orderExecutor.PlaceMarketOrderAsync(
+                    signal.Symbol,
+                    closeDirection,
+                    positionSize.Quantity,
+                    ct);
+
+                if (!closeResult.IsAcceptable)
+                {
+                    position = position with { Status = PositionStatus.Failed };
+                    await _positionManager.SavePositionAsync(position, ct);
+                    throw new InvalidOperationException(
+                        $"Stop loss placement failed and market close failed: {closeResult.RejectReason}");
+                }
+
+                var realizedPnl = closeResult.ActualPrice > 0
+                    ? PnlCalculator.Calculate(
+                        position.ActualEntryPrice,
+                        closeResult.ActualPrice,
+                        positionSize.Quantity,
+                        position.Direction)
+                    : 0m;
+
+                position = position with
+                {
+                    RemainingQuantity = 0,
+                    RealizedPnl = position.RealizedPnl + realizedPnl,
+                    Status = PositionStatus.Closed,
+                    ClosedAt = DateTime.UtcNow,
+                    CloseReason = PositionCloseReason.Error
+                };
+
+                await _positionManager.SavePositionAsync(position, ct);
+                throw new InvalidOperationException(
+                    $"Stop loss placement failed; position closed at market: {slResult.RejectReason}");
             }
 
             // 6. Place Take Profit orders for each target

@@ -250,14 +250,25 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         _logger.Information("Placing Futures stop loss: {Symbol} x{Quantity}, Stop: {StopPrice}",
             symbol, quantity, stopPrice);
 
-        var result = await _client.UsdFuturesApi.Trading.PlaceOrderAsync(
+        var result = await _client.UsdFuturesApi.Trading.PlaceConditionalOrderAsync(
             symbol: symbol,
             side: side,
-            type: FuturesOrderType.StopMarket,
+            type: ConditionalOrderType.StopMarket,
             quantity: quantity,
-            stopPrice: stopPrice,
-            timeInForce: TimeInForce.GoodTillCanceled,
+            price: null,
+            positionSide: null,
+            timeInForce: null,
             reduceOnly: true,
+            clientOrderId: null,
+            triggerPrice: stopPrice,
+            activationPrice: null,
+            callbackRate: null,
+            workingType: null,
+            closePosition: null,
+            priceProtect: null,
+            priceMatch: null,
+            selfTradePreventionMode: null,
+            goodTillDate: null,
             ct: ct);
 
         if (!result.Success)
@@ -302,14 +313,25 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         _logger.Information("Placing Futures take profit: {Symbol} x{Quantity}, TP: {TakeProfitPrice}",
             symbol, quantity, takeProfitPrice);
 
-        var result = await _client.UsdFuturesApi.Trading.PlaceOrderAsync(
+        var result = await _client.UsdFuturesApi.Trading.PlaceConditionalOrderAsync(
             symbol: symbol,
             side: side,
-            type: FuturesOrderType.TakeProfitMarket,
+            type: ConditionalOrderType.TakeProfitMarket,
             quantity: quantity,
-            stopPrice: takeProfitPrice,
-            timeInForce: TimeInForce.GoodTillCanceled,
+            price: null,
+            positionSide: null,
+            timeInForce: null,
             reduceOnly: true,
+            clientOrderId: null,
+            triggerPrice: takeProfitPrice,
+            activationPrice: null,
+            callbackRate: null,
+            workingType: null,
+            closePosition: null,
+            priceProtect: null,
+            priceMatch: null,
+            selfTradePreventionMode: null,
+            goodTillDate: null,
             ct: ct);
 
         if (!result.Success)
