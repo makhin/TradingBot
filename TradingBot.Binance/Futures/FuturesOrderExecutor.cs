@@ -247,19 +247,32 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         // Normalize quantity to valid precision
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
 
-        _logger.Information("Placing Futures stop loss: {Symbol} x{Quantity}, Stop: {StopPrice}",
+        _logger.Information("Placing Futures stop loss (conditional): {Symbol} x{Quantity}, Stop: {StopPrice}",
             symbol, quantity, stopPrice);
 
-        var result = await _client.UsdFuturesApi.Trading.PlaceOrderAsync(
+        var result = await _client.UsdFuturesApi.Trading.PlaceConditionalOrderAsync(
             symbol: symbol,
             side: side,
-            type: FuturesOrderType.StopMarket,
+            type: ConditionalOrderType.StopMarket,
             quantity: quantity,
-            stopPrice: stopPrice,
+            price: null,
+            positionSide: null,
+            timeInForce: null,
             reduceOnly: true,
+            clientOrderId: null,
+            triggerPrice: stopPrice,
+            activationPrice: null,
+            callbackRate: null,
+            workingType: null,
+            closePosition: null,
+            priceProtect: null,
+            priceMatch: null,
+            selfTradePreventionMode: null,
+            goodTillDate: null,
+            receiveWindow: null,
             ct: ct);
 
-        if (!result.Success)
+        if (!result.Success || result.Data?.Success != true)
         {
             _logger.Error("Futures stop loss order failed: {Error}", result.Error?.Message);
             return new ExecutionResult
@@ -269,12 +282,12 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
             };
         }
 
-        _logger.Information("Futures stop loss order placed: {OrderId}", result.Data.Id);
+        _logger.Information("Futures stop loss order placed: {OrderId}", result.Data.AlgoId);
 
         return new ExecutionResult
         {
             IsAcceptable = true,
-            OrderId = result.Data.Id,
+            OrderId = result.Data.AlgoId,
             ExpectedPrice = stopPrice,
             ActualPrice = stopPrice,
             SlippagePercent = 0,
@@ -298,19 +311,32 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         // Normalize quantity to valid precision
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
 
-        _logger.Information("Placing Futures take profit: {Symbol} x{Quantity}, TP: {TakeProfitPrice}",
+        _logger.Information("Placing Futures take profit (conditional): {Symbol} x{Quantity}, TP: {TakeProfitPrice}",
             symbol, quantity, takeProfitPrice);
 
-        var result = await _client.UsdFuturesApi.Trading.PlaceOrderAsync(
+        var result = await _client.UsdFuturesApi.Trading.PlaceConditionalOrderAsync(
             symbol: symbol,
             side: side,
-            type: FuturesOrderType.TakeProfitMarket,
+            type: ConditionalOrderType.TakeProfitMarket,
             quantity: quantity,
-            stopPrice: takeProfitPrice,
+            price: null,
+            positionSide: null,
+            timeInForce: null,
             reduceOnly: true,
+            clientOrderId: null,
+            triggerPrice: takeProfitPrice,
+            activationPrice: null,
+            callbackRate: null,
+            workingType: null,
+            closePosition: null,
+            priceProtect: null,
+            priceMatch: null,
+            selfTradePreventionMode: null,
+            goodTillDate: null,
+            receiveWindow: null,
             ct: ct);
 
-        if (!result.Success)
+        if (!result.Success || result.Data?.Success != true)
         {
             _logger.Error("Futures take profit order failed: {Error}", result.Error?.Message);
             return new ExecutionResult
@@ -320,12 +346,12 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
             };
         }
 
-        _logger.Information("Futures take profit order placed: {OrderId}", result.Data.Id);
+        _logger.Information("Futures take profit order placed: {OrderId}", result.Data.AlgoId);
 
         return new ExecutionResult
         {
             IsAcceptable = true,
-            OrderId = result.Data.Id,
+            OrderId = result.Data.AlgoId,
             ExpectedPrice = takeProfitPrice,
             ActualPrice = takeProfitPrice,
             SlippagePercent = 0,
@@ -405,13 +431,31 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
 
         var result = await _client.UsdFuturesApi.Trading.CancelOrderAsync(symbol, orderId, ct: ct);
 
-        if (!result.Success)
+        if (result.Success)
         {
-            _logger.Error("Failed to cancel Futures order {OrderId}: {Error}", orderId, result.Error?.Message);
+            _logger.Information("Cancelled Futures order {OrderId}", orderId);
+            return true;
+        }
+
+        _logger.Warning(
+            "Standard cancel failed for {Symbol} order {OrderId}: {Error}. Trying conditional cancel.",
+            symbol, orderId, result.Error?.Message);
+
+        var conditionalResult = await _client.UsdFuturesApi.Trading.CancelConditionalOrderAsync(
+            orderId: orderId,
+            clientOrderId: null,
+            receiveWindow: null,
+            ct: ct);
+
+        if (!conditionalResult.Success)
+        {
+            _logger.Error(
+                "Failed to cancel Futures conditional order {OrderId}: {Error}",
+                orderId, conditionalResult.Error?.Message);
             return false;
         }
 
-        _logger.Information("Cancelled Futures order {OrderId}", orderId);
+        _logger.Information("Cancelled Futures conditional order {OrderId}", orderId);
         return true;
     }
 
