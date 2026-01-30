@@ -242,6 +242,7 @@ class Program
         services.AddSingleton<ISignalMessageParser, DefaultSignalParser>();
         services.AddSingleton<ISignalMessageParser, BitcoinBulletsParser>();
         services.AddSingleton<ISignalMessageParser, FatPigParser>();
+        services.AddSingleton<ISignalMessageParser, EmojiSignalParser>();
         services.AddSingleton<SignalParser>();
         services.AddSingleton<ISignalValidator>(sp =>
             new SignalValidator(
