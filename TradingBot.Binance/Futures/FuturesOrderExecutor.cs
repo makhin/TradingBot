@@ -248,24 +248,24 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         var normalizedQuantity = await NormalizeQuantityAsync(symbol, quantity, ct);
 
         _logger.Information(
-            "Placing Futures stop loss (conditional, close position): {Symbol} x{Quantity}, Stop: {StopPrice}",
+            "Placing Futures stop loss (conditional, reduce-only): {Symbol} x{Quantity}, Stop: {StopPrice}",
             symbol, normalizedQuantity, stopPrice);
 
         var result = await _client.UsdFuturesApi.Trading.PlaceConditionalOrderAsync(
             symbol: symbol,
             side: side,
             type: ConditionalOrderType.StopMarket,
-            quantity: null,
+            quantity: normalizedQuantity,
             price: null,
             positionSide: null,
             timeInForce: null,
-            reduceOnly: null,
+            reduceOnly: true,
             clientOrderId: null,
             triggerPrice: stopPrice,
             activationPrice: null,
             callbackRate: null,
             workingType: null,
-            closePosition: true,
+            closePosition: null,
             priceProtect: null,
             priceMatch: null,
             selfTradePreventionMode: null,
