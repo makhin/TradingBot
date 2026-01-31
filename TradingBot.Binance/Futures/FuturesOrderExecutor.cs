@@ -18,6 +18,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     private readonly ExecutionValidator _validator;
     private readonly ILogger _logger;
     private readonly Dictionary<string, int> _quantityPrecisionCache = new();
+    private readonly Dictionary<string, decimal> _priceTickSizeCache = new();
 
     public FuturesOrderExecutor(
         BinanceRestClient client,
@@ -87,6 +88,63 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         {
             _logger.Debug("Normalized quantity for {Symbol}: {Original} => {Normalized} (precision: {Precision})",
                 symbol, quantity, normalized, precision);
+        }
+
+        return normalized;
+    }
+
+    /// <summary>
+    /// Normalizes price to the valid tick size for the symbol
+    /// </summary>
+    private async Task<decimal> NormalizePriceAsync(string symbol, decimal price, CancellationToken ct)
+    {
+        if (!_priceTickSizeCache.TryGetValue(symbol, out var tickSize))
+        {
+            var exchangeInfo = await _client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync(ct);
+            if (exchangeInfo.Success)
+            {
+                var symbolInfo = exchangeInfo.Data.Symbols.FirstOrDefault(s => s.Name == symbol);
+                if (symbolInfo != null)
+                {
+                    var priceFilter = symbolInfo.PriceFilter;
+                    if (priceFilter != null)
+                    {
+                        tickSize = priceFilter.TickSize;
+                        _logger.Debug("Symbol {Symbol}: TickSize={TickSize}", symbol, tickSize);
+                    }
+                    else
+                    {
+                        tickSize = 0m;
+                        _logger.Warning("No PRICE_FILTER found for {Symbol}, skipping price normalization.", symbol);
+                    }
+
+                    _priceTickSizeCache[symbol] = tickSize;
+                }
+                else
+                {
+                    _logger.Warning("Symbol {Symbol} not found in exchange info, skipping price normalization.", symbol);
+                    tickSize = 0m;
+                }
+            }
+            else
+            {
+                _logger.Warning("Failed to get exchange info: {Error}, skipping price normalization.",
+                    exchangeInfo.Error?.Message);
+                tickSize = 0m;
+            }
+        }
+
+        if (tickSize <= 0)
+        {
+            return price;
+        }
+
+        var normalized = Math.Round(price / tickSize, 0, MidpointRounding.ToZero) * tickSize;
+
+        if (normalized != price)
+        {
+            _logger.Debug("Normalized price for {Symbol}: {Original} => {Normalized} (tick: {TickSize})",
+                symbol, price, normalized, tickSize);
         }
 
         return normalized;
@@ -195,6 +253,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
 
         // Normalize quantity to valid precision
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
+        price = await NormalizePriceAsync(symbol, price, ct);
 
         _logger.Information("Placing Futures limit {Side} order: {Symbol} x{Quantity} @ {Price}",
             side, symbol, quantity, price);
@@ -246,6 +305,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
 
         // Normalize quantity to valid precision for logging purposes
         var normalizedQuantity = await NormalizeQuantityAsync(symbol, quantity, ct);
+        stopPrice = await NormalizePriceAsync(symbol, stopPrice, ct);
 
         _logger.Information(
             "Placing Futures stop loss (conditional, reduce-only): {Symbol} x{Quantity}, Stop: {StopPrice}",
@@ -311,6 +371,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
 
         // Normalize quantity to valid precision
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
+        takeProfitPrice = await NormalizePriceAsync(symbol, takeProfitPrice, ct);
 
         _logger.Information("Placing Futures take profit (conditional): {Symbol} x{Quantity}, TP: {TakeProfitPrice}",
             symbol, quantity, takeProfitPrice);
