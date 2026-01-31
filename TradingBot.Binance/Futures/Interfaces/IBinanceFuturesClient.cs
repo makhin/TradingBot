@@ -48,4 +48,9 @@ public interface IBinanceFuturesClient : IBinanceClient
     /// Checks whether a futures symbol exists on the exchange
     /// </summary>
     Task<bool> SymbolExistsAsync(string symbol, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets all available futures trading symbols
+    /// </summary>
+    Task<HashSet<string>> GetAllSymbolsAsync(CancellationToken ct = default);
 }

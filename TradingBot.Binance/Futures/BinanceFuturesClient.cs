@@ -264,6 +264,11 @@ public class BinanceFuturesClient : IBinanceFuturesClient
         return symbols.Contains(symbol);
     }
 
+    public async Task<HashSet<string>> GetAllSymbolsAsync(CancellationToken ct = default)
+    {
+        return await GetSymbolsAsync(ct);
+    }
+
     #endregion
 
     private async Task<HashSet<string>> GetSymbolsAsync(CancellationToken ct)
