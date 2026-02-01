@@ -71,7 +71,27 @@ public class PositionManager : IPositionManager
         decimal fillPrice,
         CancellationToken ct = default)
     {
+        if (targetIndex < 0 || targetIndex >= position.Targets.Count)
+        {
+            _logger.Warning("Target index {Index} out of range for {Symbol}", targetIndex, position.Symbol);
+            return;
+        }
+
         var target = position.Targets[targetIndex];
+        if (target.IsHit)
+        {
+            _logger.Information("Target {Index} already processed for {Symbol}, skipping duplicate",
+                targetIndex + 1, position.Symbol);
+            return;
+        }
+
+        if (fillPrice <= 0)
+        {
+            _logger.Warning(
+                "Target {Index} fill price was {Price} for {Symbol}, using target price {TargetPrice} instead",
+                targetIndex + 1, fillPrice, position.Symbol, target.Price);
+            fillPrice = target.Price;
+        }
 
         _logger.Information("Handling target {Index} hit for {Symbol} @ {Price}",
             targetIndex, position.Symbol, fillPrice);
