@@ -501,6 +501,113 @@ TRADING_BinanceApi__UseTestnet=true
 
 ---
 
+## Multi-Assets Mode (USDC/USDT общая маржа)
+
+Ниже — практический план, как включить Multi-Assets Mode в SignalBot, чтобы торговать USDT‑контрактами при марже из USDC (общий коллатераль). Основная идея: добавить настройку режима, включать его через Binance USDⓈ‑M API и использовать общую маржу/эквити при расчёте доступного баланса, а не только `USDT`‑баланс. Кодовые точки входа — в `SignalBot/Configuration/TradingSettings.cs`, `SignalBot/SignalBotRunner.cs`, `TradingBot.Binance/Futures/Interfaces/IBinanceFuturesClient.cs`, `TradingBot.Binance/Futures/BinanceFuturesClient.cs`.
+
+### 1) Добавить настройки режима
+
+**Где:** `SignalBot/Configuration/TradingSettings.cs`  
+**Что:** добавить флаг `EnableMultiAssetsMode` и опционально `MultiAssetsBalanceMode` (например, `TotalWallet`/`AvailableBalance`), чтобы выбирать, какой показатель использовать при валидации позиции.
+
+Пример (минимум):
+
+```csharp
+public class TradingSettings
+{
+    public bool EnableMultiAssetsMode { get; set; } = false;
+    public string MultiAssetsBalanceMode { get; set; } = "AvailableBalance";
+}
+```
+
+И добавить это в `appsettings.json` (секция `SignalBot:Trading`):
+
+```json
+"EnableMultiAssetsMode": false,
+"MultiAssetsBalanceMode": "AvailableBalance"
+```
+
+### 2) Включение Multi-Assets Mode через Binance API
+
+**API Binance USDⓈ‑M:** `POST /fapi/v1/multiAssetsMargin` (Change Multi-Assets Mode).  
+**Где:** `TradingBot.Binance/Futures/Interfaces/IBinanceFuturesClient.cs` и `TradingBot.Binance/Futures/BinanceFuturesClient.cs`.
+
+Добавить метод:
+
+```csharp
+Task<bool> SetMultiAssetsModeAsync(bool enabled, CancellationToken ct = default);
+```
+
+Реализация в `BinanceFuturesClient` (Binance.Net обычно имеет метод уровня `Account.ChangeMultiAssetsModeAsync`):
+
+```csharp
+public async Task<bool> SetMultiAssetsModeAsync(bool enabled, CancellationToken ct = default)
+{
+    var result = await _client.UsdFuturesApi.Account.ChangeMultiAssetsModeAsync(enabled, ct: ct);
+    if (!result.Success)
+    {
+        _logger.Error("Failed to set Multi-Assets mode: {Error}", result.Error?.Message);
+        return false;
+    }
+
+    _logger.Information("Multi-Assets mode set to {Enabled}", enabled);
+    return true;
+}
+```
+
+И вызов в `SignalBot/SignalBotRunner.StartAsync` перед запуском торговли:
+
+```csharp
+if (_settings.Trading.EnableMultiAssetsMode)
+{
+    var enabled = await _client.SetMultiAssetsModeAsync(true, _cts.Token);
+    if (!enabled)
+    {
+        throw new InvalidOperationException("Failed to enable Multi-Assets Mode");
+    }
+}
+```
+
+### 3) Баланс и валидатор: использовать общий коллатераль
+
+Сейчас баланс берётся через `GetBalanceAsync(quoteCurrency)` — это `USDT` и при USDC‑марже будет ноль. Нужно использовать общий баланс аккаунта в USDⓈ‑M:
+
+**API Binance USDⓈ‑M:** `GET /fapi/v2/account`  
+**Где:** `TradingBot.Binance/Futures/BinanceFuturesClient.cs`, `SignalBot/SignalBotRunner.cs`.
+
+Добавить метод получения аккаунта и выбрать показатель:
+
+```csharp
+Task<FuturesAccountInfo> GetAccountInfoAsync(CancellationToken ct = default);
+```
+
+Псевдо‑использование в `SignalBotRunner.TryValidateSignalAsync`:
+
+```csharp
+decimal balance;
+if (_settings.Trading.EnableMultiAssetsMode)
+{
+    var account = await _client.GetAccountInfoAsync(_cts.Token);
+    balance = _settings.Trading.MultiAssetsBalanceMode == "TotalWallet"
+        ? account.TotalWalletBalance
+        : account.AvailableBalance;
+}
+else
+{
+    var quoteCurrency = _settings.Trading.DefaultSymbolSuffix?.Trim().ToUpperInvariant() ?? "USDT";
+    balance = await _client.GetBalanceAsync(quoteCurrency, _cts.Token);
+}
+```
+
+### 4) Контроль EEA/MiCA (опционально)
+
+Если USDT‑фьючерсы запрещены для EEA, Multi‑Assets не поможет — нужно блокировать USDT‑контракты на уровне валидации:
+
+**Где:** `SignalBot/SignalBotRunner.cs` (например, в `EnsureExecutionSymbolSupportedAsync` или `NormalizeSignalSymbol`).  
+**Как:** добавить флаг `DisallowUsdtFuturesInEea` в `TradingSettings` и отказ в обработке при суффиксе `USDT`.
+
+---
+
 ## Ключевые компоненты
 
 ### SignalParser
