@@ -4,6 +4,7 @@ using SignalBot.State;
 using TradingBot.Binance.Common.Interfaces;
 using TradingBot.Binance.Common.Models;
 using Serilog;
+using System.Collections.Concurrent;
 
 namespace SignalBot.Services.Monitoring;
 
@@ -15,6 +16,7 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
     private readonly IOrderUpdateListener _updateListener;
     private readonly IPositionStore<SignalPosition> _store;
     private IDisposable? _subscription;
+    private readonly ConcurrentDictionary<long, byte> _processedFilledOrders = new();
 
     public event Action<Guid, int, decimal>? OnTargetHit;
     public event Action<Guid, decimal>? OnStopLossHit;
@@ -63,6 +65,12 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
                 return;
             }
 
+            if (!_processedFilledOrders.TryAdd(update.OrderId, 0))
+            {
+                _logger.Debug("Duplicate filled update ignored for order {OrderId}", update.OrderId);
+                return;
+            }
+
             _logger.Information("Order filled: {Symbol} {OrderId} @ {Price}, Qty: {Qty}",
                 update.Symbol, update.OrderId, update.AveragePrice, update.QuantityFilled);
 
@@ -77,8 +85,9 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
             // Check if this is a stop loss order
             if (position.StopLossOrderId == update.OrderId)
             {
+                var fillPrice = update.AveragePrice > 0 ? update.AveragePrice : update.Price;
                 _logger.Information("Stop loss hit for {Symbol} @ {Price}", update.Symbol, update.AveragePrice);
-                OnStopLossHit?.Invoke(position.Id, update.AveragePrice);
+                OnStopLossHit?.Invoke(position.Id, fillPrice);
                 return;
             }
 
@@ -90,9 +99,10 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
                     var targetIndex = i; // TP orders are in same order as targets
                     if (targetIndex < position.Targets.Count)
                     {
+                        var fillPrice = update.AveragePrice > 0 ? update.AveragePrice : update.Price;
                         _logger.Information("Target {Index} hit for {Symbol} @ {Price}",
-                            targetIndex + 1, update.Symbol, update.AveragePrice);
-                        OnTargetHit?.Invoke(position.Id, targetIndex, update.AveragePrice);
+                            targetIndex + 1, update.Symbol, fillPrice);
+                        OnTargetHit?.Invoke(position.Id, targetIndex, fillPrice);
                     }
                     return;
                 }
