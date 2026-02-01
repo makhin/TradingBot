@@ -7,7 +7,7 @@ namespace SignalBot.Configuration;
 /// </summary>
 public class EntrySettings
 {
-    public decimal MaxPriceDeviationPercent { get; set; } = 0.5m;
+    public decimal MaxPriceDeviationPercent { get; set; } = 2.5m;
     public PriceDeviationAction DeviationAction { get; set; } = PriceDeviationAction.Skip;
     public bool UseLimitOrder { get; set; } = false;
     public LimitOrderPricing LimitPricing { get; set; } = LimitOrderPricing.AtEntry;
