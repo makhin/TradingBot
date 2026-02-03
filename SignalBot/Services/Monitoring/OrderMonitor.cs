@@ -86,7 +86,14 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
             if (position.StopLossOrderId == update.OrderId)
             {
                 var fillPrice = update.AveragePrice > 0 ? update.AveragePrice : update.Price;
-                _logger.Information("Stop loss hit for {Symbol} @ {Price}", update.Symbol, update.AveragePrice);
+                if (fillPrice <= 0 && position.CurrentStopLoss > 0)
+                {
+                    _logger.Warning(
+                        "Stop loss fill price missing for {Symbol}; using current stop loss {StopLoss}",
+                        update.Symbol, position.CurrentStopLoss);
+                    fillPrice = position.CurrentStopLoss;
+                }
+                _logger.Information("Stop loss hit for {Symbol} @ {Price}", update.Symbol, fillPrice);
                 OnStopLossHit?.Invoke(position.Id, fillPrice);
                 return;
             }
