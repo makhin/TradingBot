@@ -685,6 +685,9 @@ public class BinanceLiveTrader : IAsyncDisposable, ILiveTrader
         decimal? takeProfit,
         CancellationToken cancellationToken = default)
     {
+        const string balanceAsset = "USDT";
+        var balanceBefore = await TryGetBalanceAsync(balanceAsset, "before opening position");
+
         if (_settings.TradingMode == TradingMode.Spot && direction == TradeDirection.Short)
         {
             Log("Short positions are not allowed in spot mode without margin.", LogEventLevel.Warning);
@@ -719,6 +722,11 @@ public class BinanceLiveTrader : IAsyncDisposable, ILiveTrader
 
             var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
             Log($"[PAPER] Opened {direction} {quantity:F5} @ {price:F2}, SL: {stopLoss:F2}{takeProfitText}", LogEventLevel.Information);
+            var balanceAfter = await TryGetBalanceAsync(balanceAsset, "after opening position");
+            if (balanceBefore.HasValue && balanceAfter.HasValue)
+            {
+                LogBalanceChange($"Balance update (open {direction})", balanceBefore.Value, balanceAfter.Value, balanceAsset);
+            }
             OnTrade?.Invoke(Trade.Create(
                 _settings.Symbol,
                 _entryTime.Value,
@@ -792,6 +800,11 @@ public class BinanceLiveTrader : IAsyncDisposable, ILiveTrader
 
                 var takeProfitText = takeProfit.HasValue ? $", TP: {takeProfit:F2}" : string.Empty;
                 Log($"Opened {direction} {actualQuantity:F5} @ {_entryPrice:F2}, SL: {stopLoss:F2}{takeProfitText}", LogEventLevel.Information);
+                var balanceAfter = await TryGetBalanceAsync(balanceAsset, "after opening position");
+                if (balanceBefore.HasValue && balanceAfter.HasValue)
+                {
+                    LogBalanceChange($"Balance update (open {direction})", balanceBefore.Value, balanceAfter.Value, balanceAsset);
+                }
                 OnTrade?.Invoke(Trade.Create(
                     _settings.Symbol,
                     _entryTime.Value,
@@ -840,6 +853,9 @@ public class BinanceLiveTrader : IAsyncDisposable, ILiveTrader
     private async Task ClosePositionAsync(string reason, CancellationToken cancellationToken = default)
     {
         if (_currentPosition == 0) return;
+
+        const string balanceAsset = "USDT";
+        var balanceBefore = await TryGetBalanceAsync(balanceAsset, "before closing position");
 
         // Отменить OCO, если был выставлен
         await CancelOcoOrderAsync();
@@ -922,6 +938,10 @@ public class BinanceLiveTrader : IAsyncDisposable, ILiveTrader
             : await GetAccountBalanceAsync();
         _riskManager.UpdateEquity(equity);
         OnEquityUpdate?.Invoke(equity);
+        if (balanceBefore.HasValue)
+        {
+            LogBalanceChange($"Balance update (close {direction})", balanceBefore.Value, equity, balanceAsset);
+        }
 
         // Send Telegram notification
         if (_telegram != null && _entryPrice.HasValue)
@@ -1090,6 +1110,29 @@ public class BinanceLiveTrader : IAsyncDisposable, ILiveTrader
         {
             await UpdateTrailingStopAsync(_stopLoss.Value, _takeProfit.Value);
         }
+    }
+
+    private async Task<decimal?> TryGetBalanceAsync(string asset, string context)
+    {
+        if (_settings.PaperTrade)
+        {
+            return _paperEquity;
+        }
+
+        try
+        {
+            return await GetAccountBalanceAsync(asset);
+        }
+        catch (Exception ex)
+        {
+            Log($"Balance check failed {context}: {ex.Message}", LogEventLevel.Warning);
+            return null;
+        }
+    }
+
+    private void LogBalanceChange(string action, decimal before, decimal after, string asset)
+    {
+        Log($"{action} | {asset} balance: {before:F2} -> {after:F2}", LogEventLevel.Information);
     }
 
     private void Log(string message)
