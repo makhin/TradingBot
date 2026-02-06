@@ -5,6 +5,9 @@ using CryptoExchange.Net.Objects.Sockets;
 using TradingBot.Core.Models;
 using TradingBot.Binance.Common.Interfaces;
 using Serilog;
+using BinanceOrderUpdate = TradingBot.Binance.Common.Interfaces.OrderUpdate;
+using BinancePositionUpdate = TradingBot.Binance.Common.Interfaces.PositionUpdate;
+using BinanceAccountUpdate = TradingBot.Binance.Common.Interfaces.AccountUpdate;
 
 namespace TradingBot.Binance.Futures;
 
@@ -35,7 +38,7 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
     /// Subscribes to order execution updates
     /// </summary>
     public async Task<IDisposable?> SubscribeToOrderUpdatesAsync(
-        Action<OrderUpdate> onOrderUpdate,
+        Action<BinanceOrderUpdate> onOrderUpdate,
         CancellationToken ct = default)
     {
         var listenKey = await GetListenKeyAsync(ct);
@@ -57,7 +60,7 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
                 var order = data.Data.UpdateData;
                 var direction = order.Side == OrderSide.Buy ? TradeDirection.Long : TradeDirection.Short;
 
-                var update = new OrderUpdate
+                var update = new BinanceOrderUpdate
                 {
                     Symbol = order.Symbol,
                     OrderId = order.OrderId,
@@ -90,7 +93,7 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
 
                 var averageFillPrice = order.AverageFillPrice ?? 0m;
 
-                var update = new OrderUpdate
+                var update = new BinanceOrderUpdate
                 {
                     Symbol = order.Symbol,
                     OrderId = order.Id,
@@ -135,7 +138,7 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
     /// Subscribes to position updates
     /// </summary>
     public async Task<IDisposable?> SubscribeToPositionUpdatesAsync(
-        Action<PositionUpdate> onPositionUpdate,
+        Action<BinancePositionUpdate> onPositionUpdate,
         CancellationToken ct = default)
     {
         var listenKey = await GetListenKeyAsync(ct);
@@ -160,7 +163,7 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
 
                     var side = position.Quantity > 0 ? TradeDirection.Long : TradeDirection.Short;
 
-                    var update = new PositionUpdate
+                    var update = new BinancePositionUpdate
                     {
                         Symbol = position.Symbol,
                         PositionAmount = Math.Abs(position.Quantity),
@@ -201,7 +204,7 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
     /// Subscribes to account balance updates
     /// </summary>
     public async Task<IDisposable?> SubscribeToAccountUpdatesAsync(
-        Action<AccountUpdate> onAccountUpdate,
+        Action<BinanceAccountUpdate> onAccountUpdate,
         CancellationToken ct = default)
     {
         var listenKey = await GetListenKeyAsync(ct);
@@ -221,7 +224,7 @@ public class FuturesOrderUpdateListener : IOrderUpdateListener
             {
                 foreach (var balance in data.Data.UpdateData.Balances)
                 {
-                    var update = new AccountUpdate
+                    var update = new BinanceAccountUpdate
                     {
                         Asset = balance.Asset,
                         Balance = balance.WalletBalance,

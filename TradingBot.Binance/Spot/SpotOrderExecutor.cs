@@ -5,13 +5,14 @@ using TradingBot.Binance.Common;
 using TradingBot.Binance.Common.Interfaces;
 using TradingBot.Binance.Common.Models;
 using Serilog;
+using BinanceExecutionResult = TradingBot.Binance.Common.Models.ExecutionResult;
 
 namespace TradingBot.Binance.Spot;
 
 /// <summary>
 /// Binance Spot market order executor implementation
 /// </summary>
-public class SpotOrderExecutor : IOrderExecutor
+public class SpotOrderExecutor : TradingBot.Binance.Common.Interfaces.IOrderExecutor
 {
     private readonly BinanceRestClient _client;
     private readonly ExecutionValidator _validator;
@@ -30,7 +31,7 @@ public class SpotOrderExecutor : IOrderExecutor
     /// <summary>
     /// Places a market order
     /// </summary>
-    public async Task<ExecutionResult> PlaceMarketOrderAsync(
+    public async Task<BinanceExecutionResult> PlaceMarketOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -50,7 +51,7 @@ public class SpotOrderExecutor : IOrderExecutor
         if (!result.Success)
         {
             _logger.Error("Market order failed: {Error}", result.Error?.Message);
-            return new ExecutionResult
+            return new BinanceExecutionResult
             {
                 IsAcceptable = false,
                 RejectReason = $"Order failed: {result.Error?.Message}"
@@ -73,7 +74,7 @@ public class SpotOrderExecutor : IOrderExecutor
     /// <summary>
     /// Places a limit order
     /// </summary>
-    public async Task<ExecutionResult> PlaceLimitOrderAsync(
+    public async Task<BinanceExecutionResult> PlaceLimitOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -97,7 +98,7 @@ public class SpotOrderExecutor : IOrderExecutor
         if (!result.Success)
         {
             _logger.Error("Limit order failed: {Error}", result.Error?.Message);
-            return new ExecutionResult
+            return new BinanceExecutionResult
             {
                 IsAcceptable = false,
                 RejectReason = $"Order failed: {result.Error?.Message}"
@@ -106,7 +107,7 @@ public class SpotOrderExecutor : IOrderExecutor
 
         _logger.Information("Limit order placed: {OrderId}", result.Data.Id);
 
-        return new ExecutionResult
+        return new BinanceExecutionResult
         {
             IsAcceptable = true,
             ExpectedPrice = price,
@@ -119,7 +120,7 @@ public class SpotOrderExecutor : IOrderExecutor
     /// <summary>
     /// Places an OCO order with stop-loss and take-profit
     /// </summary>
-    public async Task<ExecutionResult> PlaceOcoOrderAsync(
+    public async Task<BinanceExecutionResult> PlaceOcoOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -147,7 +148,7 @@ public class SpotOrderExecutor : IOrderExecutor
         if (!result.Success)
         {
             _logger.Error("OCO order failed: {Error}", result.Error?.Message);
-            return new ExecutionResult
+            return new BinanceExecutionResult
             {
                 IsAcceptable = false,
                 RejectReason = $"OCO order failed: {result.Error?.Message}"
@@ -158,7 +159,7 @@ public class SpotOrderExecutor : IOrderExecutor
             result.Data.Id,
             result.Data.Orders.Count());
 
-        return new ExecutionResult
+        return new BinanceExecutionResult
         {
             IsAcceptable = true,
             ExpectedPrice = takeProfitPrice,

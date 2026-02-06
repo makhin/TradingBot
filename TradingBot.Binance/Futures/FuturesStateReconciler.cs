@@ -1,7 +1,6 @@
 using TradingBot.Core.Models;
 using TradingBot.Core.State;
 using TradingBot.Binance.Futures.Interfaces;
-using TradingBot.Binance.Futures.Models;
 using Serilog;
 
 namespace TradingBot.Binance.Futures;
@@ -81,8 +80,8 @@ public class FuturesStateReconciler
 
         // Both positions exist - check if they match
         var savedDirection = savedPosition!.Direction == SignalType.Buy
-            ? Models.PositionSide.Long
-            : Models.PositionSide.Short;
+            ? PositionSide.Long
+            : PositionSide.Short;
 
         var discrepancies = new List<string>();
 

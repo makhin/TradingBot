@@ -4,10 +4,10 @@ using Binance.Net.Clients;
 using Binance.Net.Enums;
 using TradingBot.Core.Models;
 using TradingBot.Binance.Futures.Interfaces;
-using TradingBot.Binance.Futures.Models;
 using Serilog;
 using BinanceKlineInterval = Binance.Net.Enums.KlineInterval;
 using BinancePositionSide = Binance.Net.Enums.PositionSide;
+using CorePositionSide = TradingBot.Core.Models.PositionSide;
 
 namespace TradingBot.Binance.Futures;
 
@@ -128,14 +128,14 @@ public class BinanceFuturesClient : IBinanceFuturesClient
         return new FuturesPosition
         {
             Symbol = position.Symbol,
-            Side = position.Quantity > 0 ? Models.PositionSide.Long : Models.PositionSide.Short,
+            Side = position.Quantity > 0 ? CorePositionSide.Long : CorePositionSide.Short,
             Quantity = Math.Abs(position.Quantity),
             EntryPrice = position.EntryPrice,
             MarkPrice = position.MarkPrice,
             UnrealizedPnl = position.UnrealizedPnl,
             LiquidationPrice = position.LiquidationPrice,
             Leverage = position.Leverage,
-            MarginType = Models.MarginType.Cross, // Default to Cross, as isolated info not in response
+            MarginType = MarginType.Cross, // Default to Cross, as isolated info not in response
             InitialMargin = 0m, // Not available in GetPositionInformationAsync response
             MaintMargin = 0m // Not available in GetPositionInformationAsync response
         };
@@ -156,14 +156,14 @@ public class BinanceFuturesClient : IBinanceFuturesClient
             .Select(p => new FuturesPosition
             {
                 Symbol = p.Symbol,
-                Side = p.Quantity > 0 ? Models.PositionSide.Long : Models.PositionSide.Short,
+                Side = p.Quantity > 0 ? CorePositionSide.Long : CorePositionSide.Short,
                 Quantity = Math.Abs(p.Quantity),
                 EntryPrice = p.EntryPrice,
                 MarkPrice = p.MarkPrice,
                 UnrealizedPnl = p.UnrealizedPnl,
                 LiquidationPrice = p.LiquidationPrice,
                 Leverage = p.Leverage,
-                MarginType = Models.MarginType.Cross, // Default to Cross, as isolated info not in response
+                MarginType = MarginType.Cross, // Default to Cross, as isolated info not in response
                 InitialMargin = 0m, // Not available in GetPositionInformationAsync response
                 MaintMargin = 0m // Not available in GetPositionInformationAsync response
             })

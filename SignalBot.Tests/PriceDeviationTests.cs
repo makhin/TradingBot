@@ -3,21 +3,19 @@ using SignalBot.Models;
 using SignalBot.Services.Trading;
 using SignalBot.Services.Validation;
 using SignalBot.State;
-using TradingBot.Binance.Futures.Interfaces;
-using TradingBot.Binance.Futures.Models;
+using TradingBot.Core.Exchanges;
 using TradingBot.Core.Models;
 using TradingBot.Core.RiskManagement;
 using Moq;
 using Xunit;
 using Serilog;
 using Polly;
-using TradingBot.Binance.Common.Models;
 
 namespace SignalBot.Tests;
 
 public class PriceDeviationTests
 {
-    private readonly Mock<IBinanceFuturesClient> _mockClient;
+    private readonly Mock<IFuturesExchangeClient> _mockClient;
     private readonly Mock<IFuturesOrderExecutor> _mockOrderExecutor;
     private readonly Mock<IPositionManager> _mockPositionManager;
     private readonly Mock<IRiskManager> _mockRiskManager;
@@ -26,7 +24,7 @@ public class PriceDeviationTests
 
     public PriceDeviationTests()
     {
-        _mockClient = new Mock<IBinanceFuturesClient>();
+        _mockClient = new Mock<IFuturesExchangeClient>();
         _mockOrderExecutor = new Mock<IFuturesOrderExecutor>();
         _mockPositionManager = new Mock<IPositionManager>();
         _mockRiskManager = new Mock<IRiskManager>();
@@ -73,11 +71,11 @@ public class PriceDeviationTests
                 It.IsAny<TradingBot.Core.Models.TradeDirection>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12345,
-                ActualPrice = 100.3m
+                AveragePrice = 100.3m
             });
 
         _mockOrderExecutor.Setup(x => x.PlaceStopLossAsync(
@@ -86,9 +84,9 @@ public class PriceDeviationTests
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12346
             });
 
@@ -98,9 +96,9 @@ public class PriceDeviationTests
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12347
             });
 
@@ -160,11 +158,11 @@ public class PriceDeviationTests
                 It.IsAny<TradingBot.Core.Models.TradeDirection>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12345,
-                ActualPrice = 100m
+                AveragePrice = 100m
             });
 
         _mockOrderExecutor.Setup(x => x.PlaceStopLossAsync(
@@ -173,9 +171,9 @@ public class PriceDeviationTests
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12346
             });
 
@@ -185,9 +183,9 @@ public class PriceDeviationTests
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12347
             });
 
@@ -300,11 +298,11 @@ public class PriceDeviationTests
                 It.IsAny<TradingBot.Core.Models.TradeDirection>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12345,
-                ActualPrice = 101m
+                AveragePrice = 101m
             });
 
         _mockOrderExecutor.Setup(x => x.PlaceStopLossAsync(
@@ -313,9 +311,9 @@ public class PriceDeviationTests
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12346
             });
 
@@ -325,9 +323,9 @@ public class PriceDeviationTests
                 It.IsAny<decimal>(),
                 It.IsAny<decimal>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
+                Success = true,
                 OrderId = 12347
             });
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SignalBot is an automated trading bot that executes Telegram trading signals on Binance Futures. It's a C# .NET 8.0 console application with event-driven architecture, designed for production deployment with Docker support.
+SignalBot is an automated trading bot that executes Telegram trading signals on futures exchanges (Binance and Bybit). It's a C# .NET 8.0 console application with event-driven architecture, designed for production deployment with Docker support. The exchange can be switched via configuration without code changes.
 
 
 # Focus: ComplexBot
@@ -72,11 +72,12 @@ Key events:
 - `OnStopLossHit` - Triggers when stop-loss is hit
 
 ### Project Dependencies
-SignalBot depends on two sibling projects (multi-workspace setup):
-- **TradingBot.Core** - Base models, interfaces, state abstractions, notifications
-- **TradingBot.Binance** - Binance REST/WebSocket clients, order execution
+SignalBot depends on three sibling projects (multi-workspace setup):
+- **TradingBot.Core** - Base models, interfaces, state abstractions, notifications, exchange abstraction layer
+- **TradingBot.Binance** - Binance REST/WebSocket clients, order execution, adapters
+- **TradingBot.Bybit** - Bybit REST/WebSocket clients, order execution, adapters
 
-These are located in `../TradingBot.Core/` and `../TradingBot.Binance/` relative to SignalBot.
+These are located in `../TradingBot.Core/`, `../TradingBot.Binance/`, and `../TradingBot.Bybit/` relative to SignalBot.
 
 ### Main Components
 
@@ -93,10 +94,10 @@ Extracts trading signal data from Telegram messages using compiled regex pattern
 Validates signals against risk parameters. Adjusts leverage (caps at `MaxLeverage`), calculates liquidation price, validates stop-loss placement, computes risk-reward ratio.
 
 **SignalTrader** (`Services/Trading/SignalTrader.cs`)
-Executes trades on Binance Futures. Sets leverage/margin type, places market entry order, places stop-loss order, places take-profit orders (up to 4 targets). Uses Polly retry policies.
+Executes trades on the configured futures exchange (Binance or Bybit). Sets leverage/margin type, places market entry order, places stop-loss order, places take-profit orders (up to 4 targets). Uses Polly retry policies and exchange-agnostic interfaces.
 
 **OrderMonitor** (`Services/Monitoring/OrderMonitor.cs`)
-Monitors order fills via Binance WebSocket. Implements `IOrderUpdateListener` to receive real-time updates. Emits `OnTargetHit` and `OnStopLossHit` events.
+Monitors order fills via exchange WebSocket connections. Implements `IExchangeOrderUpdateListener` to receive real-time updates from the configured exchange. Emits `OnTargetHit` and `OnStopLossHit` events.
 
 **PositionManager** (`Services/Trading/PositionManager.cs`)
 Manages position lifecycle. Handles partial closes when targets hit, moves stop-loss to breakeven (configurable), calculates P&L, sends notifications.
@@ -126,8 +127,9 @@ Configuration hierarchy (lowest to highest priority):
 2. `.env` file - Environment-specific values (loaded via DotNetEnv)
 3. Environment variables - Runtime overrides (use `TRADING_` prefix or nested keys like `SignalBot__Trading__MaxLeverage`)
 
-All settings are bound to strongly-typed classes in the `Configuration/` folder (12 classes total). Key sections:
+All settings are bound to strongly-typed classes in the `Configuration/` folder. Key sections:
 - `SignalBotSettings` - Root container
+- `ExchangeSettings` - Exchange selection and credentials (Binance, Bybit)
 - `TelegramSettings` - API credentials, channels, session path
 - `TradingSettings` - Entry mode, targets, position management
 - `RiskOverrideSettings` - Leverage caps, liquidation safety, max drawdown
@@ -152,9 +154,13 @@ Immutable record representing active or closed position. Tracks: OrderIds (entry
 ### Dependency Injection
 
 `Program.cs` sets up the DI container. All services are registered as singletons (stateful services like OrderMonitor, PositionManager) or transient. Key registrations:
-- Binance REST client (`IBinanceRestClient`)
-- Binance WebSocket client (`IBinanceSocketClient`)
-- Futures order executor (`IFuturesOrderExecutor`)
+- Exchange clients (Binance and Bybit REST/WebSocket clients)
+- Exchange factory (`IExchangeFactory`) for creating exchange-specific implementations
+- Active exchange interfaces resolved via factory based on configuration:
+  - `IFuturesExchangeClient` - Market data and account operations
+  - `IFuturesOrderExecutor` - Order placement and management
+  - `IExchangeOrderUpdateListener` - Real-time order updates
+  - `IExchangeKlineListener` - Real-time price data
 - All SignalBot services with their interfaces
 - Polly retry policies (3 retries with exponential backoff)
 - Serilog logger with multiple sinks (Console, File, Elasticsearch, Loki, Seq)
@@ -187,7 +193,7 @@ The bot is built around events. When adding new functionality, prefer emitting e
 Domain models use C# records with `required` properties. When modifying state, use `with` expressions to create new instances rather than mutating.
 
 ### Retry Policies
-All Binance API calls use Polly retry policies (configured in Program.cs). When adding new API operations, wrap them with the registered retry policy.
+All exchange API calls use Polly retry policies (configured in Program.cs). When adding new API operations, wrap them with the registered retry policy. The retry policy is configured for `ExecutionResult` (Core model).
 
 ### Validation First
 Signals go through validation before execution. The validator can reject signals or adjust parameters (leverage, SL). Risk validation is separate from parsing.
@@ -227,8 +233,9 @@ SignalBot/
 └── appsettings.json            # Configuration
 
 Related Projects (sibling directories):
-../TradingBot.Core/             # Base interfaces, models, notifications
-../TradingBot.Binance/          # Binance API clients, order execution
+../TradingBot.Core/             # Base interfaces, models, notifications, exchange abstractions
+../TradingBot.Binance/          # Binance API clients, order execution, adapters
+../TradingBot.Bybit/            # Bybit API clients, order execution, adapters
 ```
 
 ## Important Implementation Notes
@@ -239,12 +246,26 @@ Related Projects (sibling directories):
 - On first run, requires interactive authentication (phone number, code, optional 2FA)
 - Can listen to multiple channels simultaneously (configured in `TelegramSettings.ChannelIds`)
 
-### Binance Futures
-- Supports both Testnet and Mainnet (configured via `BinanceApi.UseTestnet`)
+### Exchange Support
+**Multi-Exchange Architecture:**
+- Supports Binance Futures and Bybit Futures (USDT perpetual contracts)
+- Exchange selection via configuration: `Exchange.ActiveExchange` (set to "Binance" or "Bybit")
+- Each exchange has its own API credentials and testnet/mainnet settings
+- Exchange-agnostic business logic using adapter pattern
+- Runtime switching without code changes
+
+**Binance Futures:**
+- Testnet and Mainnet support (configured via `Exchange.Binance.UseTestnet`)
 - Uses Isolated or Cross margin (configurable per-position)
 - Supports OneWay and Hedge position modes
 - All orders placed with `newClientOrderId` for tracking
-- WebSocket subscription for real-time order updates (more reliable than polling)
+- WebSocket subscription for real-time order updates
+
+**Bybit Futures:**
+- Testnet and Mainnet support (configured via `Exchange.Bybit.UseTestnet`)
+- USDT-M perpetual contracts (Category.Linear)
+- Unified margin trading system
+- Note: WebSocket subscriptions are stub implementations (requires Bybit.Net API investigation)
 
 ### Risk Management
 - Leverage is capped at `RiskOverrideSettings.MaxLeverage` regardless of signal value
@@ -288,6 +309,28 @@ Related Projects (sibling directories):
 2. Add default value to `appsettings.json`
 3. Document in README.md if user-facing
 4. Settings are automatically bound via `services.Configure<T>(config)`
+
+**Exchange Configuration:**
+To switch between exchanges, update `appsettings.json`:
+```json
+{
+  "SignalBot": {
+    "Exchange": {
+      "ActiveExchange": "Binance",  // or "Bybit"
+      "Binance": {
+        "UseTestnet": true,
+        "ApiKey": "your-key",
+        "ApiSecret": "your-secret"
+      },
+      "Bybit": {
+        "UseTestnet": true,
+        "ApiKey": "your-key",
+        "ApiSecret": "your-secret"
+      }
+    }
+  }
+}
+```
 
 ### Changing Order Execution Logic
 - Modify `SignalTrader.cs` or `PositionManager.cs`
@@ -340,4 +383,7 @@ Key points:
 
 - Full design document: `docs/SIGNALBOT_DESIGN.md`
 - Configuration schema: `appsettings.json` (all options documented inline)
-- Related projects: See `../TradingBot.Core/` and `../TradingBot.Binance/` for shared functionality
+- Related projects:
+  - `../TradingBot.Core/` - Exchange-agnostic interfaces and models
+  - `../TradingBot.Binance/` - Binance implementation and adapters
+  - `../TradingBot.Bybit/` - Bybit implementation and adapters (WebSocket stubs)

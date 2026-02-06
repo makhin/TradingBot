@@ -1,13 +1,12 @@
-using TradingBot.Binance.Common.Interfaces;
 using TradingBot.Core.Models;
 
-namespace TradingBot.Binance.Futures.Interfaces;
+namespace TradingBot.Core.Exchanges;
 
 /// <summary>
-/// Interface for Binance Futures API operations
+/// Interface for Futures exchange API operations
 /// Extends base client with Futures-specific functionality
 /// </summary>
-public interface IBinanceFuturesClient : IBinanceClient
+public interface IFuturesExchangeClient : IExchangeClient
 {
     /// <summary>
     /// Gets current position for a symbol

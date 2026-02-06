@@ -1,19 +1,19 @@
 using SignalBot.Models;
 using SignalBot.Services;
 using SignalBot.State;
-using TradingBot.Binance.Common.Interfaces;
-using TradingBot.Binance.Common.Models;
+using TradingBot.Core.Exchanges;
+using TradingBot.Core.Models;
 using Serilog;
 using System.Collections.Concurrent;
 
 namespace SignalBot.Services.Monitoring;
 
 /// <summary>
-/// Monitors order execution via Binance User Data Stream
+/// Monitors order execution via exchange User Data Stream
 /// </summary>
 public class OrderMonitor : ServiceBase, IOrderMonitor
 {
-    private readonly IOrderUpdateListener _updateListener;
+    private readonly IExchangeOrderUpdateListener _updateListener;
     private readonly IPositionStore<SignalPosition> _store;
     private IDisposable? _subscription;
     private readonly ConcurrentDictionary<long, byte> _processedFilledOrders = new();
@@ -24,7 +24,7 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
     public bool IsMonitoring => IsRunning;
 
     public OrderMonitor(
-        IOrderUpdateListener updateListener,
+        IExchangeOrderUpdateListener updateListener,
         IPositionStore<SignalPosition> store,
         ILogger? logger = null)
         : base(logger)

@@ -1,7 +1,7 @@
-namespace TradingBot.Binance.Futures.Models;
+namespace TradingBot.Core.Models;
 
 /// <summary>
-/// Represents a Binance Futures position
+/// Represents a Futures position on any exchange
 /// </summary>
 public record FuturesPosition
 {

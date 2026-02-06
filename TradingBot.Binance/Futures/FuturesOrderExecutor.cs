@@ -6,6 +6,7 @@ using TradingBot.Binance.Common.Interfaces;
 using TradingBot.Binance.Common.Models;
 using TradingBot.Binance.Futures.Interfaces;
 using Serilog;
+using BinanceExecutionResult = TradingBot.Binance.Common.Models.ExecutionResult;
 
 namespace TradingBot.Binance.Futures;
 
@@ -153,7 +154,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     /// <summary>
     /// Places a market order
     /// </summary>
-    public async Task<ExecutionResult> PlaceMarketOrderAsync(
+    public async Task<BinanceExecutionResult> PlaceMarketOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -176,7 +177,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         if (!result.Success)
         {
             _logger.Error("Futures market order failed: {Error}", result.Error?.Message);
-            return new ExecutionResult
+            return new BinanceExecutionResult
             {
                 IsAcceptable = false,
                 RejectReason = $"Order failed: {result.Error?.Message}"
@@ -242,7 +243,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     /// <summary>
     /// Places a limit order
     /// </summary>
-    public async Task<ExecutionResult> PlaceLimitOrderAsync(
+    public async Task<BinanceExecutionResult> PlaceLimitOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -270,7 +271,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         if (!result.Success)
         {
             _logger.Error("Futures limit order failed: {Error}", result.Error?.Message);
-            return new ExecutionResult
+            return new BinanceExecutionResult
             {
                 IsAcceptable = false,
                 RejectReason = $"Order failed: {result.Error?.Message}"
@@ -279,7 +280,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
 
         _logger.Information("Futures limit order placed: {OrderId}", result.Data.Id);
 
-        return new ExecutionResult
+        return new BinanceExecutionResult
         {
             IsAcceptable = true,
             OrderId = result.Data.Id,
@@ -293,7 +294,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     /// <summary>
     /// Places a stop-loss order (Stop Market)
     /// </summary>
-    public async Task<ExecutionResult> PlaceStopLossAsync(
+    public async Task<BinanceExecutionResult> PlaceStopLossAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -336,7 +337,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         if (!result.Success || result.Data == null)
         {
             _logger.Error("Futures stop loss order failed: {Error}", result.Error?.Message);
-            return new ExecutionResult
+            return new BinanceExecutionResult
             {
                 IsAcceptable = false,
                 RejectReason = $"Stop loss order failed: {result.Error?.Message}"
@@ -345,7 +346,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
 
         _logger.Information("Futures stop loss order placed: {OrderId}", result.Data.Id);
 
-        return new ExecutionResult
+        return new BinanceExecutionResult
         {
             IsAcceptable = true,
             OrderId = result.Data.Id,
@@ -359,7 +360,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     /// <summary>
     /// Places a take-profit order (Take Profit Market)
     /// </summary>
-    public async Task<ExecutionResult> PlaceTakeProfitAsync(
+    public async Task<BinanceExecutionResult> PlaceTakeProfitAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -401,7 +402,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
         if (!result.Success || result.Data == null)
         {
             _logger.Error("Futures take profit order failed: {Error}", result.Error?.Message);
-            return new ExecutionResult
+            return new BinanceExecutionResult
             {
                 IsAcceptable = false,
                 RejectReason = $"Take profit order failed: {result.Error?.Message}"
@@ -410,7 +411,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
 
         _logger.Information("Futures take profit order placed: {OrderId}", result.Data.Id);
 
-        return new ExecutionResult
+        return new BinanceExecutionResult
         {
             IsAcceptable = true,
             OrderId = result.Data.Id,
@@ -425,7 +426,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
     /// Places an OCO-like order pair (stop-loss + take-profit) for Futures
     /// Note: Futures doesn't have native OCO, so we place two separate orders
     /// </summary>
-    public async Task<ExecutionResult> PlaceOcoOrderAsync(
+    public async Task<BinanceExecutionResult> PlaceOcoOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -455,7 +456,7 @@ public class FuturesOrderExecutor : IFuturesOrderExecutor
 
         _logger.Information("Futures OCO-like orders placed successfully");
 
-        return new ExecutionResult
+        return new BinanceExecutionResult
         {
             IsAcceptable = true,
             ExpectedPrice = takeProfitPrice,

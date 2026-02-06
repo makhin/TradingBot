@@ -1,6 +1,7 @@
 using Binance.Net.Enums;
 using TradingBot.Core.Models;
 using TradingBot.Binance.Common.Models;
+using BinanceExecutionResult = TradingBot.Binance.Common.Models.ExecutionResult;
 
 namespace TradingBot.Binance.Common;
 
@@ -19,7 +20,7 @@ public class ExecutionValidator
     /// <summary>
     /// Validates execution result against expected price and direction
     /// </summary>
-    public ExecutionResult ValidateExecution(
+    public BinanceExecutionResult ValidateExecution(
         decimal expectedPrice,
         decimal actualPrice,
         OrderSide side)
@@ -34,7 +35,7 @@ public class ExecutionValidator
         decimal slippageAmount = Math.Abs(actualPrice - expectedPrice);
         bool isAcceptable = Math.Abs(slippage) <= _maxSlippagePercent;
 
-        return new ExecutionResult
+        return new BinanceExecutionResult
         {
             IsAcceptable = isAcceptable,
             ExpectedPrice = expectedPrice,
@@ -50,7 +51,7 @@ public class ExecutionValidator
     /// <summary>
     /// Validates execution using TradeDirection instead of OrderSide
     /// </summary>
-    public ExecutionResult ValidateExecution(
+    public BinanceExecutionResult ValidateExecution(
         decimal expectedPrice,
         decimal actualPrice,
         TradeDirection direction)
@@ -62,7 +63,7 @@ public class ExecutionValidator
     /// <summary>
     /// Returns a human-readable description of slippage quality
     /// </summary>
-    public string GetSlippageDescription(ExecutionResult result, OrderSide side)
+    public string GetSlippageDescription(BinanceExecutionResult result, OrderSide side)
     {
         if (Math.Abs(result.SlippagePercent) < 0.01m)
             return "✅ Excellent execution (no slippage)";
@@ -84,7 +85,7 @@ public class ExecutionValidator
     /// <summary>
     /// GetSlippageDescription overload for TradeDirection
     /// </summary>
-    public string GetSlippageDescription(ExecutionResult result, TradeDirection direction)
+    public string GetSlippageDescription(BinanceExecutionResult result, TradeDirection direction)
     {
         var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
         return GetSlippageDescription(result, side);

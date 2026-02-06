@@ -7,7 +7,7 @@ using SignalBot.Services.Telegram;
 using SignalBot.Services.Trading;
 using SignalBot.Services.Validation;
 using SignalBot.State;
-using TradingBot.Binance.Futures.Interfaces;
+using TradingBot.Core.Exchanges;
 using TradingBot.Core.Notifications;
 using Serilog;
 using Serilog.Context;
@@ -21,7 +21,7 @@ namespace SignalBot;
 public class SignalBotRunner
 {
     private readonly SignalBotSettings _settings;
-    private readonly IBinanceFuturesClient _client;
+    private readonly IFuturesExchangeClient _client;
     private readonly ITelegramSignalListener _telegramListener;
     private readonly SignalParser _signalParser;
     private readonly ISignalValidator _signalValidator;
@@ -42,7 +42,7 @@ public class SignalBotRunner
 
     public SignalBotRunner(
         IOptions<SignalBotSettings> settings,
-        IBinanceFuturesClient client,
+        IFuturesExchangeClient client,
         ITelegramSignalListener telegramListener,
         SignalParser signalParser,
         ISignalValidator signalValidator,
@@ -104,7 +104,7 @@ public class SignalBotRunner
                     throw new InvalidOperationException("Failed to connect to Binance Futures API");
                 }
 
-                _logger.Information("Connected to Binance Futures API");
+                _logger.Information("Connected to {Exchange} Futures API", _client.ExchangeName);
             }
             catch (Exception ex)
             {

@@ -2,23 +2,21 @@ using System.Diagnostics;
 using SignalBot.Configuration;
 using SignalBot.Models;
 using SignalBot.Telemetry;
-using TradingBot.Binance.Futures.Interfaces;
-using TradingBot.Binance.Futures.Models;
+using TradingBot.Core.Exchanges;
 using TradingBot.Core.Models;
 using TradingBot.Core.RiskManagement;
 using Serilog;
 using Polly;
 using Serilog.Context;
-using TradingBot.Binance.Common.Models;
 
 namespace SignalBot.Services.Trading;
 
 /// <summary>
-/// Executes trading signals on Binance Futures
+/// Executes trading signals on configured futures exchange
 /// </summary>
 public class SignalTrader : ISignalTrader
 {
-    private readonly IBinanceFuturesClient _client;
+    private readonly IFuturesExchangeClient _client;
     private readonly IFuturesOrderExecutor _orderExecutor;
     private readonly IPositionManager _positionManager;
     private readonly IRiskManager _riskManager;
@@ -28,7 +26,7 @@ public class SignalTrader : ISignalTrader
     private readonly IAsyncPolicy<ExecutionResult> _retryPolicy;
 
     public SignalTrader(
-        IBinanceFuturesClient client,
+        IFuturesExchangeClient client,
         IFuturesOrderExecutor orderExecutor,
         IPositionManager positionManager,
         IRiskManager riskManager,
@@ -85,7 +83,9 @@ public class SignalTrader : ISignalTrader
                 _logger.Warning("Failed to set leverage for {Symbol}, continuing anyway", signal.Symbol);
             }
 
-            var marginTypeSet = await _client.SetMarginTypeAsync(signal.Symbol, MarginType.Isolated, ct);
+            // Parse margin type from settings instead of hardcoding
+            var marginType = Enum.Parse<MarginType>(_settings.MarginType, ignoreCase: true);
+            var marginTypeSet = await _client.SetMarginTypeAsync(signal.Symbol, marginType, ct);
             if (!marginTypeSet)
             {
                 _logger.Warning("Failed to set margin type for {Symbol}, may already be set", signal.Symbol);
@@ -157,17 +157,17 @@ public class SignalTrader : ISignalTrader
                 positionSize.Quantity,
                 ct);
 
-            if (!entryResult.IsAcceptable || !entryResult.OrderId.HasValue)
+            if (!entryResult.Success || entryResult.OrderId == 0)
             {
                 position = position with { Status = PositionStatus.Failed };
                 await _positionManager.SavePositionAsync(position, ct);
-                throw new InvalidOperationException($"Entry order failed: {entryResult.RejectReason}");
+                throw new InvalidOperationException($"Entry order failed: {entryResult.ErrorMessage}");
             }
 
             position = position with
             {
-                EntryOrderId = entryResult.OrderId.Value,
-                ActualEntryPrice = entryResult.ActualPrice,
+                EntryOrderId = entryResult.OrderId,
+                ActualEntryPrice = entryResult.AveragePrice,
                 OpenedAt = DateTime.UtcNow,
                 Status = PositionStatus.Open
             };
@@ -180,14 +180,14 @@ public class SignalTrader : ISignalTrader
                 signal.AdjustedStopLoss,
                 ct);
 
-            if (slResult.IsAcceptable && slResult.OrderId.HasValue)
+            if (slResult.Success && slResult.OrderId != 0)
             {
-                position = position with { StopLossOrderId = slResult.OrderId.Value };
+                position = position with { StopLossOrderId = slResult.OrderId };
             }
             else
             {
                 _logger.Error("Stop loss placement failed for {Symbol}: {Reason}. Closing position at market.",
-                    signal.Symbol, slResult.RejectReason);
+                    signal.Symbol, slResult.ErrorMessage);
 
                 var closeDirection = tradeDirection == TradeDirection.Long
                     ? TradeDirection.Short
@@ -198,18 +198,18 @@ public class SignalTrader : ISignalTrader
                     positionSize.Quantity,
                     ct);
 
-                if (!closeResult.IsAcceptable)
+                if (!closeResult.Success)
                 {
                     position = position with { Status = PositionStatus.Failed };
                     await _positionManager.SavePositionAsync(position, ct);
                     throw new InvalidOperationException(
-                        $"Stop loss placement failed and market close failed: {closeResult.RejectReason}");
+                        $"Stop loss placement failed and market close failed: {closeResult.ErrorMessage}");
                 }
 
-                var realizedPnl = closeResult.ActualPrice > 0
+                var realizedPnl = closeResult.AveragePrice > 0
                     ? PnlCalculator.Calculate(
                         position.ActualEntryPrice,
-                        closeResult.ActualPrice,
+                        closeResult.AveragePrice,
                         positionSize.Quantity,
                         position.Direction)
                     : 0m;
@@ -225,7 +225,7 @@ public class SignalTrader : ISignalTrader
 
                 await _positionManager.SavePositionAsync(position, ct);
                 throw new InvalidOperationException(
-                    $"Stop loss placement failed; position closed at market: {slResult.RejectReason}");
+                    $"Stop loss placement failed; position closed at market: {slResult.ErrorMessage}");
             }
 
             // 6. Place Take Profit orders for each target
@@ -239,14 +239,14 @@ public class SignalTrader : ISignalTrader
                     target.Price,
                     ct);
 
-                if (tpResult.OrderId.HasValue)
+                if (tpResult.Success && tpResult.OrderId != 0)
                 {
-                    tpOrderIds.Add(tpResult.OrderId.Value);
+                    tpOrderIds.Add(tpResult.OrderId);
                 }
                 else
                 {
                     _logger.Warning("Failed to place take profit for target {Index} on {Symbol}: {Reason}",
-                        target.Index, signal.Symbol, tpResult.RejectReason);
+                        target.Index, signal.Symbol, tpResult.ErrorMessage);
                 }
             }
 
@@ -433,8 +433,8 @@ public class SignalTrader : ISignalTrader
 
             return new ExecutionResult
             {
-                IsAcceptable = false,
-                RejectReason = $"{failureMessage} after {maxAttempts} attempts: {ex.Message}"
+                Success = false,
+                ErrorMessage = $"{failureMessage} after {maxAttempts} attempts: {ex.Message}"
             };
         }
     }

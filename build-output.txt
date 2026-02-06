@@ -1,0 +1,33 @@
+  Determining projects to restore...
+  Restored C:\code\TradingBot\ComplexBot.Integration\ComplexBot.Integration.csproj (in 1,75 sec).
+  Restored C:\code\TradingBot\ComplexBot\ComplexBot.csproj (in 1,75 sec).
+  Restored C:\code\TradingBot\ComplexBot.Tests\ComplexBot.Tests.csproj (in 1,75 sec).
+  8 of 11 projects are up-to-date for restore.
+  TradingBot.Core -> C:\code\TradingBot\TradingBot.Core\bin\Debug\net8.0\TradingBot.Core.dll
+  TradingBot.Indicators -> C:\code\TradingBot\TradingBot.Indicators\bin\Debug\net8.0\TradingBot.Indicators.dll
+C:\code\TradingBot\TradingBot.Binance\Spot\SpotOrderExecutor.cs(15,34): error CS0104: 'IOrderExecutor' is an ambiguous reference between 'TradingBot.Binance.Common.Interfaces.IOrderExecutor' and 'TradingBot.Core.Models.IOrderExecutor' [C:\code\TradingBot\TradingBot.Binance\TradingBot.Binance.csproj]
+C:\code\TradingBot\TradingBot.Binance\Futures\Interfaces\IFuturesOrderExecutor.cs(11,42): error CS0104: 'IOrderExecutor' is an ambiguous reference between 'TradingBot.Binance.Common.Interfaces.IOrderExecutor' and 'TradingBot.Core.Models.IOrderExecutor' [C:\code\TradingBot\TradingBot.Binance\TradingBot.Binance.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitKlineListener.cs(56,50): error CS0117: 'KlineInterval' does not contain a definition for 'FourHours' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitKlineListener.cs(56,82): error CS0117: 'KlineInterval' does not contain a definition for 'FourHour' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(123,39): error CS1061: 'decimal' does not contain a definition for 'GetValueOrDefault' and no accessible extension method 'GetValueOrDefault' accepting a first argument of type 'decimal' could be found (are you missing a using directive or an assembly reference?) [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(182,51): error CS1061: 'decimal' does not contain a definition for 'GetValueOrDefault' and no accessible extension method 'GetValueOrDefault' accepting a first argument of type 'decimal' could be found (are you missing a using directive or an assembly reference?) [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(229,50): error CS0117: 'KlineInterval' does not contain a definition for 'FourHours' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(229,82): error CS0117: 'KlineInterval' does not contain a definition for 'FourHour' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(244,32): error CS0117: 'KlineInterval' does not contain a definition for 'FourHour' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+  TradingBot.Core.Tests -> C:\code\TradingBot\TradingBot.Core.Tests\bin\Debug\net8.0\TradingBot.Core.Tests.dll
+
+Build FAILED.
+
+C:\code\TradingBot\TradingBot.Binance\Spot\SpotOrderExecutor.cs(15,34): error CS0104: 'IOrderExecutor' is an ambiguous reference between 'TradingBot.Binance.Common.Interfaces.IOrderExecutor' and 'TradingBot.Core.Models.IOrderExecutor' [C:\code\TradingBot\TradingBot.Binance\TradingBot.Binance.csproj]
+C:\code\TradingBot\TradingBot.Binance\Futures\Interfaces\IFuturesOrderExecutor.cs(11,42): error CS0104: 'IOrderExecutor' is an ambiguous reference between 'TradingBot.Binance.Common.Interfaces.IOrderExecutor' and 'TradingBot.Core.Models.IOrderExecutor' [C:\code\TradingBot\TradingBot.Binance\TradingBot.Binance.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitKlineListener.cs(56,50): error CS0117: 'KlineInterval' does not contain a definition for 'FourHours' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitKlineListener.cs(56,82): error CS0117: 'KlineInterval' does not contain a definition for 'FourHour' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(123,39): error CS1061: 'decimal' does not contain a definition for 'GetValueOrDefault' and no accessible extension method 'GetValueOrDefault' accepting a first argument of type 'decimal' could be found (are you missing a using directive or an assembly reference?) [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(182,51): error CS1061: 'decimal' does not contain a definition for 'GetValueOrDefault' and no accessible extension method 'GetValueOrDefault' accepting a first argument of type 'decimal' could be found (are you missing a using directive or an assembly reference?) [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(229,50): error CS0117: 'KlineInterval' does not contain a definition for 'FourHours' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(229,82): error CS0117: 'KlineInterval' does not contain a definition for 'FourHour' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+C:\code\TradingBot\TradingBot.Bybit\Futures\BybitFuturesClient.cs(244,32): error CS0117: 'KlineInterval' does not contain a definition for 'FourHour' [C:\code\TradingBot\TradingBot.Bybit\TradingBot.Bybit.csproj]
+    0 Warning(s)
+    9 Error(s)
+
+Time Elapsed 00:00:18.99

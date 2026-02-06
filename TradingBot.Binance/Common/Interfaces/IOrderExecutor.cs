@@ -1,5 +1,5 @@
 using TradingBot.Core.Models;
-using TradingBot.Binance.Common.Models;
+using BinanceExecutionResult = TradingBot.Binance.Common.Models.ExecutionResult;
 
 namespace TradingBot.Binance.Common.Interfaces;
 
@@ -11,7 +11,7 @@ public interface IOrderExecutor
     /// <summary>
     /// Places a market order
     /// </summary>
-    Task<ExecutionResult> PlaceMarketOrderAsync(
+    Task<BinanceExecutionResult> PlaceMarketOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -20,7 +20,7 @@ public interface IOrderExecutor
     /// <summary>
     /// Places a limit order
     /// </summary>
-    Task<ExecutionResult> PlaceLimitOrderAsync(
+    Task<BinanceExecutionResult> PlaceLimitOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -30,7 +30,7 @@ public interface IOrderExecutor
     /// <summary>
     /// Places an OCO (One-Cancels-Other) order with stop-loss and take-profit
     /// </summary>
-    Task<ExecutionResult> PlaceOcoOrderAsync(
+    Task<BinanceExecutionResult> PlaceOcoOrderAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,

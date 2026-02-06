@@ -5,6 +5,7 @@ namespace SignalBot.Configuration;
 /// </summary>
 public class SignalBotSettings
 {
+    public ExchangeSettings Exchange { get; set; } = new();
     public TelegramSettings Telegram { get; set; } = new();
     public TradingSettings Trading { get; set; } = new();
     public DuplicateHandlingSettings DuplicateHandling { get; set; } = new();
@@ -16,7 +17,7 @@ public class SignalBotSettings
     public NotificationSettings Notifications { get; set; } = new();
     public StateSettings State { get; set; } = new();
     public TradeStatisticsSettings Statistics { get; set; } = new();
-    
+
     /// <summary>
     /// Enable/disable Futures trading. If disabled, only monitoring is available
     /// </summary>

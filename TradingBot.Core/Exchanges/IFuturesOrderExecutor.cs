@@ -1,19 +1,16 @@
-using TradingBot.Binance.Common.Interfaces;
-using TradingBot.Binance.Common.Models;
 using TradingBot.Core.Models;
-using BinanceExecutionResult = TradingBot.Binance.Common.Models.ExecutionResult;
 
-namespace TradingBot.Binance.Futures.Interfaces;
+namespace TradingBot.Core.Exchanges;
 
 /// <summary>
-/// Extended order executor interface for Binance Futures with stop-loss and take-profit methods
+/// Extended order executor interface for Futures exchanges with stop-loss and take-profit methods
 /// </summary>
-public interface IFuturesOrderExecutor : TradingBot.Binance.Common.Interfaces.IOrderExecutor
+public interface IFuturesOrderExecutor : IOrderExecutor
 {
     /// <summary>
     /// Places a stop-loss order (Stop Market)
     /// </summary>
-    Task<BinanceExecutionResult> PlaceStopLossAsync(
+    Task<ExecutionResult> PlaceStopLossAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
@@ -23,7 +20,7 @@ public interface IFuturesOrderExecutor : TradingBot.Binance.Common.Interfaces.IO
     /// <summary>
     /// Places a take-profit order (Take Profit Market)
     /// </summary>
-    Task<BinanceExecutionResult> PlaceTakeProfitAsync(
+    Task<ExecutionResult> PlaceTakeProfitAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,

@@ -1,4 +1,4 @@
-namespace TradingBot.Binance.Futures.Models;
+namespace TradingBot.Core.Models;
 
 /// <summary>
 /// Leverage information for a Futures symbol
