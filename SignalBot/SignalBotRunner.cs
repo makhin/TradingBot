@@ -363,14 +363,10 @@ public class SignalBotRunner
             _logger.Information("Cached {Count} {Suffix} futures symbols",
                 _availableFuturesSymbols.Count, executionSuffix);
 
-            // Log the symbols for debugging
-            var symbolsList = string.Join(", ", _availableFuturesSymbols.OrderBy(s => s).Take(20));
-            _logger.Debug("First 20 {Suffix} symbols: {Symbols}", executionSuffix, symbolsList);
-
-            if (_availableFuturesSymbols.Count > 20)
-            {
-                _logger.Debug("... and {More} more symbols", _availableFuturesSymbols.Count - 20);
-            }
+            var orderedSymbols = GetOrderedAvailableSymbols();
+            var symbolsList = string.Join(", ", orderedSymbols);
+            _logger.Information("Available {Suffix} futures symbols ({Count}): {Symbols}",
+                executionSuffix, orderedSymbols.Count, symbolsList);
         }
         catch (Exception ex)
         {
@@ -643,12 +639,39 @@ public class SignalBotRunner
 
         return "✅ SignalBot started\n" +
                $"Monitoring {monitoredChannels} Telegram channel(s)\n" +
-               $"Max concurrent positions: {_settings.Trading.MaxConcurrentPositions}";
+               $"Max concurrent positions: {_settings.Trading.MaxConcurrentPositions}" +
+               BuildAvailableSymbolsSection();
     }
 
     private string BuildStopMessage()
     {
         return "🛑 SignalBot stopped";
+    }
+
+    private List<string> GetOrderedAvailableSymbols()
+    {
+        if (_availableFuturesSymbols == null || _availableFuturesSymbols.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        return _availableFuturesSymbols
+            .OrderBy(symbol => symbol, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private string BuildAvailableSymbolsSection()
+    {
+        var orderedSymbols = GetOrderedAvailableSymbols();
+        if (orderedSymbols.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var symbolsList = string.Join(", ", orderedSymbols);
+        return "\n" +
+               $"Available symbols ({orderedSymbols.Count}):\n" +
+               symbolsList;
     }
 
     private string BuildValidationFailedMessage(TradingSignal signal, string? errorMessage)
