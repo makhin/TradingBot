@@ -10,6 +10,8 @@ WORKDIR /src
 COPY SignalBot/SignalBot.csproj SignalBot/
 COPY TradingBot.Core/TradingBot.Core.csproj TradingBot.Core/
 COPY TradingBot.Binance/TradingBot.Binance.csproj TradingBot.Binance/
+COPY TradingBot.Bybit/TradingBot.Bybit.csproj TradingBot.Bybit/
+COPY TradingBot.Bitget/TradingBot.Bitget.csproj TradingBot.Bitget/
 
 # Restore dependencies
 RUN dotnet restore SignalBot/SignalBot.csproj -a $TARGETARCH
@@ -18,6 +20,8 @@ RUN dotnet restore SignalBot/SignalBot.csproj -a $TARGETARCH
 COPY SignalBot/ SignalBot/
 COPY TradingBot.Core/ TradingBot.Core/
 COPY TradingBot.Binance/ TradingBot.Binance/
+COPY TradingBot.Bybit/ TradingBot.Bybit/
+COPY TradingBot.Bitget/ TradingBot.Bitget/
 
 # Build and publish
 RUN dotnet publish SignalBot/SignalBot.csproj \
