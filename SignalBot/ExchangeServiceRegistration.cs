@@ -196,8 +196,12 @@ public static class ExchangeServiceRegistration
                 // IMPORTANT: Set environment BEFORE credentials (order matters for Bitget)
                 if (bitgetSettings.UseTestnet)
                 {
-                    Log.Information("Setting BitgetSocketClient environment to DemoTrading");
-                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
+                    // Demo private websocket requires wspap host, while keeping environment name "demo".
+                    options.Environment = Bitget.Net.BitgetEnvironment.CreateCustom(
+                        Bitget.Net.BitgetEnvironment.DemoTrading.Name,
+                        Bitget.Net.BitgetEnvironment.DemoTrading.RestBaseAddress,
+                        "wss://wspap.bitget.com");
+                    Log.Information("Setting BitgetSocketClient environment to custom DemoTrading websocket endpoint ({SocketBaseAddress})", options.Environment.SocketBaseAddress);
                 }
                 else
                 {

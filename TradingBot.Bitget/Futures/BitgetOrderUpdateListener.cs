@@ -76,18 +76,15 @@ public class BitgetOrderUpdateListener
         {
             _logger.Error("Failed to subscribe to Bitget order updates: {Error}", result.Error?.Message);
 
-            // WORKAROUND: JK.Bitget.Net v3.4.0 doesn't support WebSocket for Demo Trading
-            // Demo trading requires wspap.bitget.com WebSocket URL and paptrading header
-            // Return dummy subscription to allow bot to continue without WebSocket monitoring
+            // Demo credentials on the live websocket host trigger environment mismatch errors.
+            // Return dummy subscription to allow the bot to continue without websocket monitoring.
             if (result.Error?.Message?.Contains("environment") == true ||
                 result.Error?.Message?.Contains("Current environment does not match") == true)
             {
-                _logger.Warning("⚠️ Bitget Demo Trading WebSocket not supported in SDK v3.4.0");
+                _logger.Warning("⚠️ Bitget demo private websocket login failed due to environment mismatch");
                 _logger.Warning("⚠️ Order monitoring via WebSocket is DISABLED for Bitget");
                 _logger.Warning("⚠️ Bot will continue using REST API only");
-                _logger.Information("Note: To enable WebSocket for demo trading, SDK needs to support:");
-                _logger.Information("  - WebSocket URL: wss://wspap.bitget.com/v2/ws/private");
-                _logger.Information("  - HTTP header: paptrading: 1");
+                _logger.Information("Note: Configure BitgetSocketClient demo endpoint as wss://wspap.bitget.com with environment name 'demo'");
 
                 // Return a dummy subscription that does nothing
                 return new DummySubscription(_logger);
@@ -151,11 +148,11 @@ public class BitgetOrderUpdateListener
         {
             _logger.Error("Failed to subscribe to Bitget position updates: {Error}", result.Error?.Message);
 
-            // WORKAROUND: Same as order updates - return dummy subscription for demo trading
+            // Same handling as order updates: keep bot alive when websocket env is misconfigured.
             if (result.Error?.Message?.Contains("environment") == true ||
                 result.Error?.Message?.Contains("Current environment does not match") == true)
             {
-                _logger.Warning("⚠️ Position monitoring via WebSocket is DISABLED for Bitget demo trading");
+                _logger.Warning("⚠️ Position monitoring via WebSocket is DISABLED due to Bitget environment mismatch");
                 return new DummySubscription(_logger);
             }
 

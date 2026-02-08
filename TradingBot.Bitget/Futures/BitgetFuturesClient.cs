@@ -102,13 +102,12 @@ public class BitgetFuturesClient : IBitgetFuturesClient
             {
                 _logger.Warning("Bitget Futures account request failed: {Error}", accountResult.Error?.Message);
 
-                // WORKAROUND: For demo trading, the SDK doesn't properly support paptrading header
-                // Allow connection to proceed if error is environment-related
-                // TODO: Implement proper paptrading header support in future SDK versions
+                // In demo mode, environment mismatch can happen when socket/rest endpoints are mixed.
+                // Allow startup to continue while emitting diagnostics.
                 if (accountResult.Error?.Message?.Contains("environment") == true)
                 {
-                    _logger.Warning("⚠️ Bitget demo trading environment issue - proceeding with caution");
-                    _logger.Information("Note: Some API calls may fail until proper paptrading header support is added");
+                    _logger.Warning("⚠️ Bitget environment mismatch detected - proceeding with caution");
+                    _logger.Information("Note: Verify demo environment name is 'demo' and websocket endpoint is wss://wspap.bitget.com");
                     return true; // Allow startup despite environment mismatch
                 }
 
