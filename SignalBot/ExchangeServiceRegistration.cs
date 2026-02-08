@@ -63,12 +63,24 @@ public static class ExchangeServiceRegistration
             });
         });
 
-        // Binance implementations
+        // Binance implementations (register as both concrete class and interface)
         services.AddSingleton<ExecutionValidator>();
+
         services.AddSingleton<BinanceFuturesClient>();
+        services.AddSingleton<TradingBot.Binance.Futures.Interfaces.IBinanceFuturesClient>(sp =>
+            sp.GetRequiredService<BinanceFuturesClient>());
+
         services.AddSingleton<FuturesOrderExecutor>();
+        services.AddSingleton<TradingBot.Binance.Futures.Interfaces.IFuturesOrderExecutor>(sp =>
+            sp.GetRequiredService<FuturesOrderExecutor>());
+
         services.AddSingleton<FuturesOrderUpdateListener>();
+        services.AddSingleton<TradingBot.Binance.Common.Interfaces.IOrderUpdateListener>(sp =>
+            sp.GetRequiredService<FuturesOrderUpdateListener>());
+
         services.AddSingleton<FuturesKlineListener>();
+        services.AddSingleton<TradingBot.Binance.Common.Interfaces.IKlineListener>(sp =>
+            sp.GetRequiredService<FuturesKlineListener>());
 
         // Register Binance adapters directly as main interfaces (since it's the active exchange)
         services.AddSingleton<IFuturesExchangeClient, BinanceFuturesClientAdapter>();
@@ -118,7 +130,7 @@ public static class ExchangeServiceRegistration
             });
         });
 
-        // Bybit implementations
+        // Bybit implementations (no interfaces - adapters use concrete classes)
         services.AddSingleton<BybitExecutionValidator>();
         services.AddSingleton<BybitFuturesClient>();
         services.AddSingleton<BybitFuturesOrderExecutor>();
@@ -175,13 +187,18 @@ public static class ExchangeServiceRegistration
             });
         });
 
-        // Bitget implementations
+        // Bitget implementations (register with interfaces where they exist)
         services.AddSingleton<BitgetFuturesClient>(sp =>
             new BitgetFuturesClient(sp.GetRequiredService<BitgetRestClient>(), sp.GetRequiredService<ILogger>()));
+        services.AddSingleton<TradingBot.Bitget.Futures.Interfaces.IBitgetFuturesClient>(sp =>
+            sp.GetRequiredService<BitgetFuturesClient>());
 
         services.AddSingleton<BitgetFuturesOrderExecutor>(sp =>
             new BitgetFuturesOrderExecutor(sp.GetRequiredService<BitgetRestClient>(), sp.GetRequiredService<ILogger>()));
+        services.AddSingleton<TradingBot.Bitget.Futures.Interfaces.IBitgetFuturesOrderExecutor>(sp =>
+            sp.GetRequiredService<BitgetFuturesOrderExecutor>());
 
+        // Listeners don't have interfaces - adapters use concrete classes
         services.AddSingleton<BitgetOrderUpdateListener>(sp =>
             new BitgetOrderUpdateListener(sp.GetRequiredService<BitgetSocketClient>(), sp.GetRequiredService<ILogger>()));
 
