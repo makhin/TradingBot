@@ -1,7 +1,7 @@
 using SignalBot.Models;
 using SignalBot.State;
 using SignalBot.Services.Statistics;
-using TradingBot.Binance.Futures.Interfaces;
+using TradingBot.Core.Exchanges;
 using TradingBot.Core.Models;
 using TradingBot.Core.Notifications;
 using Serilog;
@@ -252,12 +252,12 @@ public class PositionManager : IPositionManager
                 newStopLoss,
                 ct);
 
-            if (result.IsAcceptable && result.OrderId.HasValue)
+            if (result.Success && result.OrderId != 0)
             {
                 // Update position with new SL order ID
                 var updatedPosition = position with
                 {
-                    StopLossOrderId = result.OrderId.Value,
+                    StopLossOrderId = result.OrderId,
                     CurrentStopLoss = newStopLoss
                 };
                 await _store.SavePositionAsync(updatedPosition, ct);
@@ -267,7 +267,7 @@ public class PositionManager : IPositionManager
             else
             {
                 _logger.Warning("Failed to place new stop loss for {Symbol}: {Reason}",
-                    position.Symbol, result.RejectReason);
+                    position.Symbol, result.ErrorMessage);
             }
         }
         catch (Exception ex)

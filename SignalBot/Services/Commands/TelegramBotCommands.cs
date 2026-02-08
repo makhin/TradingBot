@@ -3,7 +3,7 @@ using SignalBot.Models;
 using SignalBot.Services.Trading;
 using SignalBot.Services.Statistics;
 using SignalBot.State;
-using TradingBot.Binance.Futures.Interfaces;
+using TradingBot.Core.Exchanges;
 using TradingBot.Core.Models;
 using Serilog;
 using SignalBot.Services;
@@ -22,7 +22,7 @@ public class TelegramBotCommands : IBotCommands
     private readonly IPositionManager _positionManager;
     private readonly IPositionStore<SignalPosition> _store;
     private readonly IFuturesOrderExecutor _orderExecutor;
-    private readonly IBinanceFuturesClient _client;
+    private readonly IFuturesExchangeClient _client;
     private readonly ITradeStatisticsService _tradeStatistics;
     private readonly string _quoteCurrency;
     private readonly string _symbolExample;
@@ -34,7 +34,7 @@ public class TelegramBotCommands : IBotCommands
         IPositionManager positionManager,
         IPositionStore<SignalPosition> store,
         IFuturesOrderExecutor orderExecutor,
-        IBinanceFuturesClient client,
+        IFuturesExchangeClient client,
         ITradeStatisticsService tradeStatistics,
         IOptions<SignalBotSettings> settings,
         ILogger? logger = null)
@@ -418,15 +418,15 @@ public class TelegramBotCommands : IBotCommands
             position.RemainingQuantity,
             ct);
 
-        if (!closeResult.IsAcceptable)
+        if (!closeResult.Success)
         {
-            throw new InvalidOperationException($"Failed to close position: {closeResult.RejectReason}");
+            throw new InvalidOperationException($"Failed to close position: {closeResult.ErrorMessage}");
         }
 
         // Update position
         var pnl = PnlCalculator.Calculate(
             position.ActualEntryPrice,
-            closeResult.ActualPrice,
+            closeResult.AveragePrice,
             position.RemainingQuantity,
             position.Direction);
 

@@ -1,8 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Binance.Net.Clients;
-using Bybit.Net.Clients;
-using Bitget.Net.Clients;
 using SignalBot.Configuration;
 using SignalBot.Models;
 using SignalBot.Services.Commands;
@@ -12,16 +9,6 @@ using SignalBot.Services.Trading;
 using SignalBot.Services.Validation;
 using SignalBot.State;
 using SignalBot.Services.Statistics;
-using TradingBot.Binance.Common;
-using TradingBot.Binance.Futures;
-using TradingBot.Binance.Futures.Adapters;
-using TradingBot.Bybit.Common;
-using TradingBot.Bybit.Futures;
-using TradingBot.Bybit.Futures.Adapters;
-using TradingBot.Bitget.Common;
-using TradingBot.Bitget.Futures;
-using TradingBot.Bitget.Futures.Adapters;
-using TradingBot.Core.Exchanges;
 using TradingBot.Core.Models;
 using TradingBot.Core.Notifications;
 using TradingBot.Core.RiskManagement;
@@ -34,8 +21,6 @@ using Polly;
 using Serilog.Sinks.Elasticsearch;
 using Serilog.Sinks.Grafana.Loki;
 using SignalBot.Telemetry;
-using Binance.Net.Objects.Options;
-using Bybit.Net.Objects.Options;
 
 namespace SignalBot;
 
@@ -156,209 +141,28 @@ class Program
                         }
                     }));
 
-        // Exchange SDK clients
-        // Binance
-        services.AddSingleton(sp =>
+        // Register exchange-specific dependencies based on active exchange
+        var signalBotSettings = configuration.GetSection("SignalBot").Get<SignalBotSettings>()
+            ?? throw new InvalidOperationException("SignalBot configuration not found");
+        var activeExchange = signalBotSettings.Exchange.ActiveExchange;
+
+        Log.Information("Registering dependencies for active exchange: {Exchange}", activeExchange);
+
+        switch (activeExchange?.ToLowerInvariant())
         {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var binanceSettings = settings.Exchange.Binance;
-            return new BinanceRestClient(options =>
-            {
-                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                    binanceSettings.ApiKey,
-                    binanceSettings.ApiSecret);
-                // TODO: Configure testnet environment if needed
-                // if (binanceSettings.UseTestnet)
-                // {
-                //     options.Environment = Binance.Net.Objects.BinanceEnvironment.Testnet;
-                // }
-            });
-        });
-
-        services.AddSingleton(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var binanceSettings = settings.Exchange.Binance;
-            return new BinanceSocketClient(options =>
-            {
-                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                    binanceSettings.ApiKey,
-                    binanceSettings.ApiSecret);
-                // TODO: Configure testnet environment if needed
-                // if (binanceSettings.UseTestnet)
-                // {
-                //     options.Environment = Binance.Net.Objects.BinanceEnvironment.Testnet;
-                // }
-            });
-        });
-
-        // Bybit
-        services.AddSingleton(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var bybitSettings = settings.Exchange.Bybit;
-            return new BybitRestClient(options =>
-            {
-                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                    bybitSettings.ApiKey,
-                    bybitSettings.ApiSecret);
-                if (bybitSettings.UseTestnet)
-                {
-                    options.Environment = Bybit.Net.BybitEnvironment.Testnet;
-                }
-            });
-        });
-
-        services.AddSingleton(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var bybitSettings = settings.Exchange.Bybit;
-            return new BybitSocketClient(options =>
-            {
-                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                    bybitSettings.ApiKey,
-                    bybitSettings.ApiSecret);
-                if (bybitSettings.UseTestnet)
-                {
-                    options.Environment = Bybit.Net.BybitEnvironment.Testnet;
-                }
-            });
-        });
-
-        // Bitget
-        services.AddSingleton(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var bitgetSettings = settings.Exchange.Bitget;
-            return new BitgetRestClient(options =>
-            {
-                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                    bitgetSettings.ApiKey,
-                    bitgetSettings.ApiSecret,
-                    bitgetSettings.ApiPassphrase);
-                if (bitgetSettings.UseTestnet)
-                {
-                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
-                }
-            });
-        });
-
-        services.AddSingleton(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var bitgetSettings = settings.Exchange.Bitget;
-            return new BitgetSocketClient(options =>
-            {
-                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
-                    bitgetSettings.ApiKey,
-                    bitgetSettings.ApiSecret,
-                    bitgetSettings.ApiPassphrase);
-                if (bitgetSettings.UseTestnet)
-                {
-                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
-                }
-            });
-        });
-
-        // Exchange-specific implementations
-        // Binance implementations and adapters
-        services.AddSingleton<TradingBot.Binance.Common.ExecutionValidator>();
-        services.AddSingleton<BinanceFuturesClient>();
-        services.AddSingleton<FuturesOrderExecutor>();
-        services.AddSingleton<FuturesOrderUpdateListener>();
-        services.AddSingleton<FuturesKlineListener>();
-
-        services.AddKeyedSingleton<IFuturesExchangeClient>("Binance", (sp, _) =>
-            new BinanceFuturesClientAdapter(sp.GetRequiredService<BinanceFuturesClient>()));
-
-        services.AddKeyedSingleton<TradingBot.Core.Exchanges.IFuturesOrderExecutor>("Binance", (sp, _) =>
-            new BinanceFuturesOrderExecutorAdapter(sp.GetRequiredService<FuturesOrderExecutor>()));
-
-        services.AddKeyedSingleton<IExchangeOrderUpdateListener>("Binance", (sp, _) =>
-            new BinanceOrderUpdateListenerAdapter(sp.GetRequiredService<FuturesOrderUpdateListener>()));
-
-        services.AddKeyedSingleton<IExchangeKlineListener>("Binance", (sp, _) =>
-            new BinanceKlineListenerAdapter(sp.GetRequiredService<FuturesKlineListener>()));
-
-        // Bybit implementations and adapters
-        services.AddSingleton<TradingBot.Bybit.Common.BybitExecutionValidator>();
-        services.AddSingleton<BybitFuturesClient>();
-        services.AddSingleton<BybitFuturesOrderExecutor>();
-        services.AddSingleton<BybitOrderUpdateListener>();
-        services.AddSingleton<BybitKlineListener>();
-
-        services.AddKeyedSingleton<IFuturesExchangeClient>("Bybit", (sp, _) =>
-            new BybitFuturesClientAdapter(sp.GetRequiredService<BybitFuturesClient>()));
-
-        services.AddKeyedSingleton<TradingBot.Core.Exchanges.IFuturesOrderExecutor>("Bybit", (sp, _) =>
-            new BybitFuturesOrderExecutorAdapter(sp.GetRequiredService<BybitFuturesOrderExecutor>()));
-
-        services.AddKeyedSingleton<IExchangeOrderUpdateListener>("Bybit", (sp, _) =>
-            new BybitOrderUpdateListenerAdapter(sp.GetRequiredService<BybitOrderUpdateListener>()));
-
-        services.AddKeyedSingleton<IExchangeKlineListener>("Bybit", (sp, _) =>
-            new BybitKlineListenerAdapter(sp.GetRequiredService<BybitKlineListener>()));
-
-        // Bitget implementations and adapters
-        services.AddSingleton<BitgetFuturesClient>(sp =>
-            new BitgetFuturesClient(sp.GetRequiredService<BitgetRestClient>(), sp.GetRequiredService<ILogger>()));
-
-        services.AddSingleton<BitgetFuturesOrderExecutor>(sp =>
-            new BitgetFuturesOrderExecutor(sp.GetRequiredService<BitgetRestClient>(), sp.GetRequiredService<ILogger>()));
-
-        services.AddSingleton<BitgetOrderUpdateListener>(sp =>
-            new BitgetOrderUpdateListener(sp.GetRequiredService<BitgetSocketClient>(), sp.GetRequiredService<ILogger>()));
-
-        services.AddSingleton<BitgetKlineListener>(sp =>
-            new BitgetKlineListener(sp.GetRequiredService<BitgetSocketClient>(), sp.GetRequiredService<ILogger>()));
-
-        services.AddKeyedSingleton<IFuturesExchangeClient>("Bitget", (sp, _) =>
-            new BitgetFuturesClientAdapter(sp.GetRequiredService<BitgetFuturesClient>()));
-
-        services.AddKeyedSingleton<TradingBot.Core.Exchanges.IFuturesOrderExecutor>("Bitget", (sp, _) =>
-            new BitgetFuturesOrderExecutorAdapter(sp.GetRequiredService<BitgetFuturesOrderExecutor>()));
-
-        services.AddKeyedSingleton<IExchangeOrderUpdateListener>("Bitget", (sp, _) =>
-            new BitgetOrderUpdateListenerAdapter(sp.GetRequiredService<BitgetOrderUpdateListener>()));
-
-        services.AddKeyedSingleton<IExchangeKlineListener>("Bitget", (sp, _) =>
-            new BitgetKlineListenerAdapter(sp.GetRequiredService<BitgetKlineListener>()));
-
-        // Exchange factory
-        services.AddSingleton<IExchangeFactory, ExchangeFactory>();
-
-        // Active exchange instances (resolved via factory based on configuration)
-        services.AddSingleton<IFuturesExchangeClient>(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var factory = sp.GetRequiredService<IExchangeFactory>();
-            var exchangeType = Enum.Parse<ExchangeType>(settings.Exchange.ActiveExchange, ignoreCase: true);
-            return factory.CreateFuturesClient(exchangeType);
-        });
-
-        services.AddSingleton<TradingBot.Core.Exchanges.IFuturesOrderExecutor>(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var factory = sp.GetRequiredService<IExchangeFactory>();
-            var exchangeType = Enum.Parse<ExchangeType>(settings.Exchange.ActiveExchange, ignoreCase: true);
-            return factory.CreateOrderExecutor(exchangeType);
-        });
-
-        services.AddSingleton<IExchangeOrderUpdateListener>(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var factory = sp.GetRequiredService<IExchangeFactory>();
-            var exchangeType = Enum.Parse<ExchangeType>(settings.Exchange.ActiveExchange, ignoreCase: true);
-            return factory.CreateOrderUpdateListener(exchangeType);
-        });
-
-        services.AddSingleton<IExchangeKlineListener>(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
-            var factory = sp.GetRequiredService<IExchangeFactory>();
-            var exchangeType = Enum.Parse<ExchangeType>(settings.Exchange.ActiveExchange, ignoreCase: true);
-            return factory.CreateKlineListener(exchangeType);
-        });
+            case "binance":
+                services.AddBinanceDependencies();
+                break;
+            case "bybit":
+                services.AddBybitDependencies();
+                break;
+            case "bitget":
+                services.AddBitgetDependencies();
+                break;
+            default:
+                throw new InvalidOperationException(
+                    $"Unknown or unsupported exchange: {activeExchange}. Supported exchanges: Binance, Bybit, Bitget");
+        }
 
         // Risk management
         services.AddSingleton<IRiskManager>(sp =>

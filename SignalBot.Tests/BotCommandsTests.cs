@@ -5,7 +5,7 @@ using SignalBot.Services.Commands;
 using SignalBot.Services.Statistics;
 using SignalBot.Services.Trading;
 using SignalBot.State;
-using TradingBot.Binance.Futures.Interfaces;
+using TradingBot.Core.Exchanges;
 using TradingBot.Core.Models;
 using Moq;
 using Xunit;
@@ -20,8 +20,8 @@ public class BotCommandsTests
     private readonly CooldownManager _cooldownManager;
     private readonly Mock<IPositionManager> _mockPositionManager;
     private readonly Mock<IPositionStore<SignalPosition>> _mockStore;
-    private readonly Mock<IFuturesOrderExecutor> _mockOrderExecutor;
-    private readonly Mock<IBinanceFuturesClient> _mockClient;
+    private readonly Mock<TradingBot.Core.Exchanges.IFuturesOrderExecutor> _mockOrderExecutor;
+    private readonly Mock<IFuturesExchangeClient> _mockClient;
     private readonly Mock<ITradeStatisticsService> _mockTradeStatistics;
     private readonly TelegramBotCommands _commands;
     private readonly ILogger _logger;
@@ -33,8 +33,8 @@ public class BotCommandsTests
         _cooldownManager = new CooldownManager(new CooldownSettings(), _logger);
         _mockPositionManager = new Mock<IPositionManager>();
         _mockStore = new Mock<IPositionStore<SignalPosition>>();
-        _mockOrderExecutor = new Mock<IFuturesOrderExecutor>();
-        _mockClient = new Mock<IBinanceFuturesClient>();
+        _mockOrderExecutor = new Mock<TradingBot.Core.Exchanges.IFuturesOrderExecutor>();
+        _mockClient = new Mock<IFuturesExchangeClient>();
         _mockTradeStatistics = new Mock<ITradeStatisticsService>();
 
         var settings = Options.Create(new SignalBotSettings
@@ -156,10 +156,11 @@ public class BotCommandsTests
                 It.IsAny<TradeDirection>(),
                 position.RemainingQuantity,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TradingBot.Binance.Common.Models.ExecutionResult
+            .ReturnsAsync(new ExecutionResult
             {
-                IsAcceptable = true,
-                ActualPrice = position.ActualEntryPrice
+                Success = true,
+                AveragePrice = position.ActualEntryPrice,
+                FilledQuantity = position.RemainingQuantity
             });
 
         _mockTradeStatistics.Setup(x => x.RecordClosedPositionAsync(
