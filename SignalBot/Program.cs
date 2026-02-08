@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Binance.Net.Clients;
 using Bybit.Net.Clients;
+using Bitget.Net.Clients;
 using SignalBot.Configuration;
 using SignalBot.Models;
 using SignalBot.Services.Commands;
@@ -17,6 +18,9 @@ using TradingBot.Binance.Futures.Adapters;
 using TradingBot.Bybit.Common;
 using TradingBot.Bybit.Futures;
 using TradingBot.Bybit.Futures.Adapters;
+using TradingBot.Bitget.Common;
+using TradingBot.Bitget.Futures;
+using TradingBot.Bitget.Futures.Adapters;
 using TradingBot.Core.Exchanges;
 using TradingBot.Core.Models;
 using TradingBot.Core.Notifications;
@@ -198,11 +202,10 @@ class Program
                 options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
                     bybitSettings.ApiKey,
                     bybitSettings.ApiSecret);
-                // TODO: Configure testnet environment if needed
-                // if (bybitSettings.UseTestnet)
-                // {
-                //     options.Environment = Bybit.Net.Objects.BybitEnvironment.Testnet;
-                // }
+                if (bybitSettings.UseTestnet)
+                {
+                    options.Environment = Bybit.Net.BybitEnvironment.Testnet;
+                }
             });
         });
 
@@ -215,16 +218,51 @@ class Program
                 options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
                     bybitSettings.ApiKey,
                     bybitSettings.ApiSecret);
-                // TODO: Configure testnet environment if needed
-                // if (bybitSettings.UseTestnet)
-                // {
-                //     options.Environment = Bybit.Net.Objects.BybitEnvironment.Testnet;
-                // }
+                if (bybitSettings.UseTestnet)
+                {
+                    options.Environment = Bybit.Net.BybitEnvironment.Testnet;
+                }
+            });
+        });
+
+        // Bitget
+        services.AddSingleton(sp =>
+        {
+            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
+            var bitgetSettings = settings.Exchange.Bitget;
+            return new BitgetRestClient(options =>
+            {
+                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
+                    bitgetSettings.ApiKey,
+                    bitgetSettings.ApiSecret,
+                    bitgetSettings.ApiPassphrase);
+                if (bitgetSettings.UseTestnet)
+                {
+                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
+                }
+            });
+        });
+
+        services.AddSingleton(sp =>
+        {
+            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
+            var bitgetSettings = settings.Exchange.Bitget;
+            return new BitgetSocketClient(options =>
+            {
+                options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
+                    bitgetSettings.ApiKey,
+                    bitgetSettings.ApiSecret,
+                    bitgetSettings.ApiPassphrase);
+                if (bitgetSettings.UseTestnet)
+                {
+                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
+                }
             });
         });
 
         // Exchange-specific implementations
         // Binance implementations and adapters
+        services.AddSingleton<TradingBot.Binance.Common.ExecutionValidator>();
         services.AddSingleton<BinanceFuturesClient>();
         services.AddSingleton<FuturesOrderExecutor>();
         services.AddSingleton<FuturesOrderUpdateListener>();
@@ -243,6 +281,7 @@ class Program
             new BinanceKlineListenerAdapter(sp.GetRequiredService<FuturesKlineListener>()));
 
         // Bybit implementations and adapters
+        services.AddSingleton<TradingBot.Bybit.Common.BybitExecutionValidator>();
         services.AddSingleton<BybitFuturesClient>();
         services.AddSingleton<BybitFuturesOrderExecutor>();
         services.AddSingleton<BybitOrderUpdateListener>();
@@ -259,6 +298,31 @@ class Program
 
         services.AddKeyedSingleton<IExchangeKlineListener>("Bybit", (sp, _) =>
             new BybitKlineListenerAdapter(sp.GetRequiredService<BybitKlineListener>()));
+
+        // Bitget implementations and adapters
+        services.AddSingleton<BitgetFuturesClient>(sp =>
+            new BitgetFuturesClient(sp.GetRequiredService<BitgetRestClient>(), sp.GetRequiredService<ILogger>()));
+
+        services.AddSingleton<BitgetFuturesOrderExecutor>(sp =>
+            new BitgetFuturesOrderExecutor(sp.GetRequiredService<BitgetRestClient>(), sp.GetRequiredService<ILogger>()));
+
+        services.AddSingleton<BitgetOrderUpdateListener>(sp =>
+            new BitgetOrderUpdateListener(sp.GetRequiredService<BitgetSocketClient>(), sp.GetRequiredService<ILogger>()));
+
+        services.AddSingleton<BitgetKlineListener>(sp =>
+            new BitgetKlineListener(sp.GetRequiredService<BitgetSocketClient>(), sp.GetRequiredService<ILogger>()));
+
+        services.AddKeyedSingleton<IFuturesExchangeClient>("Bitget", (sp, _) =>
+            new BitgetFuturesClientAdapter(sp.GetRequiredService<BitgetFuturesClient>()));
+
+        services.AddKeyedSingleton<TradingBot.Core.Exchanges.IFuturesOrderExecutor>("Bitget", (sp, _) =>
+            new BitgetFuturesOrderExecutorAdapter(sp.GetRequiredService<BitgetFuturesOrderExecutor>()));
+
+        services.AddKeyedSingleton<IExchangeOrderUpdateListener>("Bitget", (sp, _) =>
+            new BitgetOrderUpdateListenerAdapter(sp.GetRequiredService<BitgetOrderUpdateListener>()));
+
+        services.AddKeyedSingleton<IExchangeKlineListener>("Bitget", (sp, _) =>
+            new BitgetKlineListenerAdapter(sp.GetRequiredService<BitgetKlineListener>()));
 
         // Exchange factory
         services.AddSingleton<IExchangeFactory, ExchangeFactory>();

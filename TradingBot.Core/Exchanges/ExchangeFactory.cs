@@ -21,6 +21,7 @@ public class ExchangeFactory : IExchangeFactory
         {
             ExchangeType.Binance => _serviceProvider.GetRequiredKeyedService<IFuturesExchangeClient>("Binance"),
             ExchangeType.Bybit => _serviceProvider.GetRequiredKeyedService<IFuturesExchangeClient>("Bybit"),
+            ExchangeType.Bitget => _serviceProvider.GetRequiredKeyedService<IFuturesExchangeClient>("Bitget"),
             _ => throw new ArgumentException($"Unsupported exchange type: {exchange}", nameof(exchange))
         };
     }
@@ -31,6 +32,7 @@ public class ExchangeFactory : IExchangeFactory
         {
             ExchangeType.Binance => _serviceProvider.GetRequiredKeyedService<IFuturesOrderExecutor>("Binance"),
             ExchangeType.Bybit => _serviceProvider.GetRequiredKeyedService<IFuturesOrderExecutor>("Bybit"),
+            ExchangeType.Bitget => _serviceProvider.GetRequiredKeyedService<IFuturesOrderExecutor>("Bitget"),
             _ => throw new ArgumentException($"Unsupported exchange type: {exchange}", nameof(exchange))
         };
     }
@@ -41,6 +43,7 @@ public class ExchangeFactory : IExchangeFactory
         {
             ExchangeType.Binance => _serviceProvider.GetRequiredKeyedService<IExchangeOrderUpdateListener>("Binance"),
             ExchangeType.Bybit => _serviceProvider.GetRequiredKeyedService<IExchangeOrderUpdateListener>("Bybit"),
+            ExchangeType.Bitget => _serviceProvider.GetRequiredKeyedService<IExchangeOrderUpdateListener>("Bitget"),
             _ => throw new ArgumentException($"Unsupported exchange type: {exchange}", nameof(exchange))
         };
     }
@@ -51,6 +54,7 @@ public class ExchangeFactory : IExchangeFactory
         {
             ExchangeType.Binance => _serviceProvider.GetRequiredKeyedService<IExchangeKlineListener>("Binance"),
             ExchangeType.Bybit => _serviceProvider.GetRequiredKeyedService<IExchangeKlineListener>("Bybit"),
+            ExchangeType.Bitget => _serviceProvider.GetRequiredKeyedService<IExchangeKlineListener>("Bitget"),
             _ => throw new ArgumentException($"Unsupported exchange type: {exchange}", nameof(exchange))
         };
     }

@@ -6,5 +6,6 @@ namespace TradingBot.Core.Exchanges;
 public enum ExchangeType
 {
     Binance,
-    Bybit
+    Bybit,
+    Bitget
 }

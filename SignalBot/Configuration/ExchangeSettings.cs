@@ -7,7 +7,7 @@ namespace SignalBot.Configuration;
 public class ExchangeSettings
 {
     /// <summary>
-    /// Active exchange to use for trading (Binance or Bybit)
+    /// Active exchange to use for trading (Binance, Bybit, or Bitget)
     /// </summary>
     public string ActiveExchange { get; set; } = "Binance";
 
@@ -20,6 +20,11 @@ public class ExchangeSettings
     /// Bybit exchange configuration
     /// </summary>
     public BybitExchangeSettings Bybit { get; set; } = new();
+
+    /// <summary>
+    /// Bitget exchange configuration
+    /// </summary>
+    public BitgetExchangeSettings Bitget { get; set; } = new();
 }
 
 /// <summary>
@@ -62,4 +67,30 @@ public class BybitExchangeSettings
     /// Bybit API Secret
     /// </summary>
     public string ApiSecret { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Bitget API configuration
+/// </summary>
+public class BitgetExchangeSettings
+{
+    /// <summary>
+    /// Use Bitget testnet instead of mainnet
+    /// </summary>
+    public bool UseTestnet { get; set; } = true;
+
+    /// <summary>
+    /// Bitget API Key
+    /// </summary>
+    public string ApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Bitget API Secret
+    /// </summary>
+    public string ApiSecret { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Bitget API Passphrase (required for Bitget authentication)
+    /// </summary>
+    public string ApiPassphrase { get; set; } = string.Empty;
 }

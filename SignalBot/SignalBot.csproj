@@ -35,6 +35,7 @@
     <ProjectReference Include="..\TradingBot.Core\TradingBot.Core.csproj" />
     <ProjectReference Include="..\TradingBot.Binance\TradingBot.Binance.csproj" />
     <ProjectReference Include="..\TradingBot.Bybit\TradingBot.Bybit.csproj" />
+    <ProjectReference Include="..\TradingBot.Bitget\TradingBot.Bitget.csproj" />
   </ItemGroup>
 
   <ItemGroup>
