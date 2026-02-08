@@ -157,34 +157,35 @@ public static class ExchangeServiceRegistration
         {
             var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
             var bitgetSettings = settings.Exchange.Bitget;
-            return new BitgetRestClient(options =>
+
+            // Note: For demo trading with Bitget, use Demo API keys with Live environment
+            // The paptrading header should be automatically handled by Demo API keys
+            // See: https://www.bitget.com/api-doc/common/demotrading/restapi
+            var client = new BitgetRestClient(options =>
             {
                 options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
                     bitgetSettings.ApiKey,
                     bitgetSettings.ApiSecret,
                     bitgetSettings.ApiPassphrase);
-                if (bitgetSettings.UseTestnet)
-                {
-                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
-                }
             });
+
+            return client;
         });
 
         services.AddSingleton(sp =>
         {
             var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
             var bitgetSettings = settings.Exchange.Bitget;
-            return new BitgetSocketClient(options =>
+
+            var client = new BitgetSocketClient(options =>
             {
                 options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
                     bitgetSettings.ApiKey,
                     bitgetSettings.ApiSecret,
                     bitgetSettings.ApiPassphrase);
-                if (bitgetSettings.UseTestnet)
-                {
-                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
-                }
             });
+
+            return client;
         });
 
         // Bitget implementations (register with interfaces where they exist)

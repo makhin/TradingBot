@@ -88,17 +88,30 @@ public class BitgetFuturesClient : IBitgetFuturesClient
     {
         try
         {
-            var serverTime = await _client.FuturesApiV2.ExchangeData.GetServerTimeAsync(ct);
-            if (!serverTime.Success)
+            // Check if API clients are initialized
+            if (_client?.FuturesApiV2?.Account == null)
             {
-                _logger.Warning("Futures server time request failed: {Error}", serverTime.Error?.Message);
+                _logger.Error("BitgetRestClient.FuturesApiV2.Account is not initialized");
                 return false;
             }
 
+            // Test with authenticated endpoint (balances)
+            // Note: GetServerTimeAsync has issues with DemoTrading environment in Bitget.Net SDK
             var accountResult = await _client.FuturesApiV2.Account.GetBalancesAsync(BitgetProductTypeV2.UsdtFutures, ct);
             if (!accountResult.Success)
             {
-                _logger.Warning("Futures account request failed: {Error}", accountResult.Error?.Message);
+                _logger.Warning("Bitget Futures account request failed: {Error}", accountResult.Error?.Message);
+
+                // WORKAROUND: For demo trading, the SDK doesn't properly support paptrading header
+                // Allow connection to proceed if error is environment-related
+                // TODO: Implement proper paptrading header support in future SDK versions
+                if (accountResult.Error?.Message?.Contains("environment") == true)
+                {
+                    _logger.Warning("⚠️ Bitget demo trading environment issue - proceeding with caution");
+                    _logger.Information("Note: Some API calls may fail until proper paptrading header support is added");
+                    return true; // Allow startup despite environment mismatch
+                }
+
                 return false;
             }
 

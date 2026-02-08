@@ -101,14 +101,14 @@ public class SignalBotRunner
                 var connected = await _client.TestConnectivityAsync(_cts.Token);
                 if (!connected)
                 {
-                    throw new InvalidOperationException("Failed to connect to Binance Futures API");
+                    throw new InvalidOperationException($"Failed to connect to {_client.ExchangeName} Futures API");
                 }
 
                 _logger.Information("Connected to {Exchange} Futures API", _client.ExchangeName);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to connect to Binance Futures API");
+                _logger.Error(ex, "Failed to connect to {Exchange} Futures API", _client.ExchangeName);
                 
                 if (ex.Message.Contains("Invalid API-key") || ex.Message.Contains("permissions"))
                 {
