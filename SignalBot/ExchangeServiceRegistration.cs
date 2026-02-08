@@ -158,15 +158,27 @@ public static class ExchangeServiceRegistration
             var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
             var bitgetSettings = settings.Exchange.Bitget;
 
-            // Note: For demo trading with Bitget, use Demo API keys with Live environment
-            // The paptrading header should be automatically handled by Demo API keys
-            // See: https://www.bitget.com/api-doc/common/demotrading/restapi
+            Log.Information("Configuring BitgetRestClient: UseTestnet={UseTestnet}", bitgetSettings.UseTestnet);
+
             var client = new BitgetRestClient(options =>
             {
+                // IMPORTANT: Set environment BEFORE credentials (order matters for Bitget)
+                if (bitgetSettings.UseTestnet)
+                {
+                    Log.Information("Setting BitgetRestClient environment to DemoTrading");
+                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
+                }
+                else
+                {
+                    Log.Information("BitgetRestClient using default (Live) environment");
+                }
+
                 options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
                     bitgetSettings.ApiKey,
                     bitgetSettings.ApiSecret,
                     bitgetSettings.ApiPassphrase);
+
+                options.Locale = "en-US";
             });
 
             return client;
@@ -177,8 +189,21 @@ public static class ExchangeServiceRegistration
             var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
             var bitgetSettings = settings.Exchange.Bitget;
 
+            Log.Information("Configuring BitgetSocketClient: UseTestnet={UseTestnet}", bitgetSettings.UseTestnet);
+
             var client = new BitgetSocketClient(options =>
             {
+                // IMPORTANT: Set environment BEFORE credentials (order matters for Bitget)
+                if (bitgetSettings.UseTestnet)
+                {
+                    Log.Information("Setting BitgetSocketClient environment to DemoTrading");
+                    options.Environment = Bitget.Net.BitgetEnvironment.DemoTrading;
+                }
+                else
+                {
+                    Log.Information("BitgetSocketClient using default (Live) environment");
+                }
+
                 options.ApiCredentials = new CryptoExchange.Net.Authentication.ApiCredentials(
                     bitgetSettings.ApiKey,
                     bitgetSettings.ApiSecret,

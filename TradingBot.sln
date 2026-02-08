@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SignalBot.Tests", "SignalBo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingBot.Bybit", "TradingBot.Bybit\TradingBot.Bybit.csproj", "{881D2DF5-FEE1-4F88-95BA-0882069C73CA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitget.Test", "Bitget.Test\Bitget.Test.csproj", "{83304ADB-BD04-488B-A760-664E223AB1EF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -167,6 +169,18 @@ Global
 		{881D2DF5-FEE1-4F88-95BA-0882069C73CA}.Release|x64.Build.0 = Release|Any CPU
 		{881D2DF5-FEE1-4F88-95BA-0882069C73CA}.Release|x86.ActiveCfg = Release|Any CPU
 		{881D2DF5-FEE1-4F88-95BA-0882069C73CA}.Release|x86.Build.0 = Release|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Debug|x64.Build.0 = Debug|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Debug|x86.Build.0 = Debug|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Release|x64.ActiveCfg = Release|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Release|x64.Build.0 = Release|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Release|x86.ActiveCfg = Release|Any CPU
+		{83304ADB-BD04-488B-A760-664E223AB1EF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

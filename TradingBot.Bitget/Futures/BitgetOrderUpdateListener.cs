@@ -75,6 +75,24 @@ public class BitgetOrderUpdateListener
         if (!result.Success)
         {
             _logger.Error("Failed to subscribe to Bitget order updates: {Error}", result.Error?.Message);
+
+            // WORKAROUND: JK.Bitget.Net v3.4.0 doesn't support WebSocket for Demo Trading
+            // Demo trading requires wspap.bitget.com WebSocket URL and paptrading header
+            // Return dummy subscription to allow bot to continue without WebSocket monitoring
+            if (result.Error?.Message?.Contains("environment") == true ||
+                result.Error?.Message?.Contains("Current environment does not match") == true)
+            {
+                _logger.Warning("⚠️ Bitget Demo Trading WebSocket not supported in SDK v3.4.0");
+                _logger.Warning("⚠️ Order monitoring via WebSocket is DISABLED for Bitget");
+                _logger.Warning("⚠️ Bot will continue using REST API only");
+                _logger.Information("Note: To enable WebSocket for demo trading, SDK needs to support:");
+                _logger.Information("  - WebSocket URL: wss://wspap.bitget.com/v2/ws/private");
+                _logger.Information("  - HTTP header: paptrading: 1");
+
+                // Return a dummy subscription that does nothing
+                return new DummySubscription(_logger);
+            }
+
             return null;
         }
 
@@ -132,6 +150,15 @@ public class BitgetOrderUpdateListener
         if (!result.Success)
         {
             _logger.Error("Failed to subscribe to Bitget position updates: {Error}", result.Error?.Message);
+
+            // WORKAROUND: Same as order updates - return dummy subscription for demo trading
+            if (result.Error?.Message?.Contains("environment") == true ||
+                result.Error?.Message?.Contains("Current environment does not match") == true)
+            {
+                _logger.Warning("⚠️ Position monitoring via WebSocket is DISABLED for Bitget demo trading");
+                return new DummySubscription(_logger);
+            }
+
             return null;
         }
 
@@ -191,6 +218,24 @@ public class BitgetOrderUpdateListener
         {
             _subscription?.CloseAsync().GetAwaiter().GetResult();
             _onDispose();
+        }
+    }
+
+    /// <summary>
+    /// Dummy subscription for when WebSocket is not available (e.g., demo trading)
+    /// </summary>
+    private class DummySubscription : IDisposable
+    {
+        private readonly ILogger _logger;
+
+        public DummySubscription(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void Dispose()
+        {
+            _logger.Debug("Dummy subscription disposed (no-op)");
         }
     }
 }

@@ -75,7 +75,8 @@ public class BybitExchangeSettings
 public class BitgetExchangeSettings
 {
     /// <summary>
-    /// Use Bitget testnet instead of mainnet
+    /// Use Bitget Demo Trading mode instead of live trading
+    /// Demo mode requires separate API keys created in Bitget Demo mode
     /// </summary>
     public bool UseTestnet { get; set; } = true;
 

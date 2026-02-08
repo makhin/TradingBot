@@ -2,13 +2,14 @@
   "solution": {
     "path": "TradingBot.sln",
     "projects": [
-      "TradingBot.Core\\TradingBot.Core.csproj",
-      "TradingBot.Indicators\\TradingBot.Indicators.csproj",
+      "Bitget.Test\\Bitget.Test.csproj",
+      "SignalBot.Tests\\SignalBot.Tests.csproj",
+      "SignalBot\\SignalBot.csproj",
+      "TradingBot.Binance.Tests\\TradingBot.Binance.Tests.csproj",
       "TradingBot.Binance\\TradingBot.Binance.csproj",
       "TradingBot.Core.Tests\\TradingBot.Core.Tests.csproj",
-      "TradingBot.Binance.Tests\\TradingBot.Binance.Tests.csproj",
-      "SignalBot\\SignalBot.csproj",
-      "SignalBot.Tests\\SignalBot.Tests.csproj"
+      "TradingBot.Core\\TradingBot.Core.csproj",
+      "TradingBot.Indicators\\TradingBot.Indicators.csproj"
     ]
   }
 }
