@@ -38,7 +38,7 @@ public class SignalBotRunner
     private readonly SemaphoreSlim _signalProcessingLock = new(1, 1);
     private CancellationTokenSource? _cts;
     private bool _isRunning;
-    private HashSet<string>? _availableUsdcSymbols;
+    private HashSet<string>? _availableFuturesSymbols;
 
     public SignalBotRunner(
         IOptions<SignalBotSettings> settings,
@@ -120,8 +120,8 @@ public class SignalBotRunner
                 throw;
             }
 
-            // Cache available USDC symbols
-            await CacheAvailableUsdcSymbolsAsync(_cts.Token);
+            // Cache available futures symbols
+            await CacheAvailableFuturesSymbolsAsync(_cts.Token);
 
             // Subscribe to events
             _telegramListener.OnSignalReceived += HandleSignalReceived;
@@ -249,7 +249,7 @@ public class SignalBotRunner
                 normalizedSignal.Symbol, normalizedSignal.Direction, normalizedSignal.Entry);
 
             // Early filtering: check cached symbols first
-            if (_availableUsdcSymbols != null && !_availableUsdcSymbols.Contains(normalizedSignal.Symbol))
+            if (_availableFuturesSymbols != null && !_availableFuturesSymbols.Contains(normalizedSignal.Symbol))
             {
                 string executionSuffix = string.IsNullOrWhiteSpace(_settings.Trading.DefaultSymbolSuffix)
                     ? "USDT"
@@ -329,7 +329,7 @@ public class SignalBotRunner
             await SendNotificationAsync(
                 $"❌ Symbol not available for futures trading\n" +
                 $"Symbol: {signal.Symbol}\n" +
-                $"Tip: ensure the USDC contract exists or adjust the quote suffix.",
+                $"Tip: ensure the futures contract exists or adjust the quote suffix.",
                 _cts!.Token);
             return false;
         }
@@ -345,37 +345,37 @@ public class SignalBotRunner
         }
     }
 
-    private async Task CacheAvailableUsdcSymbolsAsync(CancellationToken ct)
+    private async Task CacheAvailableFuturesSymbolsAsync(CancellationToken ct)
     {
         try
         {
-            _logger.Information("Caching available USDC futures symbols...");
+            _logger.Information("Caching available futures symbols...");
 
             var allSymbols = await _client.GetAllSymbolsAsync(ct);
             var executionSuffix = string.IsNullOrWhiteSpace(_settings.Trading.DefaultSymbolSuffix)
                 ? "USDT"
                 : _settings.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
 
-            _availableUsdcSymbols = allSymbols
+            _availableFuturesSymbols = allSymbols
                 .Where(s => s.EndsWith(executionSuffix, StringComparison.OrdinalIgnoreCase))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             _logger.Information("Cached {Count} {Suffix} futures symbols",
-                _availableUsdcSymbols.Count, executionSuffix);
+                _availableFuturesSymbols.Count, executionSuffix);
 
             // Log the symbols for debugging
-            var symbolsList = string.Join(", ", _availableUsdcSymbols.OrderBy(s => s).Take(20));
+            var symbolsList = string.Join(", ", _availableFuturesSymbols.OrderBy(s => s).Take(20));
             _logger.Debug("First 20 {Suffix} symbols: {Symbols}", executionSuffix, symbolsList);
 
-            if (_availableUsdcSymbols.Count > 20)
+            if (_availableFuturesSymbols.Count > 20)
             {
-                _logger.Debug("... and {More} more symbols", _availableUsdcSymbols.Count - 20);
+                _logger.Debug("... and {More} more symbols", _availableFuturesSymbols.Count - 20);
             }
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Failed to cache available USDC symbols. Symbol validation will use API calls.");
-            _availableUsdcSymbols = null;
+            _logger.Error(ex, "Failed to cache available futures symbols. Symbol validation will use API calls.");
+            _availableFuturesSymbols = null;
         }
     }
 
