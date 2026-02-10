@@ -21,6 +21,7 @@ using Polly;
 using Serilog.Sinks.Elasticsearch;
 using Serilog.Sinks.Grafana.Loki;
 using SignalBot.Telemetry;
+using TradingBot.Core.Exchanges;
 
 namespace SignalBot;
 
@@ -54,6 +55,8 @@ class Program
 
             Log.Information("Using Exchange: {Exchange}", signalBotSettings.Exchange.ActiveExchange);
             Log.Information("Futures Trading: {Status}", signalBotSettings.EnableFuturesTrading ? "ENABLED" : "DISABLED");
+
+            await LogAvailableSymbolsAsync(serviceProvider);
 
             // Create runner
             var runner = serviceProvider.GetRequiredService<SignalBotRunner>();
@@ -96,6 +99,23 @@ class Program
         finally
         {
             await Log.CloseAndFlushAsync();
+        }
+    }
+
+    private static async Task LogAvailableSymbolsAsync(IServiceProvider serviceProvider)
+    {
+        var futuresClient = serviceProvider.GetRequiredService<IFuturesExchangeClient>();
+
+        try
+        {
+            var symbols = await futuresClient.GetAllSymbolsAsync();
+            var orderedSymbols = symbols.OrderBy(symbol => symbol, StringComparer.OrdinalIgnoreCase);
+            Log.Information("Available trading symbols ({Count}): {Symbols}", symbols.Count,
+                string.Join(", ", orderedSymbols));
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to load available trading symbols");
         }
     }
 
