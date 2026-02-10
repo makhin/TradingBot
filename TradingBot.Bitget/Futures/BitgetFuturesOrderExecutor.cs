@@ -118,7 +118,29 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             type: OrderType.Market,
             marginMode: MarginMode.CrossMargin,
             quantity: quantity,
+            tradeSide: null,
             ct: ct);
+
+        if (!result.Success && RequiresUnilateralTradeSide(result.Error?.Message))
+        {
+            var unilateralTradeSide = GetUnilateralTradeSide(side);
+            _logger.Warning(
+                "Bitget rejected market order without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide {TradeSide}.",
+                symbol,
+                result.Error?.Message,
+                unilateralTradeSide);
+
+            result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
+                productType: BitgetProductTypeV2.UsdtFutures,
+                symbol: symbol,
+                marginAsset: "USDT",
+                side: side,
+                type: OrderType.Market,
+                marginMode: MarginMode.CrossMargin,
+                quantity: quantity,
+                tradeSide: unilateralTradeSide,
+                ct: ct);
+        }
 
         if (!result.Success || result.Data == null)
         {
@@ -215,6 +237,40 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             stopLossPriceType: null,
             ct: ct);
 
+        if (!result.Success && RequiresUnilateralTradeSide(result.Error?.Message))
+        {
+            var unilateralTradeSide = GetUnilateralTradeSide(side);
+            _logger.Warning(
+                "Bitget rejected stop loss trigger without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide {TradeSide}.",
+                symbol,
+                result.Error?.Message,
+                unilateralTradeSide);
+
+            result = await _client.FuturesApiV2.Trading.PlaceTriggerOrderAsync(
+                productType: BitgetProductTypeV2.UsdtFutures,
+                symbol: symbol,
+                marginAsset: "USDT",
+                planType: TriggerPlanType.Normal,
+                marginMode: MarginMode.CrossMargin,
+                side: side,
+                orderType: OrderType.Market,
+                quantity: quantity,
+                triggerPrice: stopPrice,
+                orderPrice: null,
+                triggerPriceType: TriggerPriceType.MarkPrice,
+                tradeSide: unilateralTradeSide,
+                trailingStopRate: null,
+                clientOrderId: null,
+                reduceOnly: true,
+                takeProfitTriggerPrice: null,
+                takeProfitOrderPrice: null,
+                takeProfitPriceType: null,
+                stopLossTriggerPrice: null,
+                stopLossOrderPrice: null,
+                stopLossPriceType: null,
+                ct: ct);
+        }
+
         if (!result.Success || result.Data == null)
         {
             _logger.Error("Bitget Futures stop loss order failed: {Error}", result.Error?.Message);
@@ -276,6 +332,40 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             stopLossOrderPrice: null,
             stopLossPriceType: null,
             ct: ct);
+
+        if (!result.Success && RequiresUnilateralTradeSide(result.Error?.Message))
+        {
+            var unilateralTradeSide = GetUnilateralTradeSide(side);
+            _logger.Warning(
+                "Bitget rejected take profit trigger without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide {TradeSide}.",
+                symbol,
+                result.Error?.Message,
+                unilateralTradeSide);
+
+            result = await _client.FuturesApiV2.Trading.PlaceTriggerOrderAsync(
+                productType: BitgetProductTypeV2.UsdtFutures,
+                symbol: symbol,
+                marginAsset: "USDT",
+                planType: TriggerPlanType.Normal,
+                marginMode: MarginMode.CrossMargin,
+                side: side,
+                orderType: OrderType.Market,
+                quantity: quantity,
+                triggerPrice: takeProfitPrice,
+                orderPrice: null,
+                triggerPriceType: TriggerPriceType.MarkPrice,
+                tradeSide: unilateralTradeSide,
+                trailingStopRate: null,
+                clientOrderId: null,
+                reduceOnly: true,
+                takeProfitTriggerPrice: null,
+                takeProfitOrderPrice: null,
+                takeProfitPriceType: null,
+                stopLossTriggerPrice: null,
+                stopLossOrderPrice: null,
+                stopLossPriceType: null,
+                ct: ct);
+        }
 
         if (!result.Success || result.Data == null)
         {
@@ -371,4 +461,16 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         _logger.Information("Cancelled all Bitget Futures orders for {Symbol}", symbol);
         return true;
     }
+
+    private static bool RequiresUnilateralTradeSide(string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+            return false;
+
+        return errorMessage.Contains("unilateral", StringComparison.OrdinalIgnoreCase)
+            && errorMessage.Contains("order type", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static TradeSide GetUnilateralTradeSide(OrderSide side)
+        => side == OrderSide.Buy ? TradeSide.BuySingle : TradeSide.SellSingle;
 }
