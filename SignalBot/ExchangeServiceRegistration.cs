@@ -15,6 +15,7 @@ using TradingBot.Bitget.Common;
 using TradingBot.Bitget.Futures;
 using TradingBot.Bitget.Futures.Adapters;
 using TradingBot.Core.Exchanges;
+using TradingBot.Core.Models;
 
 namespace SignalBot;
 
@@ -224,7 +225,15 @@ public static class ExchangeServiceRegistration
             sp.GetRequiredService<BitgetFuturesClient>());
 
         services.AddSingleton<BitgetFuturesOrderExecutor>(sp =>
-            new BitgetFuturesOrderExecutor(sp.GetRequiredService<BitgetRestClient>(), sp.GetRequiredService<ILogger>()));
+        {
+            var settings = sp.GetRequiredService<IOptions<SignalBotSettings>>().Value;
+            var marginType = Enum.Parse<MarginType>(settings.Trading.MarginType, ignoreCase: true);
+
+            return new BitgetFuturesOrderExecutor(
+                sp.GetRequiredService<BitgetRestClient>(),
+                marginType,
+                sp.GetRequiredService<ILogger>());
+        });
         services.AddSingleton<TradingBot.Bitget.Futures.Interfaces.IBitgetFuturesOrderExecutor>(sp =>
             sp.GetRequiredService<BitgetFuturesOrderExecutor>());
 
