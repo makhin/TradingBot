@@ -16,6 +16,7 @@ public static class BitgetHelpers
 {
     private const string Usdt = "USDT";
     private const string Usdc = "USDC";
+    private const string Perp = "PERP";
 
     /// <summary>
     /// Maps Core KlineInterval to Bitget FuturesKlineInterval enum (for REST API)
@@ -120,6 +121,13 @@ public static class BitgetHelpers
         }
 
         var normalized = symbolOrAsset.Trim().ToUpperInvariant();
+
+        // On Bitget USDC futures are represented by symbols ending in PERP (e.g. BTCPERP).
+        if (normalized.EndsWith(Perp, StringComparison.Ordinal))
+        {
+            return Usdc;
+        }
+
         if (normalized == Usdc || normalized.EndsWith(Usdc, StringComparison.Ordinal))
         {
             return Usdc;

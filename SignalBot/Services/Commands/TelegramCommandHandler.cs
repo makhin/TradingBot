@@ -48,7 +48,9 @@ public class TelegramCommandHandler : ServiceBase
         var suffix = string.IsNullOrWhiteSpace(settings.Value.Trading.DefaultSymbolSuffix)
             ? "USDT"
             : settings.Value.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
-        _symbolExample = $"BTC{suffix}";
+        var isBitgetUsdc = string.Equals(settings.Value.Exchange.ActiveExchange, "Bitget", StringComparison.OrdinalIgnoreCase) &&
+                           string.Equals(suffix, "USDC", StringComparison.OrdinalIgnoreCase);
+        _symbolExample = isBitgetUsdc ? "BTCPERP" : $"BTC{suffix}";
     }
 
     protected override async Task OnStartAsync(CancellationToken ct)

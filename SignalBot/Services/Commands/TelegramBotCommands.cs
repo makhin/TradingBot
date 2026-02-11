@@ -49,7 +49,9 @@ public class TelegramBotCommands : IBotCommands
         _quoteCurrency = string.IsNullOrWhiteSpace(settings.Value.Trading.DefaultSymbolSuffix)
             ? "USDT"
             : settings.Value.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
-        _symbolExample = $"BTC{_quoteCurrency}";
+        var isBitgetUsdc = string.Equals(settings.Value.Exchange.ActiveExchange, "Bitget", StringComparison.OrdinalIgnoreCase) &&
+                           string.Equals(_quoteCurrency, "USDC", StringComparison.OrdinalIgnoreCase);
+        _symbolExample = isBitgetUsdc ? "BTCPERP" : $"BTC{_quoteCurrency}";
         _logger = logger ?? Log.ForContext<TelegramBotCommands>();
     }
 

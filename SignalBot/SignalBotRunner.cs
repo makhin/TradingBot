@@ -254,14 +254,15 @@ public class SignalBotRunner
                 string executionSuffix = string.IsNullOrWhiteSpace(_settings.Trading.DefaultSymbolSuffix)
                     ? "USDT"
                     : _settings.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
+                var marketLabel = GetExecutionMarketLabel(executionSuffix);
                 _logger.Warning("Symbol {Symbol} is not available for {Suffix} futures trading (early check)",
-                    normalizedSignal.Symbol, executionSuffix);
+                    normalizedSignal.Symbol, marketLabel);
                 await SendNotificationAsync(
                     $"⚠️ Symbol not available\n" +
                     $"Symbol: {normalizedSignal.Symbol}\n" +
-                    $"Quote: {executionSuffix}\n" +
-                    $"Reason: Not in cached {executionSuffix} symbols list\n" +
-                    $"Tip: This symbol may not have a {executionSuffix} perpetual contract on Binance Futures",
+                    $"Quote: {marketLabel}\n" +
+                    $"Reason: Not in cached {marketLabel} symbols list\n" +
+                    $"Tip: This symbol may not have a {marketLabel} perpetual contract on {_client.ExchangeName}",
                     _cts!.Token);
                 return;
             }
@@ -355,18 +356,19 @@ public class SignalBotRunner
             var executionSuffix = string.IsNullOrWhiteSpace(_settings.Trading.DefaultSymbolSuffix)
                 ? "USDT"
                 : _settings.Trading.DefaultSymbolSuffix.Trim().ToUpperInvariant();
+            var marketLabel = GetExecutionMarketLabel(executionSuffix);
 
             _availableFuturesSymbols = allSymbols
-                .Where(s => s.EndsWith(executionSuffix, StringComparison.OrdinalIgnoreCase))
+                .Where(s => IsExecutionSymbolForConfiguredMarket(s, executionSuffix))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            _logger.Information("Cached {Count} {Suffix} futures symbols",
-                _availableFuturesSymbols.Count, executionSuffix);
+            _logger.Information("Cached {Count} {Market} futures symbols",
+                _availableFuturesSymbols.Count, marketLabel);
 
             var orderedSymbols = GetOrderedAvailableSymbols();
             var symbolsList = string.Join(", ", orderedSymbols);
-            _logger.Information("Available {Suffix} futures symbols ({Count}): {Symbols}",
-                executionSuffix, orderedSymbols.Count, symbolsList);
+            _logger.Information("Available {Market} futures symbols ({Count}): {Symbols}",
+                marketLabel, orderedSymbols.Count, symbolsList);
         }
         catch (Exception ex)
         {
@@ -400,8 +402,34 @@ public class SignalBotRunner
             return signal;
         }
 
-        var mappedSymbol = baseSymbol + executionSuffix;
+        var mappedSymbol = string.Equals(_client.ExchangeName, "Bitget", StringComparison.OrdinalIgnoreCase) &&
+                           string.Equals(executionSuffix, "USDC", StringComparison.OrdinalIgnoreCase)
+            ? baseSymbol + "PERP"
+            : baseSymbol + executionSuffix;
         return signal with { Symbol = mappedSymbol };
+    }
+
+    private bool IsExecutionSymbolForConfiguredMarket(string symbol, string executionSuffix)
+    {
+        if (string.Equals(_client.ExchangeName, "Bitget", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(executionSuffix, "USDC", StringComparison.OrdinalIgnoreCase))
+        {
+            // Bitget USDC futures use PERP symbols (e.g. BTCPERP) rather than BTCUSDC.
+            return symbol.EndsWith("PERP", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return symbol.EndsWith(executionSuffix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetExecutionMarketLabel(string executionSuffix)
+    {
+        if (string.Equals(_client.ExchangeName, "Bitget", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(executionSuffix, "USDC", StringComparison.OrdinalIgnoreCase))
+        {
+            return "USDC (PERP)";
+        }
+
+        return executionSuffix;
     }
 
     private async Task<(bool CanProcess, string? RejectReason, SignalPosition? ExistingPosition)> CanProcessSignalAsync(
