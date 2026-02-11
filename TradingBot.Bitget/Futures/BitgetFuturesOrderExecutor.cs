@@ -123,12 +123,10 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 
         if (!result.Success && RequiresUnilateralTradeSide(result.Error?.Message))
         {
-            var unilateralTradeSide = GetUnilateralTradeSide(side);
             _logger.Warning(
-                "Bitget rejected market order without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide {TradeSide}.",
+                "Bitget rejected market order without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide \"Open\".",
                 symbol,
-                result.Error?.Message,
-                unilateralTradeSide);
+                result.Error?.Message);
 
             result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
                 productType: BitgetProductTypeV2.UsdtFutures,
@@ -138,7 +136,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 type: OrderType.Market,
                 marginMode: MarginMode.CrossMargin,
                 quantity: quantity,
-                tradeSide: unilateralTradeSide,
+                tradeSide: TradeSide.Open,
                 ct: ct);
         }
 
@@ -239,12 +237,10 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 
         if (!result.Success && RequiresUnilateralTradeSide(result.Error?.Message))
         {
-            var unilateralTradeSide = GetUnilateralTradeSide(side);
             _logger.Warning(
-                "Bitget rejected stop loss trigger without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide {TradeSide}.",
+                "Bitget rejected stop loss trigger without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide \"Close\".",
                 symbol,
-                result.Error?.Message,
-                unilateralTradeSide);
+                result.Error?.Message);
 
             result = await _client.FuturesApiV2.Trading.PlaceTriggerOrderAsync(
                 productType: BitgetProductTypeV2.UsdtFutures,
@@ -258,7 +254,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 triggerPrice: stopPrice,
                 orderPrice: null,
                 triggerPriceType: TriggerPriceType.MarkPrice,
-                tradeSide: unilateralTradeSide,
+                tradeSide: TradeSide.Close,
                 trailingStopRate: null,
                 clientOrderId: null,
                 reduceOnly: true,
@@ -335,12 +331,10 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 
         if (!result.Success && RequiresUnilateralTradeSide(result.Error?.Message))
         {
-            var unilateralTradeSide = GetUnilateralTradeSide(side);
             _logger.Warning(
-                "Bitget rejected take profit trigger without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide {TradeSide}.",
+                "Bitget rejected take profit trigger without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide \"Close\".",
                 symbol,
-                result.Error?.Message,
-                unilateralTradeSide);
+                result.Error?.Message);
 
             result = await _client.FuturesApiV2.Trading.PlaceTriggerOrderAsync(
                 productType: BitgetProductTypeV2.UsdtFutures,
@@ -354,7 +348,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 triggerPrice: takeProfitPrice,
                 orderPrice: null,
                 triggerPriceType: TriggerPriceType.MarkPrice,
-                tradeSide: unilateralTradeSide,
+                tradeSide: TradeSide.Close,
                 trailingStopRate: null,
                 clientOrderId: null,
                 reduceOnly: true,
@@ -470,7 +464,4 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         return errorMessage.Contains("unilateral", StringComparison.OrdinalIgnoreCase)
             && errorMessage.Contains("order type", StringComparison.OrdinalIgnoreCase);
     }
-
-    private static TradeSide GetUnilateralTradeSide(OrderSide side)
-        => side == OrderSide.Buy ? TradeSide.BuySingle : TradeSide.SellSingle;
 }
