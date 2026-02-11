@@ -47,6 +47,7 @@ public class PriceDeviationTests
             TargetClosePercents = new List<decimal> { 25, 25, 25, 25 },
             MoveStopToBreakeven = true
         };
+        var positionSizing = CreatePositionSizing();
 
         var signal = CreateTestSignal(entry: 100m, targets: new[] { 101m, 102m, 103m, 104m });
 
@@ -109,6 +110,7 @@ public class PriceDeviationTests
             _mockRiskManager.Object,
             tradingSettings,
             entrySettings,
+            positionSizing,
             _retryPolicy,
             _logger);
 
@@ -135,6 +137,7 @@ public class PriceDeviationTests
             TargetClosePercents = new List<decimal> { 50, 30, 20 },
             MoveStopToBreakeven = true
         };
+        var positionSizing = CreatePositionSizing();
 
         var signal = CreateTestSignal(entry: 100m, targets: new[] { 110m, 120m, 130m });
 
@@ -196,6 +199,7 @@ public class PriceDeviationTests
             _mockRiskManager.Object,
             tradingSettings,
             entrySettings,
+            positionSizing,
             _retryPolicy,
             _logger);
 
@@ -223,6 +227,7 @@ public class PriceDeviationTests
             TargetClosePercents = new List<decimal> { 25, 25, 25, 25 },
             MoveStopToBreakeven = true
         };
+        var positionSizing = CreatePositionSizing();
 
         var signal = CreateTestSignal(entry: 100m, targets: new[] { 101m, 102m, 103m, 104m });
 
@@ -243,6 +248,7 @@ public class PriceDeviationTests
             _mockRiskManager.Object,
             tradingSettings,
             entrySettings,
+            positionSizing,
             _retryPolicy,
             _logger);
 
@@ -274,6 +280,7 @@ public class PriceDeviationTests
             TargetClosePercents = new List<decimal> { 25, 25, 25, 25 },
             MoveStopToBreakeven = true
         };
+        var positionSizing = CreatePositionSizing();
 
         var signal = CreateTestSignal(entry: 100m, targets: new[] { 101m, 102m, 103m, 104m });
 
@@ -336,6 +343,7 @@ public class PriceDeviationTests
             _mockRiskManager.Object,
             tradingSettings,
             entrySettings,
+            positionSizing,
             _retryPolicy,
             _logger);
 
@@ -350,6 +358,233 @@ public class PriceDeviationTests
         Assert.Equal(103m, position.Targets[1].Price); // Was 102, now 103
         Assert.Equal(104m, position.Targets[2].Price); // Was 103, now 104
         Assert.Equal(105m, position.Targets[3].Price); // Was 104, now 105
+    }
+
+
+    [Fact]
+    public async Task ExecuteSignal_ShouldCapPositionSizeByUsdtLimit()
+    {
+        // Arrange
+        var entrySettings = new EntrySettings
+        {
+            MaxPriceDeviationPercent = 1.0m,
+            DeviationAction = PriceDeviationAction.Skip
+        };
+
+        var tradingSettings = new TradingSettings
+        {
+            TargetClosePercents = new List<decimal> { 100m },
+            MoveStopToBreakeven = false
+        };
+
+        var positionSizing = new PositionSizingSettings
+        {
+            Limits = new PositionSizingLimits
+            {
+                MinPositionUsdt = 1m,
+                MaxPositionUsdt = 5m,
+                MaxPositionPercent = 100m
+            }
+        };
+
+        var signal = CreateTestSignal(entry: 100m, targets: new[] { 102m });
+
+        _mockClient.Setup(x => x.GetMarkPriceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100m);
+
+        _mockClient.Setup(x => x.SetLeverageAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        _mockClient.Setup(x => x.SetMarginTypeAsync(It.IsAny<string>(), It.IsAny<MarginType>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        _mockRiskManager.Setup(x => x.CalculatePositionSize(
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal?>()))
+            .Returns(new PositionSizeResult(Quantity: 1.0m, RiskAmount: 100m, StopDistance: 0.05m));
+
+        _mockOrderExecutor.Setup(x => x.PlaceMarketOrderAsync(
+                It.IsAny<string>(),
+                It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+                It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult
+            {
+                Success = true,
+                OrderId = 12345,
+                AveragePrice = 100m
+            });
+
+        _mockOrderExecutor.Setup(x => x.PlaceStopLossAsync(
+                It.IsAny<string>(),
+                It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult
+            {
+                Success = true,
+                OrderId = 12346
+            });
+
+        _mockOrderExecutor.Setup(x => x.PlaceTakeProfitAsync(
+                It.IsAny<string>(),
+                It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+                It.IsAny<decimal>(),
+                It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult
+            {
+                Success = true,
+                OrderId = 12347
+            });
+
+        var trader = new SignalTrader(
+            _mockClient.Object,
+            _mockOrderExecutor.Object,
+            _mockPositionManager.Object,
+            _mockRiskManager.Object,
+            tradingSettings,
+            entrySettings,
+            positionSizing,
+            _retryPolicy,
+            _logger);
+
+        // Act
+        var position = await trader.ExecuteSignalAsync(signal, 1000m);
+
+        // Assert (5 USDT / 100 entry = 0.05 qty)
+        Assert.Equal(0.05m, position.InitialQuantity);
+        _mockOrderExecutor.Verify(x => x.PlaceMarketOrderAsync(
+            It.IsAny<string>(),
+            It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+            0.05m,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteSignal_FixedMarginMode_ShouldUseLeverageAdjustedNotional()
+    {
+        // Arrange
+        var entrySettings = new EntrySettings
+        {
+            MaxPriceDeviationPercent = 1.0m,
+            DeviationAction = PriceDeviationAction.Skip
+        };
+
+        var tradingSettings = new TradingSettings
+        {
+            TargetClosePercents = new List<decimal> { 100m },
+            MoveStopToBreakeven = false
+        };
+
+        var positionSizing = new PositionSizingSettings
+        {
+            DefaultMode = "FixedMargin",
+            DefaultFixedMargin = 5m,
+            Limits = new PositionSizingLimits
+            {
+                MaxPositionUsdt = 1000m,
+                MaxPositionPercent = 100m,
+                MinPositionUsdt = 1m
+            }
+        };
+
+        var signal = CreateTestSignal(entry: 100m, targets: new[] { 102m }) with { AdjustedLeverage = 10 };
+
+        _mockClient.Setup(x => x.GetMarkPriceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100m);
+        _mockClient.Setup(x => x.SetLeverageAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockClient.Setup(x => x.SetMarginTypeAsync(It.IsAny<string>(), It.IsAny<MarginType>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockOrderExecutor.Setup(x => x.PlaceMarketOrderAsync(It.IsAny<string>(), It.IsAny<TradingBot.Core.Models.TradeDirection>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult { Success = true, OrderId = 1, AveragePrice = 100m });
+        _mockOrderExecutor.Setup(x => x.PlaceStopLossAsync(It.IsAny<string>(), It.IsAny<TradingBot.Core.Models.TradeDirection>(), It.IsAny<decimal>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult { Success = true, OrderId = 2 });
+        _mockOrderExecutor.Setup(x => x.PlaceTakeProfitAsync(It.IsAny<string>(), It.IsAny<TradingBot.Core.Models.TradeDirection>(), It.IsAny<decimal>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult { Success = true, OrderId = 3 });
+
+        var trader = new SignalTrader(
+            _mockClient.Object,
+            _mockOrderExecutor.Object,
+            _mockPositionManager.Object,
+            _mockRiskManager.Object,
+            tradingSettings,
+            entrySettings,
+            positionSizing,
+            _retryPolicy,
+            _logger);
+
+        // Act
+        var position = await trader.ExecuteSignalAsync(signal, 1000m);
+
+        // Assert: (5 USDT margin * 10x) / 100 = 0.5 qty
+        Assert.Equal(0.5m, position.InitialQuantity);
+        _mockOrderExecutor.Verify(x => x.PlaceMarketOrderAsync(
+            It.IsAny<string>(),
+            It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+            0.5m,
+            It.IsAny<CancellationToken>()), Times.Once);
+        _mockRiskManager.Verify(x => x.CalculatePositionSize(It.IsAny<decimal>(), It.IsAny<decimal>(), It.IsAny<decimal?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteSignal_RiskPercentMode_ShouldUpdateEquityBeforeSizing()
+    {
+        // Arrange
+        var entrySettings = new EntrySettings
+        {
+            MaxPriceDeviationPercent = 1.0m,
+            DeviationAction = PriceDeviationAction.Skip
+        };
+
+        var tradingSettings = new TradingSettings
+        {
+            TargetClosePercents = new List<decimal> { 100m },
+            MoveStopToBreakeven = false
+        };
+
+        var positionSizing = new PositionSizingSettings
+        {
+            DefaultMode = "RiskPercent",
+            Limits = new PositionSizingLimits
+            {
+                MaxPositionUsdt = 1000m,
+                MaxPositionPercent = 100m,
+                MinPositionUsdt = 1m
+            }
+        };
+
+        var signal = CreateTestSignal(entry: 100m, targets: new[] { 102m });
+
+        _mockClient.Setup(x => x.GetMarkPriceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100m);
+        _mockClient.Setup(x => x.SetLeverageAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockClient.Setup(x => x.SetMarginTypeAsync(It.IsAny<string>(), It.IsAny<MarginType>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockRiskManager.Setup(x => x.CalculatePositionSize(It.IsAny<decimal>(), It.IsAny<decimal>(), It.IsAny<decimal?>()))
+            .Returns(new PositionSizeResult(Quantity: 0.1m, RiskAmount: 1m, StopDistance: 1m));
+        _mockOrderExecutor.Setup(x => x.PlaceMarketOrderAsync(It.IsAny<string>(), It.IsAny<TradingBot.Core.Models.TradeDirection>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult { Success = true, OrderId = 1, AveragePrice = 100m });
+        _mockOrderExecutor.Setup(x => x.PlaceStopLossAsync(It.IsAny<string>(), It.IsAny<TradingBot.Core.Models.TradeDirection>(), It.IsAny<decimal>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult { Success = true, OrderId = 2 });
+        _mockOrderExecutor.Setup(x => x.PlaceTakeProfitAsync(It.IsAny<string>(), It.IsAny<TradingBot.Core.Models.TradeDirection>(), It.IsAny<decimal>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExecutionResult { Success = true, OrderId = 3 });
+
+        var trader = new SignalTrader(
+            _mockClient.Object,
+            _mockOrderExecutor.Object,
+            _mockPositionManager.Object,
+            _mockRiskManager.Object,
+            tradingSettings,
+            entrySettings,
+            positionSizing,
+            _retryPolicy,
+            _logger);
+
+        // Act
+        await trader.ExecuteSignalAsync(signal, 206.45m);
+
+        // Assert
+        _mockRiskManager.Verify(x => x.UpdateEquity(206.45m), Times.Once);
+        _mockRiskManager.Verify(x => x.CalculatePositionSize(signal.Entry, signal.AdjustedStopLoss, It.IsAny<decimal?>()), Times.Once);
     }
 
     private TradingSignal CreateTestSignal(decimal entry, decimal[] targets)
@@ -372,6 +607,18 @@ public class PriceDeviationTests
             AdjustedStopLoss = entry * 0.95m,
             AdjustedLeverage = 10,
             IsValid = true
+        };
+    }
+
+    private static PositionSizingSettings CreatePositionSizing()
+    {
+        return new PositionSizingSettings
+        {
+            Limits = new PositionSizingLimits
+            {
+                MaxPositionUsdt = 100000m,
+                MaxPositionPercent = 100m
+            }
         };
     }
 }
