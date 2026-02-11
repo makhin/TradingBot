@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TradingBot.Core.Models;
 using Bitget.Net.Enums;
 using Bitget.Net.Enums.V2;
@@ -13,6 +14,9 @@ namespace TradingBot.Bitget.Common;
 /// </summary>
 public static class BitgetHelpers
 {
+    private const string Usdt = "USDT";
+    private const string Usdc = "USDC";
+
     /// <summary>
     /// Maps Core KlineInterval to Bitget FuturesKlineInterval enum (for REST API)
     /// </summary>
@@ -102,5 +106,61 @@ public static class BitgetHelpers
     public static CoreMarginType MapMarginMode(string marginMode)
     {
         return marginMode?.ToLower() == "isolated" ? CoreMarginType.Isolated : CoreMarginType.Cross;
+    }
+
+    /// <summary>
+    /// Resolves quote asset (USDT/USDC) from a symbol (e.g. BTCUSDC) or asset value (e.g. USDC).
+    /// Falls back to USDT for unknown suffixes.
+    /// </summary>
+    public static string ResolveQuoteAsset(string? symbolOrAsset)
+    {
+        if (string.IsNullOrWhiteSpace(symbolOrAsset))
+        {
+            return Usdt;
+        }
+
+        var normalized = symbolOrAsset.Trim().ToUpperInvariant();
+        if (normalized == Usdc || normalized.EndsWith(Usdc, StringComparison.Ordinal))
+        {
+            return Usdc;
+        }
+
+        if (normalized == Usdt || normalized.EndsWith(Usdt, StringComparison.Ordinal))
+        {
+            return Usdt;
+        }
+
+        return Usdt;
+    }
+
+    /// <summary>
+    /// Resolves Bitget futures product type for USDT/USDC markets.
+    /// </summary>
+    public static BitgetProductTypeV2 ResolveProductType(string? symbolOrAsset)
+    {
+        return ResolveQuoteAsset(symbolOrAsset) == Usdc
+            ? BitgetProductTypeV2.UsdcFutures
+            : BitgetProductTypeV2.UsdtFutures;
+    }
+
+    /// <summary>
+    /// Resolves margin asset string for the given product type.
+    /// </summary>
+    public static string ResolveMarginAsset(BitgetProductTypeV2 productType)
+    {
+        return productType switch
+        {
+            BitgetProductTypeV2.UsdcFutures or BitgetProductTypeV2.SimUsdcFutures => Usdc,
+            _ => Usdt
+        };
+    }
+
+    /// <summary>
+    /// Returns supported perpetual futures markets used by the bot.
+    /// </summary>
+    public static IEnumerable<(BitgetProductTypeV2 ProductType, string MarginAsset)> GetSupportedPerpetualMarkets()
+    {
+        yield return (BitgetProductTypeV2.UsdtFutures, Usdt);
+        yield return (BitgetProductTypeV2.UsdcFutures, Usdc);
     }
 }

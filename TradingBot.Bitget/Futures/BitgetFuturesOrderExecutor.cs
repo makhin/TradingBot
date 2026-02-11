@@ -3,6 +3,7 @@ using Bitget.Net.Enums;
 using Bitget.Net.Enums.V2;
 using Bitget.Net.Objects.Models.V2;
 using TradingBot.Core.Models;
+using TradingBot.Bitget.Common;
 using TradingBot.Bitget.Futures.Interfaces;
 using Serilog;
 using BitgetExecutionResult = TradingBot.Bitget.Futures.Models.ExecutionResult;
@@ -11,6 +12,7 @@ namespace TradingBot.Bitget.Futures;
 
 /// <summary>
 /// Bitget Futures order executor implementation using JK.Bitget.Net v3.4.0
+/// Supports USDT and USDC perpetual markets.
 /// </summary>
 public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 {
@@ -40,7 +42,8 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 return cached;
             }
 
-            var contractInfo = await _client.FuturesApiV2.ExchangeData.GetContractsAsync(BitgetProductTypeV2.UsdtFutures, symbol, ct);
+            var productType = BitgetHelpers.ResolveProductType(symbol);
+            var contractInfo = await _client.FuturesApiV2.ExchangeData.GetContractsAsync(productType, symbol, ct);
             if (contractInfo.Success && contractInfo.Data != null)
             {
                 // GetContractsAsync returns an array even for single symbol query
@@ -105,15 +108,17 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         decimal quantity,
         CancellationToken ct = default)
     {
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
         var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
 
         _logger.Information("Placing Bitget Futures market {Side} order: {Symbol} x{Quantity}", side, symbol, quantity);
 
         var result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
-            productType: BitgetProductTypeV2.UsdtFutures,
+            productType: productType,
             symbol: symbol,
-            marginAsset: "USDT",
+            marginAsset: marginAsset,
             side: side,
             type: OrderType.Market,
             marginMode: MarginMode.CrossMargin,
@@ -129,9 +134,9 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 result.Error?.Message);
 
             result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
-                productType: BitgetProductTypeV2.UsdtFutures,
+                productType: productType,
                 symbol: symbol,
-                marginAsset: "USDT",
+                marginAsset: marginAsset,
                 side: side,
                 type: OrderType.Market,
                 marginMode: MarginMode.CrossMargin,
@@ -160,7 +165,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             await Task.Delay(attempt * 100, ct);
 
             var orderResult = await _client.FuturesApiV2.Trading.GetOrderAsync(
-                BitgetProductTypeV2.UsdtFutures,
+                productType,
                 symbol,
                 orderId: result.Data.OrderId,
                 ct: ct);
@@ -180,7 +185,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         if (avgPrice == 0)
         {
             // Fallback to mark price
-            var markPriceResult = await _client.FuturesApiV2.ExchangeData.GetTickerAsync(BitgetProductTypeV2.UsdtFutures, symbol, ct);
+            var markPriceResult = await _client.FuturesApiV2.ExchangeData.GetTickerAsync(productType, symbol, ct);
             avgPrice = markPriceResult.Success ? (markPriceResult.Data?.MarkPrice ?? 0m) : 0m;
             _logger.Warning("Could not retrieve execution price for order {OrderId}, using mark price: {MarkPrice}",
                 orderId, avgPrice);
@@ -204,6 +209,8 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         decimal stopPrice,
         CancellationToken ct = default)
     {
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
         var side = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
         stopPrice = await NormalizePriceAsync(symbol, stopPrice, ct);
@@ -212,9 +219,9 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             symbol, quantity, stopPrice);
 
         var result = await _client.FuturesApiV2.Trading.PlaceTriggerOrderAsync(
-            productType: BitgetProductTypeV2.UsdtFutures,
+            productType: productType,
             symbol: symbol,
-            marginAsset: "USDT",
+            marginAsset: marginAsset,
             planType: TriggerPlanType.Normal,
             marginMode: MarginMode.CrossMargin,
             side: side,
@@ -243,9 +250,9 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 result.Error?.Message);
 
             result = await _client.FuturesApiV2.Trading.PlaceTriggerOrderAsync(
-                productType: BitgetProductTypeV2.UsdtFutures,
+                productType: productType,
                 symbol: symbol,
-                marginAsset: "USDT",
+                marginAsset: marginAsset,
                 planType: TriggerPlanType.Normal,
                 marginMode: MarginMode.CrossMargin,
                 side: side,
@@ -298,6 +305,8 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         decimal takeProfitPrice,
         CancellationToken ct = default)
     {
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
         var side = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
         takeProfitPrice = await NormalizePriceAsync(symbol, takeProfitPrice, ct);
@@ -306,9 +315,9 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             symbol, quantity, takeProfitPrice);
 
         var result = await _client.FuturesApiV2.Trading.PlaceTriggerOrderAsync(
-            productType: BitgetProductTypeV2.UsdtFutures,
+            productType: productType,
             symbol: symbol,
-            marginAsset: "USDT",
+            marginAsset: marginAsset,
             planType: TriggerPlanType.Normal,
             marginMode: MarginMode.CrossMargin,
             side: side,
@@ -337,9 +346,9 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 result.Error?.Message);
 
             result = await _client.FuturesApiV2.Trading.PlaceTriggerOrderAsync(
-                productType: BitgetProductTypeV2.UsdtFutures,
+                productType: productType,
                 symbol: symbol,
-                marginAsset: "USDT",
+                marginAsset: marginAsset,
                 planType: TriggerPlanType.Normal,
                 marginMode: MarginMode.CrossMargin,
                 side: side,
@@ -388,13 +397,15 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
     public async Task<bool> CancelOrderAsync(string symbol, long orderId, CancellationToken ct = default)
     {
         _logger.Information("Cancelling Bitget Futures order {OrderId} for {Symbol}", orderId, symbol);
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
 
         // Try regular order cancel first
         var result = await _client.FuturesApiV2.Trading.CancelOrderAsync(
-            BitgetProductTypeV2.UsdtFutures,
+            productType,
             symbol,
             orderId: orderId.ToString(),
-            marginAsset: "USDT",
+            marginAsset: marginAsset,
             ct: ct);
 
         if (result.Success)
@@ -417,10 +428,10 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         };
 
         var planResult = await _client.FuturesApiV2.Trading.CancelTriggerOrdersAsync(
-            BitgetProductTypeV2.UsdtFutures,
+            productType,
             planType: null,  // null = cancel both SL and TP
             symbol: symbol,
-            marginCoin: "USDT",
+            marginCoin: marginAsset,
             orderIds: cancelRequests,
             ct: ct);
 
@@ -438,12 +449,14 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
     public async Task<bool> CancelAllOrdersAsync(string symbol, CancellationToken ct = default)
     {
         _logger.Information("Cancelling all Bitget Futures orders for {Symbol}", symbol);
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
 
         // Cancel all regular orders
         var result = await _client.FuturesApiV2.Trading.CancelAllOrdersAsync(
-            BitgetProductTypeV2.UsdtFutures,
+            productType,
             symbol,
-            marginAsset: "USDT",
+            marginAsset: marginAsset,
             ct: ct);
 
         if (!result.Success)

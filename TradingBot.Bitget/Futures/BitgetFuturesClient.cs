@@ -13,7 +13,7 @@ using BitgetPositionSide = Bitget.Net.Enums.V2.PositionSide;
 namespace TradingBot.Bitget.Futures;
 
 /// <summary>
-/// Bitget Futures (USDT-M) API client implementation using JK.Bitget.Net v3.4.0
+/// Bitget Futures (USDT/USDC perpetual) API client implementation using JK.Bitget.Net v3.4.0
 /// </summary>
 public class BitgetFuturesClient : IBitgetFuturesClient
 {
@@ -40,10 +40,11 @@ public class BitgetFuturesClient : IBitgetFuturesClient
         int limit = 1000,
         CancellationToken ct = default)
     {
+        var productType = BitgetHelpers.ResolveProductType(symbol);
         var intervalBitget = BitgetHelpers.MapKlineInterval(interval);
 
         var result = await _client.FuturesApiV2.ExchangeData.GetKlinesAsync(
-            BitgetProductTypeV2.UsdtFutures,
+            productType,
             symbol,
             intervalBitget,
             klineType: null,  // Can be null for regular klines
@@ -71,16 +72,21 @@ public class BitgetFuturesClient : IBitgetFuturesClient
 
     public async Task<decimal> GetBalanceAsync(string asset, CancellationToken ct = default)
     {
-        // For Bitget, we need to query balances and find the specific asset
-        var balancesResult = await _client.FuturesApiV2.Account.GetBalancesAsync(BitgetProductTypeV2.UsdtFutures, ct);
+        var quoteAsset = BitgetHelpers.ResolveQuoteAsset(asset);
+        var productType = BitgetHelpers.ResolveProductType(quoteAsset);
+
+        // For Bitget, query balances for the relevant margin market and return requested asset
+        var balancesResult = await _client.FuturesApiV2.Account.GetBalancesAsync(productType, ct);
 
         if (!balancesResult.Success)
         {
-            _logger.Error("Failed to get Futures account balances: {Error}", balancesResult.Error?.Message);
+            _logger.Error("Failed to get Futures account balances for {ProductType}: {Error}",
+                productType, balancesResult.Error?.Message);
             throw new Exception($"Failed to get account balances: {balancesResult.Error?.Message}");
         }
 
-        var assetBalance = balancesResult.Data?.FirstOrDefault(b => b.MarginAsset.Equals(asset, StringComparison.OrdinalIgnoreCase));
+        var assetBalance = balancesResult.Data?.FirstOrDefault(b =>
+            b.MarginAsset.Equals(quoteAsset, StringComparison.OrdinalIgnoreCase));
         return assetBalance?.Available ?? 0m;
     }
 
@@ -97,10 +103,18 @@ public class BitgetFuturesClient : IBitgetFuturesClient
 
             // Test with authenticated endpoint (balances)
             // Note: GetServerTimeAsync has issues with DemoTrading environment in Bitget.Net SDK
-            var accountResult = await _client.FuturesApiV2.Account.GetBalancesAsync(BitgetProductTypeV2.UsdtFutures, ct);
-            if (!accountResult.Success)
+            var anyConnectivity = false;
+            foreach (var (productType, _) in BitgetHelpers.GetSupportedPerpetualMarkets())
             {
-                _logger.Warning("Bitget Futures account request failed: {Error}", accountResult.Error?.Message);
+                var accountResult = await _client.FuturesApiV2.Account.GetBalancesAsync(productType, ct);
+                if (accountResult.Success)
+                {
+                    anyConnectivity = true;
+                    break;
+                }
+
+                _logger.Warning("Bitget Futures account request failed for {ProductType}: {Error}",
+                    productType, accountResult.Error?.Message);
 
                 // In demo mode, environment mismatch can happen when socket/rest endpoints are mixed.
                 // Allow startup to continue while emitting diagnostics.
@@ -110,7 +124,10 @@ public class BitgetFuturesClient : IBitgetFuturesClient
                     _logger.Information("Note: Verify demo environment name is 'demo' and websocket endpoint is wss://wspap.bitget.com");
                     return true; // Allow startup despite environment mismatch
                 }
+            }
 
+            if (!anyConnectivity)
+            {
                 return false;
             }
 
@@ -130,7 +147,10 @@ public class BitgetFuturesClient : IBitgetFuturesClient
 
     public async Task<FuturesPosition?> GetPositionAsync(string symbol, CancellationToken ct = default)
     {
-        var result = await _client.FuturesApiV2.Trading.GetPositionAsync(BitgetProductTypeV2.UsdtFutures, symbol, "USDT", ct);
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
+
+        var result = await _client.FuturesApiV2.Trading.GetPositionAsync(productType, symbol, marginAsset, ct);
 
         if (!result.Success)
         {
@@ -162,41 +182,50 @@ public class BitgetFuturesClient : IBitgetFuturesClient
 
     public async Task<List<FuturesPosition>> GetAllPositionsAsync(CancellationToken ct = default)
     {
-        var result = await _client.FuturesApiV2.Trading.GetPositionsAsync(BitgetProductTypeV2.UsdtFutures, "USDT", ct);
+        var positions = new List<FuturesPosition>();
 
-        if (!result.Success)
+        foreach (var (productType, marginAsset) in BitgetHelpers.GetSupportedPerpetualMarkets())
         {
-            _logger.Error("Failed to get all positions: {Error}", result.Error?.Message);
-            return new List<FuturesPosition>();
+            var result = await _client.FuturesApiV2.Trading.GetPositionsAsync(productType, marginAsset, ct);
+            if (!result.Success)
+            {
+                _logger.Warning("Failed to get positions for {ProductType}: {Error}",
+                    productType, result.Error?.Message);
+                continue;
+            }
+
+            positions.AddRange(result.Data
+                .Where(p => Math.Abs(p.Total) > 0)
+                .Select(p => new FuturesPosition
+                {
+                    Symbol = p.Symbol,
+                    Side = (p.PositionSide == BitgetPositionSide.Long) ? CorePositionSide.Long : CorePositionSide.Short,
+                    Quantity = Math.Abs(p.Total),
+                    EntryPrice = p.AverageOpenPrice,
+                    MarkPrice = p.MarkPrice,
+                    UnrealizedPnl = p.UnrealizedProfitAndLoss,
+                    LiquidationPrice = p.LiquidationPrice,
+                    Leverage = (int)p.Leverage,
+                    MarginType = BitgetHelpers.MapMarginMode(p.MarginMode.ToString()),
+                    InitialMargin = 0m,
+                    MaintMargin = 0m
+                }));
         }
 
-        return result.Data
-            .Where(p => Math.Abs(p.Total) > 0)
-            .Select(p => new FuturesPosition
-            {
-                Symbol = p.Symbol,
-                Side = (p.PositionSide == BitgetPositionSide.Long) ? CorePositionSide.Long : CorePositionSide.Short,
-                Quantity = Math.Abs(p.Total),
-                EntryPrice = p.AverageOpenPrice,
-                MarkPrice = p.MarkPrice,
-                UnrealizedPnl = p.UnrealizedProfitAndLoss,
-                LiquidationPrice = p.LiquidationPrice,
-                Leverage = (int)p.Leverage,
-                MarginType = BitgetHelpers.MapMarginMode(p.MarginMode.ToString()),
-                InitialMargin = 0m,
-                MaintMargin = 0m
-            })
-            .ToList();
+        return positions;
     }
 
     public async Task<bool> SetLeverageAsync(string symbol, int leverage, CancellationToken ct = default)
     {
         _logger.Information("Setting leverage for {Symbol} to {Leverage}x", symbol, leverage);
 
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
+
         var result = await _client.FuturesApiV2.Account.SetLeverageAsync(
-            BitgetProductTypeV2.UsdtFutures,
+            productType,
             symbol,
-            "USDT",
+            marginAsset,
             leverage,
             ct: ct);
 
@@ -215,11 +244,13 @@ public class BitgetFuturesClient : IBitgetFuturesClient
         _logger.Information("Setting margin type for {Symbol} to {MarginType}", symbol, marginType);
 
         var bitgetMarginMode = BitgetHelpers.MapMarginType(marginType);
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
 
         var result = await _client.FuturesApiV2.Account.SetMarginModeAsync(
-            BitgetProductTypeV2.UsdtFutures,
+            productType,
             symbol,
-            "USDT",
+            marginAsset,
             mode: bitgetMarginMode,
             ct: ct);
 
@@ -235,7 +266,10 @@ public class BitgetFuturesClient : IBitgetFuturesClient
 
     public async Task<LeverageInfo> GetLeverageInfoAsync(string symbol, CancellationToken ct = default)
     {
-        var posResult = await _client.FuturesApiV2.Trading.GetPositionAsync(BitgetProductTypeV2.UsdtFutures, symbol, "USDT", ct);
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
+
+        var posResult = await _client.FuturesApiV2.Trading.GetPositionAsync(productType, symbol, marginAsset, ct);
 
         if (!posResult.Success)
         {
@@ -267,7 +301,8 @@ public class BitgetFuturesClient : IBitgetFuturesClient
 
     public async Task<decimal> GetMarkPriceAsync(string symbol, CancellationToken ct = default)
     {
-        var result = await _client.FuturesApiV2.ExchangeData.GetTickerAsync(BitgetProductTypeV2.UsdtFutures, symbol, ct);
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var result = await _client.FuturesApiV2.ExchangeData.GetTickerAsync(productType, symbol, ct);
 
         if (!result.Success)
         {
@@ -306,18 +341,32 @@ public class BitgetFuturesClient : IBitgetFuturesClient
                 return _symbolsCache;
             }
 
-            // For Bitget, we need to fetch all contracts (symbols)
-            // Since there's no GetSymbolsAsync, we'll get tickers which includes all active symbols
-            var tickersResult = await _client.FuturesApiV2.ExchangeData.GetTickersAsync(BitgetProductTypeV2.UsdtFutures, ct);
-            if (!tickersResult.Success)
+            // For Bitget, fetch symbols from both USDT and USDC perpetual markets
+            var symbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var anySuccess = false;
+            foreach (var (productType, _) in BitgetHelpers.GetSupportedPerpetualMarkets())
             {
-                _logger.Error("Failed to get Futures tickers: {Error}", tickersResult.Error?.Message);
-                throw new Exception($"Failed to get tickers: {tickersResult.Error?.Message}");
+                var tickersResult = await _client.FuturesApiV2.ExchangeData.GetTickersAsync(productType, ct);
+                if (!tickersResult.Success)
+                {
+                    _logger.Warning("Failed to get futures tickers for {ProductType}: {Error}",
+                        productType, tickersResult.Error?.Message);
+                    continue;
+                }
+
+                anySuccess = true;
+                foreach (var ticker in tickersResult.Data)
+                {
+                    symbols.Add(ticker.Symbol);
+                }
             }
 
-            _symbolsCache = tickersResult.Data
-                .Select(t => t.Symbol)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (!anySuccess)
+            {
+                throw new Exception("Failed to get tickers for both USDT and USDC futures");
+            }
+
+            _symbolsCache = symbols;
             _symbolsCacheUpdatedAt = DateTime.UtcNow;
 
             return _symbolsCache;

@@ -33,13 +33,14 @@ public class BitgetKlineListener
         Action<Candle> onKlineUpdate,
         CancellationToken ct = default)
     {
+        var productType = BitgetHelpers.ResolveProductType(symbol);
         var intervalBitget = BitgetHelpers.MapStreamKlineInterval(interval);
 
-        _logger.Information("Subscribing to Bitget Futures kline updates for {Symbol} {Interval}",
-            symbol, intervalBitget);
+        _logger.Information("Subscribing to Bitget Futures kline updates for {Symbol} {Interval} ({ProductType})",
+            symbol, intervalBitget, productType);
 
         var result = await _socketClient.FuturesApiV2.SubscribeToKlineUpdatesAsync(
-            BitgetProductTypeV2.UsdtFutures,
+            productType,
             symbol,
             intervalBitget,
             data =>

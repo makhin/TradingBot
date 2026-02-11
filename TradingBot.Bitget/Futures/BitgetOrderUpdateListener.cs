@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Bitget.Net.Clients;
 using Bitget.Net.Enums;
 using Bitget.Net.Enums.V2;
@@ -7,6 +8,7 @@ using BitgetOrderUpdate = TradingBot.Bitget.Futures.Models.OrderUpdate;
 using BitgetPositionUpdate = TradingBot.Bitget.Futures.Models.PositionUpdate;
 using TradingBot.Core.Models;
 using Serilog;
+using TradingBot.Bitget.Common;
 using CorePositionSide = TradingBot.Core.Models.PositionSide;
 
 namespace TradingBot.Bitget.Futures;
@@ -18,10 +20,10 @@ public class BitgetOrderUpdateListener
 {
     private readonly BitgetSocketClient _socketClient;
     private readonly ILogger _logger;
-    private UpdateSubscription? _orderSubscription;
-    private UpdateSubscription? _positionSubscription;
+    private List<UpdateSubscription> _orderSubscriptions = new();
+    private List<UpdateSubscription> _positionSubscriptions = new();
 
-    public bool IsSubscribed => _orderSubscription != null || _positionSubscription != null;
+    public bool IsSubscribed => _orderSubscriptions.Count > 0 || _positionSubscriptions.Count > 0;
 
     public BitgetOrderUpdateListener(BitgetSocketClient socketClient, ILogger? logger = null)
     {
@@ -34,71 +36,84 @@ public class BitgetOrderUpdateListener
         CancellationToken ct = default)
     {
         _logger.Information("Subscribing to Bitget Futures order updates");
+        var subscriptions = new List<UpdateSubscription>();
+        var hadEnvironmentMismatch = false;
 
-        var result = await _socketClient.FuturesApiV2.SubscribeToOrderUpdatesAsync(
-            BitgetProductTypeV2.UsdtFutures,
-            data =>
-            {
-                try
-                {
-                    foreach (var order in data.Data)
-                    {
-                        var direction = order.Side == OrderSide.Buy ? TradeDirection.Long : TradeDirection.Short;
-
-                        var update = new BitgetOrderUpdate
-                        {
-                            Symbol = order.Symbol,
-                            OrderId = long.Parse(order.OrderId),
-                            ClientOrderId = order.ClientOrderId ?? string.Empty,
-                            Status = MapOrderStatus(order.Status.ToString()),
-                            Side = direction,
-                            Price = order.Price ?? 0m,
-                            Quantity = order.Quantity,
-                            FilledQuantity = order.QuantityFilled,
-                            AveragePrice = order.AveragePrice ?? 0m,
-                            UpdateTime = order.UpdateTime ?? DateTime.UtcNow
-                        };
-
-                        _logger.Debug("Bitget order update: {Symbol} {OrderId} {Status}",
-                            update.Symbol, update.OrderId, update.Status);
-
-                        onOrderUpdate(update);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error(ex, "Error processing Bitget order update");
-                }
-            },
-            ct: ct);
-
-        if (!result.Success)
+        foreach (var (productType, _) in BitgetHelpers.GetSupportedPerpetualMarkets())
         {
-            _logger.Error("Failed to subscribe to Bitget order updates: {Error}", result.Error?.Message);
+            var result = await _socketClient.FuturesApiV2.SubscribeToOrderUpdatesAsync(
+                productType,
+                data =>
+                {
+                    try
+                    {
+                        foreach (var order in data.Data)
+                        {
+                            var direction = order.Side == OrderSide.Buy ? TradeDirection.Long : TradeDirection.Short;
 
-            // Demo credentials on the live websocket host trigger environment mismatch errors.
-            // Return dummy subscription to allow the bot to continue without websocket monitoring.
-            if (result.Error?.Message?.Contains("environment") == true ||
-                result.Error?.Message?.Contains("Current environment does not match") == true)
+                            var update = new BitgetOrderUpdate
+                            {
+                                Symbol = order.Symbol,
+                                OrderId = long.Parse(order.OrderId),
+                                ClientOrderId = order.ClientOrderId ?? string.Empty,
+                                Status = MapOrderStatus(order.Status.ToString()),
+                                Side = direction,
+                                Price = order.Price ?? 0m,
+                                Quantity = order.Quantity,
+                                FilledQuantity = order.QuantityFilled,
+                                AveragePrice = order.AveragePrice ?? 0m,
+                                UpdateTime = order.UpdateTime ?? DateTime.UtcNow
+                            };
+
+                            _logger.Debug("Bitget order update ({ProductType}): {Symbol} {OrderId} {Status}",
+                                productType, update.Symbol, update.OrderId, update.Status);
+
+                            onOrderUpdate(update);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Error processing Bitget order update");
+                    }
+                },
+                ct: ct);
+
+            if (!result.Success)
+            {
+                _logger.Warning("Failed to subscribe to Bitget order updates for {ProductType}: {Error}",
+                    productType, result.Error?.Message);
+
+                if (result.Error?.Message?.Contains("environment") == true ||
+                    result.Error?.Message?.Contains("Current environment does not match") == true)
+                {
+                    hadEnvironmentMismatch = true;
+                }
+
+                continue;
+            }
+
+            subscriptions.Add(result.Data);
+            _logger.Information("Successfully subscribed to Bitget order updates for {ProductType}", productType);
+        }
+
+        if (subscriptions.Count == 0)
+        {
+            if (hadEnvironmentMismatch)
             {
                 _logger.Warning("⚠️ Bitget demo private websocket login failed due to environment mismatch");
                 _logger.Warning("⚠️ Order monitoring via WebSocket is DISABLED for Bitget");
                 _logger.Warning("⚠️ Bot will continue using REST API only");
                 _logger.Information("Note: Configure BitgetSocketClient demo endpoint as wss://wspap.bitget.com with environment name 'demo'");
-
-                // Return a dummy subscription that does nothing
                 return new DummySubscription(_logger);
             }
 
             return null;
         }
 
-        _orderSubscription = result.Data;
-        _logger.Information("Successfully subscribed to Bitget order updates");
-
-        return new SubscriptionWrapper(result.Data, () =>
+        _orderSubscriptions = subscriptions;
+        return new SubscriptionWrapper(subscriptions, () =>
         {
-            _orderSubscription = null;
+            _orderSubscriptions.Clear();
             _logger.Information("Unsubscribed from Bitget order updates");
         });
     }
@@ -108,49 +123,67 @@ public class BitgetOrderUpdateListener
         CancellationToken ct = default)
     {
         _logger.Information("Subscribing to Bitget Futures position updates");
+        var subscriptions = new List<UpdateSubscription>();
+        var hadEnvironmentMismatch = false;
 
-        var result = await _socketClient.FuturesApiV2.SubscribeToPositionUpdatesAsync(
-            BitgetProductTypeV2.UsdtFutures,
-            data =>
-            {
-                try
-                {
-                    foreach (var position in data.Data)
-                    {
-                        var side = position.Total > 0 ? CorePositionSide.Long : CorePositionSide.Short;
-
-                        var update = new BitgetPositionUpdate
-                        {
-                            Symbol = position.Symbol,
-                            Side = side,
-                            Quantity = Math.Abs(position.Total),
-                            EntryPrice = position.AverageOpenPrice,
-                            MarkPrice = position.MarkPrice,
-                            UnrealizedPnl = position.UnrealizedProfitAndLoss,
-                            LiquidationPrice = position.LiquidationPrice,
-                            UpdateTime = DateTime.UtcNow
-                        };
-
-                        _logger.Debug("Bitget position update: {Symbol} {Side} {Quantity}",
-                            update.Symbol, update.Side, update.Quantity);
-
-                        onPositionUpdate(update);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error(ex, "Error processing Bitget position update");
-                }
-            },
-            ct: ct);
-
-        if (!result.Success)
+        foreach (var (productType, _) in BitgetHelpers.GetSupportedPerpetualMarkets())
         {
-            _logger.Error("Failed to subscribe to Bitget position updates: {Error}", result.Error?.Message);
+            var result = await _socketClient.FuturesApiV2.SubscribeToPositionUpdatesAsync(
+                productType,
+                data =>
+                {
+                    try
+                    {
+                        foreach (var position in data.Data)
+                        {
+                            var side = position.Total > 0 ? CorePositionSide.Long : CorePositionSide.Short;
 
-            // Same handling as order updates: keep bot alive when websocket env is misconfigured.
-            if (result.Error?.Message?.Contains("environment") == true ||
-                result.Error?.Message?.Contains("Current environment does not match") == true)
+                            var update = new BitgetPositionUpdate
+                            {
+                                Symbol = position.Symbol,
+                                Side = side,
+                                Quantity = Math.Abs(position.Total),
+                                EntryPrice = position.AverageOpenPrice,
+                                MarkPrice = position.MarkPrice,
+                                UnrealizedPnl = position.UnrealizedProfitAndLoss,
+                                LiquidationPrice = position.LiquidationPrice,
+                                UpdateTime = DateTime.UtcNow
+                            };
+
+                            _logger.Debug("Bitget position update ({ProductType}): {Symbol} {Side} {Quantity}",
+                                productType, update.Symbol, update.Side, update.Quantity);
+
+                            onPositionUpdate(update);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Error processing Bitget position update");
+                    }
+                },
+                ct: ct);
+
+            if (!result.Success)
+            {
+                _logger.Warning("Failed to subscribe to Bitget position updates for {ProductType}: {Error}",
+                    productType, result.Error?.Message);
+
+                if (result.Error?.Message?.Contains("environment") == true ||
+                    result.Error?.Message?.Contains("Current environment does not match") == true)
+                {
+                    hadEnvironmentMismatch = true;
+                }
+
+                continue;
+            }
+
+            subscriptions.Add(result.Data);
+            _logger.Information("Successfully subscribed to Bitget position updates for {ProductType}", productType);
+        }
+
+        if (subscriptions.Count == 0)
+        {
+            if (hadEnvironmentMismatch)
             {
                 _logger.Warning("⚠️ Position monitoring via WebSocket is DISABLED due to Bitget environment mismatch");
                 return new DummySubscription(_logger);
@@ -159,12 +192,10 @@ public class BitgetOrderUpdateListener
             return null;
         }
 
-        _positionSubscription = result.Data;
-        _logger.Information("Successfully subscribed to Bitget position updates");
-
-        return new SubscriptionWrapper(result.Data, () =>
+        _positionSubscriptions = subscriptions;
+        return new SubscriptionWrapper(subscriptions, () =>
         {
-            _positionSubscription = null;
+            _positionSubscriptions.Clear();
             _logger.Information("Unsubscribed from Bitget position updates");
         });
     }
@@ -173,17 +204,17 @@ public class BitgetOrderUpdateListener
     {
         _logger.Information("Unsubscribing from all Bitget streams");
 
-        if (_orderSubscription != null)
+        foreach (var orderSubscription in _orderSubscriptions)
         {
-            await _orderSubscription.CloseAsync();
-            _orderSubscription = null;
+            await orderSubscription.CloseAsync();
         }
+        _orderSubscriptions.Clear();
 
-        if (_positionSubscription != null)
+        foreach (var positionSubscription in _positionSubscriptions)
         {
-            await _positionSubscription.CloseAsync();
-            _positionSubscription = null;
+            await positionSubscription.CloseAsync();
         }
+        _positionSubscriptions.Clear();
     }
 
     private static string MapOrderStatus(string status)
@@ -202,18 +233,22 @@ public class BitgetOrderUpdateListener
 
     private class SubscriptionWrapper : IDisposable
     {
-        private readonly UpdateSubscription _subscription;
+        private readonly IReadOnlyCollection<UpdateSubscription> _subscriptions;
         private readonly Action _onDispose;
 
-        public SubscriptionWrapper(UpdateSubscription subscription, Action onDispose)
+        public SubscriptionWrapper(IReadOnlyCollection<UpdateSubscription> subscriptions, Action onDispose)
         {
-            _subscription = subscription;
+            _subscriptions = subscriptions;
             _onDispose = onDispose;
         }
 
         public void Dispose()
         {
-            _subscription?.CloseAsync().GetAwaiter().GetResult();
+            foreach (var subscription in _subscriptions)
+            {
+                subscription.CloseAsync().GetAwaiter().GetResult();
+            }
+
             _onDispose();
         }
     }
