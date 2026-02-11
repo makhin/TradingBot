@@ -667,14 +667,14 @@ public class SignalBotRunner
 
         return "✅ SignalBot started\n" +
                $"Monitoring {monitoredChannels} Telegram channel(s)\n" +
-               $"Max concurrent positions: {_settings.Trading.MaxConcurrentPositions}" +
-               BuildAvailableSymbolsSection();
+               $"Max concurrent positions: {_settings.Trading.MaxConcurrentPositions}";
     }
 
     private string BuildStopMessage()
     {
         return "🛑 SignalBot stopped";
     }
+
 
     private List<string> GetOrderedAvailableSymbols()
     {
@@ -686,20 +686,6 @@ public class SignalBotRunner
         return _availableFuturesSymbols
             .OrderBy(symbol => symbol, StringComparer.OrdinalIgnoreCase)
             .ToList();
-    }
-
-    private string BuildAvailableSymbolsSection()
-    {
-        var orderedSymbols = GetOrderedAvailableSymbols();
-        if (orderedSymbols.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var symbolsList = string.Join(", ", orderedSymbols);
-        return "\n" +
-               $"Available symbols ({orderedSymbols.Count}):\n" +
-               symbolsList;
     }
 
     private string BuildValidationFailedMessage(TradingSignal signal, string? errorMessage)
