@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using SignalBot.Configuration;
 using SignalBot.Models;
 using SignalBot.Telemetry;
@@ -16,6 +17,10 @@ namespace SignalBot.Services.Trading;
 /// </summary>
 public class SignalTrader : ISignalTrader
 {
+    private static readonly Regex MaxQuantityRegex = new(
+        @"(?:maximum quantity[^\d]*|max(?:imum)?\s+quantity[^\d]*)([\d,]+(?:\.\d+)?)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly IFuturesExchangeClient _client;
     private readonly IFuturesOrderExecutor _orderExecutor;
     private readonly IPositionManager _positionManager;
@@ -151,7 +156,7 @@ public class SignalTrader : ISignalTrader
                 ? TradeDirection.Long
                 : TradeDirection.Short;
 
-            var entryResult = await PlaceMarketOrderWithRetry(
+            var (entryResult, entryQuantity) = await PlaceMarketOrderWithQuantityFallback(
                 signal.Symbol,
                 tradeDirection,
                 positionSize.Quantity,
@@ -162,6 +167,22 @@ public class SignalTrader : ISignalTrader
                 position = position with { Status = PositionStatus.Failed };
                 await _positionManager.SavePositionAsync(position, ct);
                 throw new InvalidOperationException($"Entry order failed: {entryResult.ErrorMessage}");
+            }
+
+            if (entryQuantity != position.InitialQuantity)
+            {
+                _logger.Warning(
+                    "Entry quantity for {Symbol} was adjusted from {OriginalQty} to {AdjustedQty} due to exchange limits",
+                    signal.Symbol,
+                    position.InitialQuantity,
+                    entryQuantity);
+
+                position = position with
+                {
+                    InitialQuantity = entryQuantity,
+                    RemainingQuantity = entryQuantity,
+                    Targets = CreateTargetLevels(signal, entryQuantity)
+                };
             }
 
             position = position with
@@ -176,7 +197,7 @@ public class SignalTrader : ISignalTrader
             var slResult = await PlaceStopLossOrderWithRetry(
                 signal.Symbol,
                 signal.Direction,
-                positionSize.Quantity,
+                entryQuantity,
                 signal.AdjustedStopLoss,
                 ct);
 
@@ -195,7 +216,7 @@ public class SignalTrader : ISignalTrader
                 var closeResult = await _orderExecutor.PlaceMarketOrderAsync(
                     signal.Symbol,
                     closeDirection,
-                    positionSize.Quantity,
+                    entryQuantity,
                     ct);
 
                 if (!closeResult.Success)
@@ -210,7 +231,7 @@ public class SignalTrader : ISignalTrader
                     ? PnlCalculator.Calculate(
                         position.ActualEntryPrice,
                         closeResult.AveragePrice,
-                        positionSize.Quantity,
+                        entryQuantity,
                         position.Direction)
                     : 0m;
 
@@ -271,6 +292,51 @@ public class SignalTrader : ISignalTrader
 
             throw;
         }
+    }
+
+    private async Task<(ExecutionResult Result, decimal Quantity)> PlaceMarketOrderWithQuantityFallback(
+        string symbol,
+        TradeDirection direction,
+        decimal requestedQuantity,
+        CancellationToken ct)
+    {
+        var firstAttempt = await PlaceMarketOrderWithRetry(symbol, direction, requestedQuantity, ct);
+        if (firstAttempt.Success)
+        {
+            return (firstAttempt, requestedQuantity);
+        }
+
+        if (!TryExtractMaxQuantity(firstAttempt.ErrorMessage, out var maxQuantity) || maxQuantity <= 0 || maxQuantity >= requestedQuantity)
+        {
+            return (firstAttempt, requestedQuantity);
+        }
+
+        _logger.Warning(
+            "Exchange rejected quantity {RequestedQty} for {Symbol}, retrying with max allowed quantity {MaxQty}",
+            requestedQuantity,
+            symbol,
+            maxQuantity);
+
+        var secondAttempt = await PlaceMarketOrderWithRetry(symbol, direction, maxQuantity, ct);
+        return (secondAttempt, secondAttempt.Success ? maxQuantity : requestedQuantity);
+    }
+
+    private static bool TryExtractMaxQuantity(string? errorMessage, out decimal maxQuantity)
+    {
+        maxQuantity = 0;
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return false;
+        }
+
+        var match = MaxQuantityRegex.Match(errorMessage);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var rawValue = match.Groups[1].Value.Replace(",", string.Empty);
+        return decimal.TryParse(rawValue, out maxQuantity);
     }
 
     private IReadOnlyList<TargetLevel> CreateTargetLevels(TradingSignal signal, decimal totalQuantity)
