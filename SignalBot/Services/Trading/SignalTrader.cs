@@ -27,6 +27,7 @@ public class SignalTrader : ISignalTrader
     private readonly IRiskManager _riskManager;
     private readonly TradingSettings _settings;
     private readonly EntrySettings _entrySettings;
+    private readonly PositionSizingSettings _positionSizing;
     private readonly ILogger _logger;
     private readonly IAsyncPolicy<ExecutionResult> _retryPolicy;
 
@@ -37,6 +38,7 @@ public class SignalTrader : ISignalTrader
         IRiskManager riskManager,
         TradingSettings settings,
         EntrySettings entrySettings,
+        PositionSizingSettings positionSizing,
         IAsyncPolicy<ExecutionResult> retryPolicy,
         ILogger? logger = null)
     {
@@ -46,6 +48,7 @@ public class SignalTrader : ISignalTrader
         _riskManager = riskManager;
         _settings = settings;
         _entrySettings = entrySettings;
+        _positionSizing = positionSizing;
         _retryPolicy = retryPolicy;
         _logger = logger ?? Log.ForContext<SignalTrader>();
     }
@@ -138,16 +141,25 @@ public class SignalTrader : ISignalTrader
             }
 
             // 4. Calculate position size
-            var positionSize = _riskManager.CalculatePositionSize(
-                signal.Entry,
-                signal.AdjustedStopLoss);
+            _riskManager.UpdateEquity(accountEquity);
+
+            var positionSize = CalculatePositionSize(signal);
+
+            var adjustedQuantity = ApplyPositionSizeLimits(positionSize.Quantity, signal.Entry, accountEquity, signal.Symbol);
+
+            if (adjustedQuantity <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Calculated quantity is zero after limits for {signal.Symbol}. " +
+                    "Check PositionSizing limits and account balance.");
+            }
 
             position = position with
             {
-                InitialQuantity = positionSize.Quantity,
-                RemainingQuantity = positionSize.Quantity,
+                InitialQuantity = adjustedQuantity,
+                RemainingQuantity = adjustedQuantity,
                 Status = PositionStatus.Opening,
-                Targets = CreateTargetLevels(signal, positionSize.Quantity)
+                Targets = CreateTargetLevels(signal, adjustedQuantity)
             };
             await _positionManager.SavePositionAsync(position, ct);
 
@@ -159,7 +171,7 @@ public class SignalTrader : ISignalTrader
             var (entryResult, entryQuantity) = await PlaceMarketOrderWithQuantityFallback(
                 signal.Symbol,
                 tradeDirection,
-                positionSize.Quantity,
+                adjustedQuantity,
                 ct);
 
             if (!entryResult.Success || entryResult.OrderId == 0)
@@ -292,6 +304,95 @@ public class SignalTrader : ISignalTrader
 
             throw;
         }
+    }
+
+    private PositionSizeResult CalculatePositionSize(TradingSignal signal)
+    {
+        var mode = (_positionSizing.DefaultMode ?? string.Empty).Trim();
+
+        if (mode.Equals("FixedAmount", StringComparison.OrdinalIgnoreCase))
+        {
+            var notional = ResolveFixedAmountNotional(signal.Symbol);
+            var quantity = signal.Entry > 0 ? notional / signal.Entry : 0m;
+            return new PositionSizeResult(quantity, 0m, 0m);
+        }
+
+        if (mode.Equals("FixedMargin", StringComparison.OrdinalIgnoreCase))
+        {
+            var margin = _positionSizing.DefaultFixedMargin;
+            var notional = margin * signal.AdjustedLeverage;
+            var quantity = signal.Entry > 0 ? notional / signal.Entry : 0m;
+            return new PositionSizeResult(quantity, 0m, 0m);
+        }
+
+        // Default and fallback: RiskPercent
+        return _riskManager.CalculatePositionSize(signal.Entry, signal.AdjustedStopLoss);
+    }
+
+    private decimal ResolveFixedAmountNotional(string symbol)
+    {
+        if (_positionSizing.SymbolOverrides.TryGetValue(symbol, out var symbolOverride) && symbolOverride.FixedAmount.HasValue)
+        {
+            return symbolOverride.FixedAmount.Value;
+        }
+
+        return _positionSizing.DefaultFixedAmount;
+    }
+
+    private decimal ApplyPositionSizeLimits(decimal quantity, decimal entryPrice, decimal accountEquity, string symbol)
+    {
+        if (quantity <= 0 || entryPrice <= 0)
+            return 0;
+
+        var maxNotionalByUsdt = _positionSizing.Limits.MaxPositionUsdt;
+        var maxNotionalByPercent = accountEquity * (_positionSizing.Limits.MaxPositionPercent / 100m);
+        var allowedNotional = Math.Min(maxNotionalByUsdt, maxNotionalByPercent);
+
+        if (allowedNotional <= 0)
+        {
+            _logger.Warning(
+                "Position size blocked for {Symbol}: allowed notional is {Limit:F4} USDT (balance/limits too restrictive)",
+                symbol,
+                allowedNotional);
+            return 0;
+        }
+
+        var requestedNotional = quantity * entryPrice;
+        if (requestedNotional <= allowedNotional)
+        {
+            var minNotional = _positionSizing.Limits.MinPositionUsdt;
+            if (requestedNotional < minNotional)
+            {
+                _logger.Warning(
+                    "Position size blocked for {Symbol}: requested notional {Notional:F4} USDT is below minimum {Min:F4} USDT",
+                    symbol,
+                    requestedNotional,
+                    minNotional);
+                return 0;
+            }
+
+            return quantity;
+        }
+
+        var cappedQuantity = allowedNotional / entryPrice;
+        _logger.Warning(
+            "Position size capped for {Symbol}: requested notional {Requested:F4} USDT exceeds limit {Limit:F4} USDT",
+            symbol,
+            requestedNotional,
+            allowedNotional);
+
+        var cappedMinNotional = _positionSizing.Limits.MinPositionUsdt;
+        if (cappedQuantity * entryPrice < cappedMinNotional)
+        {
+            _logger.Warning(
+                "Position size blocked for {Symbol}: capped notional {Notional:F4} USDT is below minimum {Min:F4} USDT",
+                symbol,
+                cappedQuantity * entryPrice,
+                cappedMinNotional);
+            return 0;
+        }
+
+        return cappedQuantity;
     }
 
     private async Task<(ExecutionResult Result, decimal Quantity)> PlaceMarketOrderWithQuantityFallback(

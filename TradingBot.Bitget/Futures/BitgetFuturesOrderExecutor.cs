@@ -7,6 +7,7 @@ using TradingBot.Bitget.Common;
 using TradingBot.Bitget.Futures.Interfaces;
 using Serilog;
 using BitgetExecutionResult = TradingBot.Bitget.Futures.Models.ExecutionResult;
+using CoreMarginType = TradingBot.Core.Models.MarginType;
 
 namespace TradingBot.Bitget.Futures;
 
@@ -18,12 +19,17 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 {
     private readonly BitgetRestClient _client;
     private readonly ILogger _logger;
+    private readonly MarginMode _defaultMarginMode;
     private readonly Dictionary<string, (int quantityPrecision, int pricePrecision)> _precisionCache = new();
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
 
-    public BitgetFuturesOrderExecutor(BitgetRestClient client, ILogger? logger = null)
+    public BitgetFuturesOrderExecutor(
+        BitgetRestClient client,
+        CoreMarginType defaultMarginType = CoreMarginType.Cross,
+        ILogger? logger = null)
     {
         _client = client;
+        _defaultMarginMode = BitgetHelpers.MapMarginType(defaultMarginType);
         _logger = logger ?? Log.ForContext<BitgetFuturesOrderExecutor>();
     }
 
@@ -77,7 +83,8 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
     private async Task<decimal> NormalizeQuantityAsync(string symbol, decimal quantity, CancellationToken ct)
     {
         var (quantityPrecision, _) = await GetPrecisionAsync(symbol, ct);
-        var normalized = Math.Round(quantity, quantityPrecision);
+        var multiplier = Pow10(quantityPrecision);
+        var normalized = Math.Truncate(quantity * multiplier) / multiplier;
 
         if (normalized != quantity)
         {
@@ -86,6 +93,18 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         }
 
         return normalized;
+    }
+
+    private static decimal Pow10(int precision)
+    {
+        if (precision <= 0)
+            return 1m;
+
+        decimal result = 1m;
+        for (var i = 0; i < precision; i++)
+            result *= 10m;
+
+        return result;
     }
 
     private async Task<decimal> NormalizePriceAsync(string symbol, decimal price, CancellationToken ct)
@@ -121,7 +140,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             marginAsset: marginAsset,
             side: side,
             type: OrderType.Market,
-            marginMode: MarginMode.CrossMargin,
+            marginMode: _defaultMarginMode,
             quantity: quantity,
             tradeSide: null,
             ct: ct);
@@ -139,7 +158,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 marginAsset: marginAsset,
                 side: side,
                 type: OrderType.Market,
-                marginMode: MarginMode.CrossMargin,
+                marginMode: _defaultMarginMode,
                 quantity: quantity,
                 tradeSide: TradeSide.Open,
                 ct: ct);
@@ -223,7 +242,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             symbol: symbol,
             marginAsset: marginAsset,
             planType: TriggerPlanType.Normal,
-            marginMode: MarginMode.CrossMargin,
+            marginMode: _defaultMarginMode,
             side: side,
             orderType: OrderType.Market,
             quantity: quantity,
@@ -254,7 +273,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 symbol: symbol,
                 marginAsset: marginAsset,
                 planType: TriggerPlanType.Normal,
-                marginMode: MarginMode.CrossMargin,
+                marginMode: _defaultMarginMode,
                 side: side,
                 orderType: OrderType.Market,
                 quantity: quantity,
@@ -319,7 +338,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             symbol: symbol,
             marginAsset: marginAsset,
             planType: TriggerPlanType.Normal,
-            marginMode: MarginMode.CrossMargin,
+            marginMode: _defaultMarginMode,
             side: side,
             orderType: OrderType.Market,
             quantity: quantity,
@@ -350,7 +369,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 symbol: symbol,
                 marginAsset: marginAsset,
                 planType: TriggerPlanType.Normal,
-                marginMode: MarginMode.CrossMargin,
+                marginMode: _defaultMarginMode,
                 side: side,
                 orderType: OrderType.Market,
                 quantity: quantity,
