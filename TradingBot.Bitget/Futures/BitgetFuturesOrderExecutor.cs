@@ -8,6 +8,7 @@ using TradingBot.Bitget.Futures.Interfaces;
 using Serilog;
 using BitgetExecutionResult = TradingBot.Bitget.Futures.Models.ExecutionResult;
 using CoreMarginType = TradingBot.Core.Models.MarginType;
+using BitgetPositionSide = Bitget.Net.Enums.V2.PositionSide;
 
 namespace TradingBot.Bitget.Futures;
 
@@ -230,26 +231,24 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
     {
         var productType = BitgetHelpers.ResolveProductType(symbol);
         var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
-        var side = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
         stopPrice = await NormalizePriceAsync(symbol, stopPrice, ct);
 
         _logger.Information("Placing Bitget Futures stop loss (reduce-only): {Symbol} x{Quantity}, Stop: {StopPrice}",
             symbol, quantity, stopPrice);
 
-        var result = await _client.FuturesApiV2.Trading.PlaceTpSlOrderAsync(
+        var positionSide = direction == TradeDirection.Long ? BitgetPositionSide.Long : BitgetPositionSide.Short;
+
+        // Use position TP/SL endpoint for stop-loss placement.
+        // Bitget can reject /place-tpsl-order with delegateType validation errors for some account modes.
+        var result = await _client.FuturesApiV2.Trading.SetPositionTpSlAsync(
             productType: productType,
             symbol: symbol,
             marginAsset: marginAsset,
-            planType: PlanType.StopLoss,
-            quantity: quantity,
-            triggerPrice: stopPrice,
-            orderPrice: null,
-            triggerPriceType: TriggerPriceType.MarkPrice,
-            hedgeModePositionSide: null,
-            oneWaySide: side,
-            trailingStopRate: null,
-            clientOrderId: null,
+            holdSide: positionSide,
+            slTriggerPrice: stopPrice,
+            slTriggerQuantity: quantity,
+            slTriggerType: TriggerPriceType.MarkPrice,
             ct: ct);
 
         if (!result.Success || result.Data == null)
@@ -262,7 +261,26 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             };
         }
 
-        var orderId = long.Parse(result.Data.OrderId);
+        var returnedOrderIds = result.Data
+            .Select(x => x.OrderId)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToArray();
+
+        _logger.Debug("Bitget position TP/SL response for {Symbol}: returned order ids [{OrderIds}]",
+            symbol,
+            string.Join(",", returnedOrderIds));
+
+        var orderIdText = returnedOrderIds.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(orderIdText) || !long.TryParse(orderIdText, out var orderId))
+        {
+            _logger.Error("Bitget Futures stop loss order response missing parseable order id for {Symbol}", symbol);
+            return new BitgetExecutionResult
+            {
+                IsAcceptable = false,
+                RejectReason = "Stop loss order failed: no parseable order id in exchange response"
+            };
+        }
+
         _logger.Information("Bitget Futures stop loss order placed: {OrderId}", orderId);
 
         return new BitgetExecutionResult
@@ -414,4 +432,5 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         return errorMessage.Contains("unilateral", StringComparison.OrdinalIgnoreCase)
             && errorMessage.Contains("order type", StringComparison.OrdinalIgnoreCase);
     }
+
 }
