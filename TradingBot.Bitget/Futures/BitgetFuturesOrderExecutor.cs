@@ -148,10 +148,13 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 
         if (!result.Success && RequiresUnilateralTradeSide(result.Error?.Message))
         {
+            var unilateralTradeSide = MapUnilateralTradeSide(side);
+
             _logger.Warning(
-                "Bitget rejected market order without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide \"Open\".",
+                "Bitget rejected market order without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide \"{TradeSide}\" according to Bitget one-way mode rules.",
                 symbol,
-                result.Error?.Message);
+                result.Error?.Message,
+                unilateralTradeSide);
 
             result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
                 productType: productType,
@@ -161,7 +164,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 type: OrderType.Market,
                 marginMode: _defaultMarginMode,
                 quantity: quantity,
-                tradeSide: TradeSide.Open,
+                tradeSide: unilateralTradeSide,
                 ct: ct);
         }
 
@@ -492,6 +495,9 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         return errorMessage.Contains("unilateral", StringComparison.OrdinalIgnoreCase)
             && errorMessage.Contains("order type", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static TradeSide MapUnilateralTradeSide(OrderSide side)
+        => side == OrderSide.Buy ? TradeSide.BuySingle : TradeSide.SellSingle;
 
     private static bool RequiresPositionTpSlFallback(string? errorMessage)
     {
