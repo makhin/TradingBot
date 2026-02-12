@@ -304,13 +304,15 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         var productType = BitgetHelpers.ResolveProductType(symbol);
         var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
         var side = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
+        var positionSide = direction == TradeDirection.Long ? BitgetPositionSide.Long : BitgetPositionSide.Short;
         quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
         takeProfitPrice = await NormalizePriceAsync(symbol, takeProfitPrice, ct);
 
         _logger.Information("Placing Bitget Futures take profit: {Symbol} x{Quantity}, TP: {TakeProfitPrice}",
             symbol, quantity, takeProfitPrice);
 
-        var result = await _client.FuturesApiV2.Trading.PlaceTpSlOrderAsync(
+        // Primary path: dedicated TP/SL trigger order endpoint (supports per-target TP orders).
+        var triggerResult = await _client.FuturesApiV2.Trading.PlaceTpSlOrderAsync(
             productType: productType,
             symbol: symbol,
             marginAsset: marginAsset,
@@ -325,18 +327,76 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             clientOrderId: null,
             ct: ct);
 
-        if (!result.Success || result.Data == null)
+        if (triggerResult.Success && triggerResult.Data != null && long.TryParse(triggerResult.Data.OrderId, out var triggerOrderId))
         {
-            _logger.Error("Bitget Futures take profit order failed: {Error}", result.Error?.Message);
+            _logger.Information("Bitget Futures take profit order placed: {OrderId}", triggerOrderId);
             return new BitgetExecutionResult
             {
-                IsAcceptable = false,
-                RejectReason = $"Take profit order failed: {result.Error?.Message}"
+                IsAcceptable = true,
+                OrderId = triggerOrderId,
+                ExpectedPrice = takeProfitPrice,
+                ActualPrice = takeProfitPrice,
+                SlippagePercent = 0,
+                SlippageAmount = 0
             };
         }
 
-        var orderId = long.Parse(result.Data.OrderId);
-        _logger.Information("Bitget Futures take profit order placed: {OrderId}", orderId);
+        if (!RequiresPositionTpSlFallback(triggerResult.Error?.Message))
+        {
+            _logger.Error("Bitget Futures take profit order failed: {Error}", triggerResult.Error?.Message);
+            return new BitgetExecutionResult
+            {
+                IsAcceptable = false,
+                RejectReason = $"Take profit order failed: {triggerResult.Error?.Message}"
+            };
+        }
+
+        _logger.Warning(
+            "Bitget rejected TP trigger order for {Symbol} ({Error}). Retrying via position TP/SL endpoint.",
+            symbol,
+            triggerResult.Error?.Message);
+
+        var positionResult = await _client.FuturesApiV2.Trading.SetPositionTpSlAsync(
+            productType: productType,
+            symbol: symbol,
+            marginAsset: marginAsset,
+            holdSide: positionSide,
+            tpTriggerPrice: takeProfitPrice,
+            tpTriggerQuantity: quantity,
+            tpTriggerType: TriggerPriceType.MarkPrice,
+            ct: ct);
+
+        if (!positionResult.Success || positionResult.Data == null)
+        {
+            _logger.Error("Bitget Futures take profit order failed (position TP/SL): {Error}", positionResult.Error?.Message);
+            return new BitgetExecutionResult
+            {
+                IsAcceptable = false,
+                RejectReason = $"Take profit order failed: {positionResult.Error?.Message}"
+            };
+        }
+
+        var returnedOrderIds = positionResult.Data
+            .Select(x => x.OrderId)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToArray();
+
+        _logger.Debug("Bitget position TP/SL response for {Symbol}: returned order ids [{OrderIds}]",
+            symbol,
+            string.Join(",", returnedOrderIds));
+
+        var orderIdText = returnedOrderIds.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(orderIdText) || !long.TryParse(orderIdText, out var orderId))
+        {
+            _logger.Error("Bitget Futures take profit order response missing parseable order id for {Symbol}", symbol);
+            return new BitgetExecutionResult
+            {
+                IsAcceptable = false,
+                RejectReason = "Take profit order failed: no parseable order id in exchange response"
+            };
+        }
+
+        _logger.Information("Bitget Futures take profit order placed via position TP/SL: {OrderId}", orderId);
 
         return new BitgetExecutionResult
         {
@@ -431,6 +491,15 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 
         return errorMessage.Contains("unilateral", StringComparison.OrdinalIgnoreCase)
             && errorMessage.Contains("order type", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool RequiresPositionTpSlFallback(string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+            return false;
+
+        return errorMessage.Contains("delegateType", StringComparison.OrdinalIgnoreCase)
+            || errorMessage.Contains("parameter does not meet", StringComparison.OrdinalIgnoreCase);
     }
 
 }
