@@ -227,12 +227,9 @@ public class SignalTrader : ISignalTrader
                 _logger.Error("Stop loss placement failed for {Symbol}: {Reason}. Closing position at market.",
                     signal.Symbol, slResult.ErrorMessage);
 
-                var closeDirection = tradeDirection == TradeDirection.Long
-                    ? TradeDirection.Short
-                    : TradeDirection.Long;
-                var closeResult = await _orderExecutor.PlaceMarketOrderAsync(
+                var closeResult = await _orderExecutor.ClosePositionAsync(
                     signal.Symbol,
-                    closeDirection,
+                    tradeDirection,
                     entryQuantity,
                     ct);
 

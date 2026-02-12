@@ -66,6 +66,16 @@ public class BitgetFuturesOrderExecutorAdapter : Core.Exchanges.IFuturesOrderExe
         return ConvertExecutionResult(bitgetResult);
     }
 
+    public async Task<TradingBot.Core.Models.ExecutionResult> ClosePositionAsync(
+        string symbol,
+        TradeDirection direction,
+        decimal quantity,
+        CancellationToken ct = default)
+    {
+        var bitgetResult = await _bitgetExecutor.ClosePositionAsync(symbol, direction, quantity, ct);
+        return ConvertExecutionResult(bitgetResult);
+    }
+
     public Task<bool> CancelOrderAsync(string symbol, long orderId, CancellationToken ct = default)
         => _bitgetExecutor.CancelOrderAsync(symbol, orderId, ct);
 
