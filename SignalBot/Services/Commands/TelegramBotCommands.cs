@@ -409,14 +409,14 @@ public class TelegramBotCommands : IBotCommands
             }
         }
 
-        // Close position at market
-        var direction = position.Direction == SignalDirection.Long
-            ? TradeDirection.Short
-            : TradeDirection.Long;
+        // Close position at market using proper close semantics
+        var positionDirection = position.Direction == SignalDirection.Long
+            ? TradeDirection.Long
+            : TradeDirection.Short;
 
-        var closeResult = await _orderExecutor.PlaceMarketOrderAsync(
+        var closeResult = await _orderExecutor.ClosePositionAsync(
             position.Symbol,
-            direction,
+            positionDirection,
             position.RemainingQuantity,
             ct);
 

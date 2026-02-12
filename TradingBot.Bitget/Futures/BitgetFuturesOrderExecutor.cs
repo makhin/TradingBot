@@ -135,6 +135,8 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 
         _logger.Information("Placing Bitget Futures market {Side} order: {Symbol} x{Quantity}", side, symbol, quantity);
 
+        // Bitget defaults to hedge mode where tradeSide is required.
+        // Use TradeSide.Open for opening positions in hedge mode.
         var result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
             productType: productType,
             symbol: symbol,
@@ -143,18 +145,20 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             type: OrderType.Market,
             marginMode: _defaultMarginMode,
             quantity: quantity,
-            tradeSide: null,
+            tradeSide: TradeSide.Open,
             ct: ct);
 
-        if (!result.Success && RequiresUnilateralTradeSide(result.Error?.Message))
+        // Fallback for one-way mode accounts: if hedge-mode tradeSide is rejected,
+        // retry with one-way mode values (BuySingle/SellSingle).
+        if (!result.Success && RequiresOneWayModeFallback(result.Error?.Message))
         {
-            var unilateralTradeSide = MapUnilateralTradeSide(side);
+            var oneWayTradeSide = MapOneWayTradeSide(side);
 
             _logger.Warning(
-                "Bitget rejected market order without tradeSide for {Symbol} ({Error}). Retrying with unilateral tradeSide \"{TradeSide}\" according to Bitget one-way mode rules.",
+                "Bitget rejected hedge-mode tradeSide for {Symbol} ({Error}). Retrying with one-way tradeSide \"{TradeSide}\".",
                 symbol,
                 result.Error?.Message,
-                unilateralTradeSide);
+                oneWayTradeSide);
 
             result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
                 productType: productType,
@@ -164,7 +168,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 type: OrderType.Market,
                 marginMode: _defaultMarginMode,
                 quantity: quantity,
-                tradeSide: unilateralTradeSide,
+                tradeSide: oneWayTradeSide,
                 ct: ct);
         }
 
@@ -211,6 +215,115 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             var markPriceResult = await _client.FuturesApiV2.ExchangeData.GetTickerAsync(productType, symbol, ct);
             avgPrice = markPriceResult.Success ? (markPriceResult.Data?.MarkPrice ?? 0m) : 0m;
             _logger.Warning("Could not retrieve execution price for order {OrderId}, using mark price: {MarkPrice}",
+                orderId, avgPrice);
+        }
+
+        return new BitgetExecutionResult
+        {
+            IsAcceptable = true,
+            OrderId = orderId,
+            ExpectedPrice = avgPrice,
+            ActualPrice = avgPrice,
+            SlippagePercent = 0,
+            SlippageAmount = 0
+        };
+    }
+
+    public async Task<BitgetExecutionResult> ClosePositionAsync(
+        string symbol,
+        TradeDirection direction,
+        decimal quantity,
+        CancellationToken ct = default)
+    {
+        var productType = BitgetHelpers.ResolveProductType(symbol);
+        var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
+        // In Bitget hedge mode, 'side' indicates the POSITION direction, not the trade action.
+        // Closing a Long: side=Buy (long side) + tradeSide=Close
+        // Closing a Short: side=Sell (short side) + tradeSide=Close
+        var side = direction == TradeDirection.Long ? OrderSide.Buy : OrderSide.Sell;
+        quantity = await NormalizeQuantityAsync(symbol, quantity, ct);
+
+        _logger.Information("Closing Bitget Futures {Direction} position: {Symbol} x{Quantity}",
+            direction, symbol, quantity);
+
+        var result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
+            productType: productType,
+            symbol: symbol,
+            marginAsset: marginAsset,
+            side: side,
+            type: OrderType.Market,
+            marginMode: _defaultMarginMode,
+            quantity: quantity,
+            tradeSide: TradeSide.Close,
+            ct: ct);
+
+        // Fallback for one-way mode: use opposite side without tradeSide
+        if (!result.Success && RequiresOneWayModeFallback(result.Error?.Message))
+        {
+            var oneWaySide = direction == TradeDirection.Long ? OrderSide.Sell : OrderSide.Buy;
+            var oneWayTradeSide = MapOneWayTradeSide(oneWaySide);
+
+            _logger.Warning(
+                "Bitget rejected hedge-mode close for {Symbol} ({Error}). Retrying with one-way mode (side={Side}, tradeSide={TradeSide}).",
+                symbol,
+                result.Error?.Message,
+                oneWaySide,
+                oneWayTradeSide);
+
+            result = await _client.FuturesApiV2.Trading.PlaceOrderAsync(
+                productType: productType,
+                symbol: symbol,
+                marginAsset: marginAsset,
+                side: oneWaySide,
+                type: OrderType.Market,
+                marginMode: _defaultMarginMode,
+                quantity: quantity,
+                tradeSide: oneWayTradeSide,
+                ct: ct);
+        }
+
+        if (!result.Success || result.Data == null)
+        {
+            _logger.Error("Bitget Futures close position failed: {Error}", result.Error?.Message);
+            return new BitgetExecutionResult
+            {
+                IsAcceptable = false,
+                RejectReason = $"Close position failed: {result.Error?.Message}"
+            };
+        }
+
+        var orderId = long.Parse(result.Data.OrderId);
+        _logger.Information("Bitget Futures close position order placed: {OrderId}", orderId);
+
+        // Get execution price
+        decimal avgPrice = 0;
+        for (int attempt = 1; attempt <= 3 && avgPrice == 0; attempt++)
+        {
+            await Task.Delay(attempt * 100, ct);
+
+            var orderResult = await _client.FuturesApiV2.Trading.GetOrderAsync(
+                productType,
+                symbol,
+                orderId: result.Data.OrderId,
+                ct: ct);
+
+            if (orderResult.Success && orderResult.Data != null)
+            {
+                avgPrice = orderResult.Data.AveragePrice ?? 0;
+                if (avgPrice > 0)
+                {
+                    _logger.Information("Close position execution price: {AvgPrice} for order {OrderId} (attempt {Attempt})",
+                        avgPrice, orderId, attempt);
+                    break;
+                }
+            }
+        }
+
+        if (avgPrice == 0)
+        {
+            var markPriceResult = await _client.FuturesApiV2.ExchangeData.GetTickerAsync(productType, symbol, ct);
+            avgPrice = markPriceResult.Success ? (markPriceResult.Data?.MarkPrice ?? 0m) : 0m;
+            _logger.Warning("Could not retrieve close execution price for order {OrderId}, using mark price: {MarkPrice}",
                 orderId, avgPrice);
         }
 
@@ -315,6 +428,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             symbol, quantity, takeProfitPrice);
 
         // Primary path: dedicated TP/SL trigger order endpoint (supports per-target TP orders).
+        // Use hedgeModePositionSide for Bitget's default hedge mode.
         var triggerResult = await _client.FuturesApiV2.Trading.PlaceTpSlOrderAsync(
             productType: productType,
             symbol: symbol,
@@ -324,13 +438,51 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             triggerPrice: takeProfitPrice,
             orderPrice: null,
             triggerPriceType: TriggerPriceType.MarkPrice,
-            hedgeModePositionSide: null,
-            oneWaySide: side,
+            hedgeModePositionSide: positionSide,
+            oneWaySide: null,
             trailingStopRate: null,
             clientOrderId: null,
             ct: ct);
 
         if (triggerResult.Success && triggerResult.Data != null && long.TryParse(triggerResult.Data.OrderId, out var triggerOrderId))
+        {
+            _logger.Information("Bitget Futures take profit order placed: {OrderId}", triggerOrderId);
+            return new BitgetExecutionResult
+            {
+                IsAcceptable = true,
+                OrderId = triggerOrderId,
+                ExpectedPrice = takeProfitPrice,
+                ActualPrice = takeProfitPrice,
+                SlippagePercent = 0,
+                SlippageAmount = 0
+            };
+        }
+
+        // Fallback for one-way mode: retry with oneWaySide instead of hedgeModePositionSide
+        if (!triggerResult.Success && RequiresOneWayModeFallback(triggerResult.Error?.Message))
+        {
+            _logger.Warning(
+                "Bitget rejected hedge-mode TP for {Symbol} ({Error}). Retrying with one-way mode.",
+                symbol,
+                triggerResult.Error?.Message);
+
+            triggerResult = await _client.FuturesApiV2.Trading.PlaceTpSlOrderAsync(
+                productType: productType,
+                symbol: symbol,
+                marginAsset: marginAsset,
+                planType: PlanType.TakeProfit,
+                quantity: quantity,
+                triggerPrice: takeProfitPrice,
+                orderPrice: null,
+                triggerPriceType: TriggerPriceType.MarkPrice,
+                hedgeModePositionSide: null,
+                oneWaySide: side,
+                trailingStopRate: null,
+                clientOrderId: null,
+                ct: ct);
+        }
+
+        if (triggerResult.Success && triggerResult.Data != null && long.TryParse(triggerResult.Data.OrderId, out triggerOrderId))
         {
             _logger.Information("Bitget Futures take profit order placed: {OrderId}", triggerOrderId);
             return new BitgetExecutionResult
@@ -470,6 +622,8 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         var productType = BitgetHelpers.ResolveProductType(symbol);
         var marginAsset = BitgetHelpers.ResolveMarginAsset(productType);
 
+        var success = true;
+
         // Cancel all regular orders
         var result = await _client.FuturesApiV2.Trading.CancelAllOrdersAsync(
             productType,
@@ -479,24 +633,45 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
 
         if (!result.Success)
         {
-            _logger.Error("Failed to cancel all orders for {Symbol}: {Error}", symbol, result.Error?.Message);
-            return false;
+            _logger.Warning("Failed to cancel regular orders for {Symbol}: {Error}", symbol, result.Error?.Message);
+            success = false;
         }
 
-        _logger.Information("Cancelled all Bitget Futures orders for {Symbol}", symbol);
-        return true;
+        // Also cancel all trigger orders (TP/SL) — these are separate from regular orders on Bitget
+        var triggerResult = await _client.FuturesApiV2.Trading.CancelTriggerOrdersAsync(
+            productType,
+            planType: null,  // null = cancel all types (SL + TP)
+            symbol: symbol,
+            marginCoin: marginAsset,
+            ct: ct);
+
+        if (!triggerResult.Success)
+        {
+            _logger.Warning("Failed to cancel trigger orders for {Symbol}: {Error}", symbol, triggerResult.Error?.Message);
+            success = false;
+        }
+
+        if (success)
+            _logger.Information("Cancelled all Bitget Futures orders (regular + trigger) for {Symbol}", symbol);
+        else
+            _logger.Warning("Partially cancelled orders for {Symbol} — some cancellation requests failed", symbol);
+
+        return success;
     }
 
-    private static bool RequiresUnilateralTradeSide(string? errorMessage)
+    private static bool RequiresOneWayModeFallback(string? errorMessage)
     {
         if (string.IsNullOrWhiteSpace(errorMessage))
             return false;
 
+        // Bitget rejects hedge-mode tradeSide (Open/Close) when the account is in one-way mode.
+        // The error typically mentions "unilateral" or indicates tradeSide is invalid.
         return errorMessage.Contains("unilateral", StringComparison.OrdinalIgnoreCase)
-            && errorMessage.Contains("order type", StringComparison.OrdinalIgnoreCase);
+            || (errorMessage.Contains("tradeSide", StringComparison.OrdinalIgnoreCase)
+                && errorMessage.Contains("invalid", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static TradeSide MapUnilateralTradeSide(OrderSide side)
+    private static TradeSide MapOneWayTradeSide(OrderSide side)
         => side == OrderSide.Buy ? TradeSide.BuySingle : TradeSide.SellSingle;
 
     private static bool RequiresPositionTpSlFallback(string? errorMessage)

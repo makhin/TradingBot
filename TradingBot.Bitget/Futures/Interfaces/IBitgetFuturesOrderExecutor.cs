@@ -9,9 +9,19 @@ namespace TradingBot.Bitget.Futures.Interfaces;
 public interface IBitgetFuturesOrderExecutor
 {
     /// <summary>
-    /// Places a market order
+    /// Places a market order to open a position
     /// </summary>
     Task<BitgetExecutionResult> PlaceMarketOrderAsync(
+        string symbol,
+        TradeDirection direction,
+        decimal quantity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Closes an existing position at market price.
+    /// Uses correct hedge-mode semantics (side=position direction + tradeSide=Close).
+    /// </summary>
+    Task<BitgetExecutionResult> ClosePositionAsync(
         string symbol,
         TradeDirection direction,
         decimal quantity,
