@@ -587,6 +587,66 @@ public class PriceDeviationTests
         _mockRiskManager.Verify(x => x.CalculatePositionSize(signal.Entry, signal.AdjustedStopLoss, It.IsAny<decimal?>()), Times.Once);
     }
 
+
+    [Fact]
+    public async Task ExecuteSignal_PositionSizeBelowMinimum_ShouldCancelSignalWithoutThrowing()
+    {
+        // Arrange
+        var entrySettings = new EntrySettings
+        {
+            MaxPriceDeviationPercent = 1.0m,
+            DeviationAction = PriceDeviationAction.Skip
+        };
+
+        var tradingSettings = new TradingSettings
+        {
+            TargetClosePercents = new List<decimal> { 100m },
+            MoveStopToBreakeven = false
+        };
+
+        var positionSizing = new PositionSizingSettings
+        {
+            DefaultMode = "FixedAmount",
+            DefaultFixedAmount = 5m,
+            Limits = new PositionSizingLimits
+            {
+                MinPositionUsdt = 6m,
+                MaxPositionUsdt = 10m,
+                MaxPositionPercent = 100m
+            }
+        };
+
+        var signal = CreateTestSignal(entry: 0.0066m, targets: new[] { 0.0072m });
+
+        _mockClient.Setup(x => x.GetMarkPriceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(0.0066m);
+        _mockClient.Setup(x => x.SetLeverageAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockClient.Setup(x => x.SetMarginTypeAsync(It.IsAny<string>(), It.IsAny<MarginType>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var trader = new SignalTrader(
+            _mockClient.Object,
+            _mockOrderExecutor.Object,
+            _mockPositionManager.Object,
+            _mockRiskManager.Object,
+            tradingSettings,
+            entrySettings,
+            positionSizing,
+            _retryPolicy,
+            _logger);
+
+        // Act
+        var result = await trader.ExecuteSignalAsync(signal, 206.45m);
+
+        // Assert
+        Assert.Equal(PositionStatus.Cancelled, result.Status);
+        _mockClient.Verify(x => x.SetLeverageAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockClient.Verify(x => x.SetMarginTypeAsync(It.IsAny<string>(), It.IsAny<MarginType>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockOrderExecutor.Verify(x => x.PlaceMarketOrderAsync(
+            It.IsAny<string>(),
+            It.IsAny<TradingBot.Core.Models.TradeDirection>(),
+            It.IsAny<decimal>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private TradingSignal CreateTestSignal(decimal entry, decimal[] targets)
     {
         return new TradingSignal

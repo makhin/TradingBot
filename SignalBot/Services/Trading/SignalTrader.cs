@@ -84,22 +84,7 @@ public class SignalTrader : ISignalTrader
 
         try
         {
-            // 2. Set leverage and margin type
-            var leverageSet = await _client.SetLeverageAsync(signal.Symbol, signal.AdjustedLeverage, ct);
-            if (!leverageSet)
-            {
-                _logger.Warning("Failed to set leverage for {Symbol}, continuing anyway", signal.Symbol);
-            }
-
-            // Parse margin type from settings instead of hardcoding
-            var marginType = Enum.Parse<MarginType>(_settings.MarginType, ignoreCase: true);
-            var marginTypeSet = await _client.SetMarginTypeAsync(signal.Symbol, marginType, ct);
-            if (!marginTypeSet)
-            {
-                _logger.Warning("Failed to set margin type for {Symbol}, may already be set", signal.Symbol);
-            }
-
-            // 3. Check price deviation
+            // 2. Check price deviation
             var currentPrice = await _client.GetMarkPriceAsync(signal.Symbol, ct);
             var deviationPercent = Math.Abs(currentPrice - signal.Entry) / signal.Entry * 100;
 
@@ -149,9 +134,29 @@ public class SignalTrader : ISignalTrader
 
             if (adjustedQuantity <= 0)
             {
-                throw new InvalidOperationException(
-                    $"Calculated quantity is zero after limits for {signal.Symbol}. " +
-                    "Check PositionSizing limits and account balance.");
+                _logger.Warning(
+                    "Signal execution skipped for {Symbol}: calculated quantity is zero after position sizing limits. " +
+                    "Check PositionSizing settings (DefaultFixedAmount, MinPositionUsdt, MaxPositionUsdt, MaxPositionPercent) and account balance.",
+                    signal.Symbol);
+
+                position = position with { Status = PositionStatus.Cancelled };
+                await _positionManager.SavePositionAsync(position, ct);
+                return position;
+            }
+
+            // 5. Set leverage and margin type only for actionable signals
+            var leverageSet = await _client.SetLeverageAsync(signal.Symbol, signal.AdjustedLeverage, ct);
+            if (!leverageSet)
+            {
+                _logger.Warning("Failed to set leverage for {Symbol}, continuing anyway", signal.Symbol);
+            }
+
+            // Parse margin type from settings instead of hardcoding
+            var marginType = Enum.Parse<MarginType>(_settings.MarginType, ignoreCase: true);
+            var marginTypeSet = await _client.SetMarginTypeAsync(signal.Symbol, marginType, ct);
+            if (!marginTypeSet)
+            {
+                _logger.Warning("Failed to set margin type for {Symbol}, may already be set", signal.Symbol);
             }
 
             position = position with
@@ -163,7 +168,7 @@ public class SignalTrader : ISignalTrader
             };
             await _positionManager.SavePositionAsync(position, ct);
 
-            // 4. Open position (Market order)
+            // 6. Open position (Market order)
             var tradeDirection = signal.Direction == SignalDirection.Long
                 ? TradeDirection.Long
                 : TradeDirection.Short;
@@ -205,7 +210,7 @@ public class SignalTrader : ISignalTrader
                 Status = PositionStatus.Open
             };
 
-            // 5. Place Stop Loss order
+            // 7. Place Stop Loss order
             var slResult = await PlaceStopLossOrderWithRetry(
                 signal.Symbol,
                 signal.Direction,
@@ -261,7 +266,7 @@ public class SignalTrader : ISignalTrader
                     $"Stop loss placement failed; position closed at market: {slResult.ErrorMessage}");
             }
 
-            // 6. Place Take Profit orders for each target
+            // 8. Place Take Profit orders for each target
             var tpOrderIds = new List<long>();
             foreach (var target in position.Targets)
             {
