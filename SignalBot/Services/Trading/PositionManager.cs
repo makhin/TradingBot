@@ -216,6 +216,89 @@ public class PositionManager : IPositionManager
             position.Symbol, position.ActualEntryPrice, fillPrice, updatedPosition.RealizedPnl);
     }
 
+    public async Task HandlePositionClosedExternallyAsync(
+        SignalPosition position,
+        decimal exitPrice,
+        PositionCloseReason closeReason,
+        CancellationToken ct = default)
+    {
+        _logger.Information("Handling externally closed position for {Symbol} @ {Price}, reason: {Reason}",
+            position.Symbol, exitPrice, closeReason);
+
+        // Cancel any remaining TP orders (they may already be gone on the exchange)
+        foreach (var orderId in position.TakeProfitOrderIds)
+        {
+            try
+            {
+                await _orderExecutor.CancelOrderAsync(position.Symbol, orderId, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Failed to cancel TP order {OrderId} for {Symbol} (may already be closed)",
+                    orderId, position.Symbol);
+            }
+        }
+
+        // Cancel SL order if exists
+        if (position.StopLossOrderId.HasValue)
+        {
+            try
+            {
+                await _orderExecutor.CancelOrderAsync(position.Symbol, position.StopLossOrderId.Value, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Failed to cancel SL order {OrderId} for {Symbol} (may already be closed)",
+                    position.StopLossOrderId.Value, position.Symbol);
+            }
+        }
+
+        // Calculate PnL
+        decimal pnl = PnlCalculator.Calculate(
+            position.ActualEntryPrice,
+            exitPrice,
+            position.RemainingQuantity,
+            position.Direction);
+
+        // Update position
+        var updatedPosition = position with
+        {
+            RemainingQuantity = 0,
+            RealizedPnl = position.RealizedPnl + pnl,
+            Status = PositionStatus.Closed,
+            ClosedAt = DateTime.UtcNow,
+            CloseReason = closeReason
+        };
+
+        await _store.SavePositionAsync(updatedPosition, ct);
+        await _tradeStatistics.RecordClosedPositionAsync(updatedPosition, ct);
+
+        // Notify
+        if (_notifier != null)
+        {
+            var reasonEmoji = closeReason switch
+            {
+                PositionCloseReason.StopLossHit => "\ud83d\uded1",
+                PositionCloseReason.AllTargetsHit => "\ud83c\udfaf",
+                PositionCloseReason.Liquidation => "\ud83d\udca5",
+                _ => "\u2139\ufe0f"
+            };
+
+            await _notifier.SendMessageAsync(
+                $"{reasonEmoji} Position closed (exchange)\n" +
+                $"Symbol: {position.Symbol}\n" +
+                $"Reason: {closeReason}\n" +
+                $"Entry: {position.ActualEntryPrice}\n" +
+                $"Exit: {exitPrice}\n" +
+                $"Total PnL: {updatedPosition.RealizedPnl:+0.00;-0.00} {_quoteCurrency}",
+                ct);
+        }
+
+        _logger.Information(
+            "Externally closed position for {Symbol}: Entry {Entry}, Exit {Exit}, PnL: {Pnl}, Reason: {Reason}",
+            position.Symbol, position.ActualEntryPrice, exitPrice, updatedPosition.RealizedPnl, closeReason);
+    }
+
     private async Task MoveStopLossAsync(
         SignalPosition position,
         decimal newStopLoss,

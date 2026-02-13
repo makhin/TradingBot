@@ -127,6 +127,7 @@ public class SignalBotRunner
             _telegramListener.OnSignalReceived += HandleSignalReceived;
             _orderMonitor.OnTargetHit += HandleTargetHit;
             _orderMonitor.OnStopLossHit += HandleStopLossHit;
+            _orderMonitor.OnPositionClosedExternally += HandlePositionClosedExternally;
 
             // Start order monitor
             await _orderMonitor.StartAsync(_cts.Token);
@@ -207,6 +208,7 @@ public class SignalBotRunner
             _telegramListener.OnSignalReceived -= HandleSignalReceived;
             _orderMonitor.OnTargetHit -= HandleTargetHit;
             _orderMonitor.OnStopLossHit -= HandleStopLossHit;
+            _orderMonitor.OnPositionClosedExternally -= HandlePositionClosedExternally;
 
             // Stop command handler
             if (_commandHandler != null)
@@ -594,6 +596,43 @@ public class SignalBotRunner
         catch (Exception ex)
         {
             _logger.Error(ex, "Error handling stop loss hit for position {PositionId}", positionId);
+        }
+    }
+
+    private async void HandlePositionClosedExternally(Guid positionId, decimal exitPrice, PositionCloseReason closeReason)
+    {
+        try
+        {
+            _logger.Information("Position {PositionId} closed externally @ {Price}, reason: {Reason}",
+                positionId, exitPrice, closeReason);
+
+            var position = await _store.GetPositionAsync(positionId, _cts!.Token);
+            if (position == null)
+            {
+                _logger.Warning("Position {PositionId} not found", positionId);
+                return;
+            }
+
+            if (position.Status == PositionStatus.Closed)
+            {
+                _logger.Debug("Position {PositionId} already closed, skipping", positionId);
+                return;
+            }
+
+            await _positionManager.HandlePositionClosedExternallyAsync(position, exitPrice, closeReason, _cts.Token);
+
+            // Get updated position to pass to cooldown manager
+            var updatedPosition = await _store.GetPositionAsync(positionId, _cts.Token);
+            if (updatedPosition is { Status: PositionStatus.Closed })
+            {
+                _cooldownManager.OnPositionClosed(updatedPosition);
+            }
+
+            _logger.Information("External closure processed for {Symbol}", position.Symbol);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error handling external position closure for {PositionId}", positionId);
         }
     }
 

@@ -28,6 +28,12 @@ public interface IOrderMonitor
     event Action<Guid, decimal>? OnStopLossHit; // positionId, fillPrice
 
     /// <summary>
+    /// Event raised when a position is closed externally (exchange TP/SL, liquidation)
+    /// and was not detected via order matching
+    /// </summary>
+    event Action<Guid, decimal, PositionCloseReason>? OnPositionClosedExternally; // positionId, estimatedExitPrice, reason
+
+    /// <summary>
     /// Whether the monitor is currently active
     /// </summary>
     bool IsMonitoring { get; }

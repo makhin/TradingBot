@@ -23,5 +23,11 @@ public interface IPositionManager
         decimal fillPrice,
         CancellationToken ct = default);
 
+    Task HandlePositionClosedExternallyAsync(
+        SignalPosition position,
+        decimal exitPrice,
+        PositionCloseReason closeReason,
+        CancellationToken ct = default);
+
     Task UpdatePositionAsync(SignalPosition position, CancellationToken ct = default);
 }
