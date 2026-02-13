@@ -6,7 +6,7 @@ namespace SignalBot.Configuration;
 public class RiskOverrideSettings
 {
     public bool Enabled { get; set; } = true;
-    public int MaxLeverage { get; set; } = 10;
+    public int MaxLeverage { get; set; } = 32;
     public bool UseSignalLeverage { get; set; } = false;
 
     public string StopLossMode { get; set; } = "Calculate"; // FromSignal, Calculate
