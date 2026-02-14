@@ -85,7 +85,7 @@ public class BitgetFuturesOrderExecutorAdapter : Core.Exchanges.IFuturesOrderExe
         {
             Success = bitgetResult.IsAcceptable,
             OrderId = bitgetResult.OrderId,
-            FilledQuantity = 0,
+            FilledQuantity = bitgetResult.FilledQuantity,
             AveragePrice = bitgetResult.ActualPrice,
             ErrorMessage = bitgetResult.IsAcceptable ? null : bitgetResult.RejectReason
         };
