@@ -26,7 +26,7 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
     private readonly ConcurrentDictionary<long, byte> _processedFilledOrders = new();
     private readonly ConcurrentDictionary<Guid, byte> _processedPositionClosures = new();
 
-    private static readonly TimeSpan ReconciliationInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ReconciliationInterval = TimeSpan.FromMinutes(10);
     private const decimal PriceProximityThreshold = 0.005m; // 0.5%
 
     public event Action<Guid, int, decimal>? OnTargetHit;
