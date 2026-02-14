@@ -185,8 +185,9 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         var orderId = long.Parse(result.Data.OrderId);
         _logger.Information("Bitget Futures market order placed: {OrderId}", orderId);
 
-        // Get execution price
+        // Get execution price and filled quantity
         decimal avgPrice = 0;
+        decimal filledQty = 0;
         for (int attempt = 1; attempt <= 3 && avgPrice == 0; attempt++)
         {
             await Task.Delay(attempt * 100, ct);
@@ -200,10 +201,11 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             if (orderResult.Success && orderResult.Data != null)
             {
                 avgPrice = orderResult.Data.AveragePrice ?? 0;
+                filledQty = orderResult.Data.QuantityFilled;
                 if (avgPrice > 0)
                 {
-                    _logger.Information("Retrieved actual execution price: {AvgPrice} for order {OrderId} (attempt {Attempt})",
-                        avgPrice, orderId, attempt);
+                    _logger.Information("Retrieved actual execution price: {AvgPrice} for order {OrderId} (attempt {Attempt}), Filled: {FilledQty}",
+                        avgPrice, orderId, attempt, filledQty);
                     break;
                 }
             }
@@ -218,10 +220,19 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 orderId, avgPrice);
         }
 
+        // Fallback for filled quantity if not retrieved from order details
+        if (filledQty == 0)
+        {
+            filledQty = quantity; // Use normalized quantity as fallback
+            _logger.Warning("Could not retrieve filled quantity for order {OrderId}, using requested quantity: {Quantity}",
+                orderId, filledQty);
+        }
+
         return new BitgetExecutionResult
         {
             IsAcceptable = true,
             OrderId = orderId,
+            FilledQuantity = filledQty,
             ExpectedPrice = avgPrice,
             ActualPrice = avgPrice,
             SlippagePercent = 0,
@@ -295,8 +306,9 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         var orderId = long.Parse(result.Data.OrderId);
         _logger.Information("Bitget Futures close position order placed: {OrderId}", orderId);
 
-        // Get execution price
+        // Get execution price and filled quantity
         decimal avgPrice = 0;
+        decimal filledQty = 0;
         for (int attempt = 1; attempt <= 3 && avgPrice == 0; attempt++)
         {
             await Task.Delay(attempt * 100, ct);
@@ -310,10 +322,11 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             if (orderResult.Success && orderResult.Data != null)
             {
                 avgPrice = orderResult.Data.AveragePrice ?? 0;
+                filledQty = orderResult.Data.QuantityFilled;
                 if (avgPrice > 0)
                 {
-                    _logger.Information("Close position execution price: {AvgPrice} for order {OrderId} (attempt {Attempt})",
-                        avgPrice, orderId, attempt);
+                    _logger.Information("Close position execution price: {AvgPrice} for order {OrderId} (attempt {Attempt}), Filled: {FilledQty}",
+                        avgPrice, orderId, attempt, filledQty);
                     break;
                 }
             }
@@ -327,10 +340,19 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
                 orderId, avgPrice);
         }
 
+        // Fallback for filled quantity if not retrieved from order details
+        if (filledQty == 0)
+        {
+            filledQty = quantity; // Use normalized quantity as fallback
+            _logger.Warning("Could not retrieve filled quantity for close order {OrderId}, using requested quantity: {Quantity}",
+                orderId, filledQty);
+        }
+
         return new BitgetExecutionResult
         {
             IsAcceptable = true,
             OrderId = orderId,
+            FilledQuantity = filledQty,
             ExpectedPrice = avgPrice,
             ActualPrice = avgPrice,
             SlippagePercent = 0,
@@ -403,6 +425,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         {
             IsAcceptable = true,
             OrderId = orderId,
+            FilledQuantity = 0, // Stop loss orders are not filled immediately
             ExpectedPrice = stopPrice,
             ActualPrice = stopPrice,
             SlippagePercent = 0,
@@ -451,6 +474,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             {
                 IsAcceptable = true,
                 OrderId = triggerOrderId,
+                FilledQuantity = 0, // Take profit orders are not filled immediately
                 ExpectedPrice = takeProfitPrice,
                 ActualPrice = takeProfitPrice,
                 SlippagePercent = 0,
@@ -489,6 +513,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
             {
                 IsAcceptable = true,
                 OrderId = triggerOrderId,
+                FilledQuantity = 0, // Take profit orders are not filled immediately
                 ExpectedPrice = takeProfitPrice,
                 ActualPrice = takeProfitPrice,
                 SlippagePercent = 0,
@@ -557,6 +582,7 @@ public class BitgetFuturesOrderExecutor : IBitgetFuturesOrderExecutor
         {
             IsAcceptable = true,
             OrderId = orderId,
+            FilledQuantity = 0, // Take profit orders are not filled immediately
             ExpectedPrice = takeProfitPrice,
             ActualPrice = takeProfitPrice,
             SlippagePercent = 0,

@@ -406,7 +406,9 @@ public class SignalTrader : ISignalTrader
         var firstAttempt = await PlaceMarketOrderWithRetry(symbol, direction, requestedQuantity, ct);
         if (firstAttempt.Success)
         {
-            return (firstAttempt, requestedQuantity);
+            // Use the actual filled quantity from the exchange if available
+            var actualQuantity = firstAttempt.FilledQuantity > 0 ? firstAttempt.FilledQuantity : requestedQuantity;
+            return (firstAttempt, actualQuantity);
         }
 
         if (!TryExtractMaxQuantity(firstAttempt.ErrorMessage, out var maxQuantity) || maxQuantity <= 0 || maxQuantity >= requestedQuantity)
@@ -421,7 +423,14 @@ public class SignalTrader : ISignalTrader
             maxQuantity);
 
         var secondAttempt = await PlaceMarketOrderWithRetry(symbol, direction, maxQuantity, ct);
-        return (secondAttempt, secondAttempt.Success ? maxQuantity : requestedQuantity);
+        if (secondAttempt.Success)
+        {
+            // Use the actual filled quantity from the exchange if available
+            var actualQuantity = secondAttempt.FilledQuantity > 0 ? secondAttempt.FilledQuantity : maxQuantity;
+            return (secondAttempt, actualQuantity);
+        }
+
+        return (secondAttempt, maxQuantity);
     }
 
     private static bool TryExtractMaxQuantity(string? errorMessage, out decimal maxQuantity)
