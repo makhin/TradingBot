@@ -12,15 +12,22 @@ namespace SignalBot.Services.Monitoring;
 /// Monitors order execution via exchange User Data Stream.
 /// Also subscribes to position updates as a fallback to detect closures
 /// not captured by order ID matching (e.g. exchange-managed TP/SL, liquidation).
+/// Additionally performs periodic REST API position reconciliation as a safety net.
 /// </summary>
 public class OrderMonitor : ServiceBase, IOrderMonitor
 {
     private readonly IExchangeOrderUpdateListener _updateListener;
+    private readonly IFuturesExchangeClient _exchangeClient;
     private readonly IPositionStore<SignalPosition> _store;
     private IDisposable? _orderSubscription;
     private IDisposable? _positionSubscription;
+    private CancellationTokenSource? _reconciliationCts;
+    private Task? _reconciliationTask;
     private readonly ConcurrentDictionary<long, byte> _processedFilledOrders = new();
     private readonly ConcurrentDictionary<Guid, byte> _processedPositionClosures = new();
+
+    private static readonly TimeSpan ReconciliationInterval = TimeSpan.FromMinutes(10);
+    private const decimal PriceProximityThreshold = 0.005m; // 0.5%
 
     public event Action<Guid, int, decimal>? OnTargetHit;
     public event Action<Guid, decimal>? OnStopLossHit;
@@ -30,11 +37,13 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
 
     public OrderMonitor(
         IExchangeOrderUpdateListener updateListener,
+        IFuturesExchangeClient exchangeClient,
         IPositionStore<SignalPosition> store,
         ILogger? logger = null)
         : base(logger)
     {
         _updateListener = updateListener;
+        _exchangeClient = exchangeClient;
         _store = store;
     }
 
@@ -64,10 +73,30 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
         {
             _logger.Warning(ex, "Failed to subscribe to position updates; relying on order matching only");
         }
+
+        // Start periodic position reconciliation as additional safety net
+        _reconciliationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _reconciliationTask = RunReconciliationLoopAsync(_reconciliationCts.Token);
+        _logger.Information("Position reconciliation polling started (interval: {Interval}s)",
+            ReconciliationInterval.TotalSeconds);
     }
 
     protected override async Task OnStopAsync(CancellationToken ct)
     {
+        // Stop reconciliation loop
+        if (_reconciliationCts != null)
+        {
+            _reconciliationCts.Cancel();
+            if (_reconciliationTask != null)
+            {
+                try { await _reconciliationTask; }
+                catch (OperationCanceledException) { }
+            }
+            _reconciliationCts.Dispose();
+            _reconciliationCts = null;
+            _reconciliationTask = null;
+        }
+
         if (_orderSubscription != null)
         {
             _orderSubscription.Dispose();
@@ -160,6 +189,17 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
                 }
             }
 
+            // Order ID doesn't match any stored SL/TP order.
+            // This happens when Bitget triggers a SL/TP plan order — the resulting
+            // market order has a NEW order ID different from the trigger order ID.
+            // Detect these by checking if the order is closing the position.
+            if (IsClosingOrderForPosition(position, update))
+            {
+                var fillPrice = update.AveragePrice > 0 ? update.AveragePrice : update.Price;
+                HandleUnmatchedClosingOrder(position, update, fillPrice);
+                return;
+            }
+
             _logger.Debug("Order {OrderId} not associated with SL or TP for position {PositionId}",
                 update.OrderId, position.Id);
         }
@@ -168,6 +208,97 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
             _logger.Error(ex, "Error handling order update for {Symbol} {OrderId}",
                 update.Symbol, update.OrderId);
         }
+    }
+
+    /// <summary>
+    /// Checks if a filled order is closing the position (opposite direction).
+    /// </summary>
+    private static bool IsClosingOrderForPosition(SignalPosition position, OrderUpdate update)
+    {
+        // A closing order has the opposite direction to the position
+        var positionIsLong = position.Direction == SignalDirection.Long;
+        var orderIsLong = update.Direction == TradeDirection.Long;
+        return positionIsLong != orderIsLong;
+    }
+
+    /// <summary>
+    /// Handles a filled order that is closing the position but doesn't match any stored
+    /// SL/TP order IDs. Determines whether it was a triggered SL, TP, or other closure.
+    /// </summary>
+    private void HandleUnmatchedClosingOrder(SignalPosition position, OrderUpdate update, decimal fillPrice)
+    {
+        _logger.Information(
+            "Detected unmatched closing order for {Symbol}: OrderId={OrderId}, Price={Price}, Qty={Qty}. " +
+            "Likely a triggered SL/TP plan order.",
+            position.Symbol, update.OrderId, fillPrice, update.QuantityFilled);
+
+        // Check if fill price is near stop loss
+        if (position.CurrentStopLoss > 0 && IsNearPrice(fillPrice, position.CurrentStopLoss))
+        {
+            _logger.Information("Triggered stop loss detected for {Symbol} @ {Price} (order {OrderId})",
+                position.Symbol, fillPrice, update.OrderId);
+            MarkPositionClosed(position.Id);
+            OnStopLossHit?.Invoke(position.Id, fillPrice);
+            return;
+        }
+
+        // Check if fill price is near any unhit target
+        var targetIndex = FindNearestUnhitTarget(position, fillPrice);
+        if (targetIndex >= 0)
+        {
+            _logger.Information("Triggered target {Index} detected for {Symbol} @ {Price} (order {OrderId})",
+                targetIndex + 1, position.Symbol, fillPrice, update.OrderId);
+            var unhitTargets = position.Targets.Count(t => !t.IsHit);
+            if (unhitTargets <= 1)
+            {
+                MarkPositionClosed(position.Id);
+            }
+            OnTargetHit?.Invoke(position.Id, targetIndex, fillPrice);
+            return;
+        }
+
+        // Could not match to SL or TP — treat as external closure
+        _logger.Warning(
+            "Unmatched closing order for {Symbol} @ {Price} does not match SL ({StopLoss}) or any target. " +
+            "Treating as external closure.",
+            position.Symbol, fillPrice, position.CurrentStopLoss);
+        MarkPositionClosed(position.Id);
+        var closeReason = DetermineCloseReason(position, fillPrice);
+        OnPositionClosedExternally?.Invoke(position.Id, fillPrice, closeReason);
+    }
+
+    /// <summary>
+    /// Finds the closest unhit target to the fill price (within proximity threshold).
+    /// Returns the target index, or -1 if no match.
+    /// </summary>
+    private static int FindNearestUnhitTarget(SignalPosition position, decimal fillPrice)
+    {
+        int bestIndex = -1;
+        decimal bestDistance = decimal.MaxValue;
+
+        for (int i = 0; i < position.Targets.Count; i++)
+        {
+            var target = position.Targets[i];
+            if (target.IsHit) continue;
+
+            var distance = Math.Abs(fillPrice - target.Price) / target.Price;
+            if (distance < PriceProximityThreshold && distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    /// <summary>
+    /// Checks if two prices are within the proximity threshold.
+    /// </summary>
+    private static bool IsNearPrice(decimal price1, decimal price2)
+    {
+        if (price2 == 0) return false;
+        return Math.Abs(price1 - price2) / price2 < PriceProximityThreshold;
     }
 
     private async void HandlePositionUpdate(PositionUpdate update)
@@ -224,6 +355,111 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
         }
     }
 
+    /// <summary>
+    /// Periodically queries exchange REST API to detect positions that were closed
+    /// without any WebSocket notification being received.
+    /// </summary>
+    private async Task RunReconciliationLoopAsync(CancellationToken ct)
+    {
+        // Initial delay to let WebSocket connections stabilize
+        await Task.Delay(TimeSpan.FromSeconds(10), ct);
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await ReconcilePositionsAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Position reconciliation check failed, will retry next cycle");
+            }
+
+            await Task.Delay(ReconciliationInterval, ct);
+        }
+    }
+
+    private async Task ReconcilePositionsAsync(CancellationToken ct)
+    {
+        var trackedPositions = await _store.GetOpenPositionsAsync(ct);
+        if (trackedPositions.Count == 0)
+        {
+            return;
+        }
+
+        List<FuturesPosition> exchangePositions;
+        try
+        {
+            exchangePositions = await _exchangeClient.GetAllPositionsAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.Debug(ex, "Failed to query exchange positions for reconciliation");
+            return;
+        }
+
+        var exchangeSymbols = new HashSet<string>(
+            exchangePositions
+                .Where(p => p.Quantity > 0)
+                .Select(p => p.Symbol),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var tracked in trackedPositions)
+        {
+            if (exchangeSymbols.Contains(tracked.Symbol))
+            {
+                continue; // Position still open on exchange
+            }
+
+            // Position is tracked locally but gone from exchange — it was closed
+            if (!_processedPositionClosures.TryAdd(tracked.Id, 0))
+            {
+                continue; // Already being processed
+            }
+
+            _logger.Warning(
+                "Position reconciliation: {Symbol} (id={PositionId}) is tracked locally but NOT found on exchange. " +
+                "Detected as externally closed.",
+                tracked.Symbol, tracked.Id);
+
+            // We don't have the exact exit price from reconciliation,
+            // so estimate it from mark price or SL/target levels
+            var exitPrice = await EstimateExitPriceAsync(tracked, ct);
+            var closeReason = DetermineCloseReason(tracked, exitPrice);
+
+            _logger.Information(
+                "Reconciliation closure for {Symbol}: estimated exit {ExitPrice}, reason {Reason}",
+                tracked.Symbol, exitPrice, closeReason);
+
+            OnPositionClosedExternally?.Invoke(tracked.Id, exitPrice, closeReason);
+        }
+    }
+
+    private async Task<decimal> EstimateExitPriceAsync(SignalPosition position, CancellationToken ct)
+    {
+        // Try to get current mark price as best estimate
+        try
+        {
+            var markPrice = await _exchangeClient.GetMarkPriceAsync(position.Symbol, ct);
+            if (markPrice > 0)
+            {
+                return markPrice;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Debug(ex, "Failed to get mark price for {Symbol} during reconciliation", position.Symbol);
+        }
+
+        // Fallback: use SL or entry price
+        if (position.CurrentStopLoss > 0) return position.CurrentStopLoss;
+        return position.ActualEntryPrice;
+    }
+
     private static decimal DetermineExitPrice(SignalPosition position, PositionUpdate update)
     {
         // Use entry price from the update if available (mark price at close time)
@@ -247,20 +483,15 @@ public class OrderMonitor : ServiceBase, IOrderMonitor
         var isLong = position.Direction == SignalDirection.Long;
 
         // Check if exit price is near stop loss
-        if (position.CurrentStopLoss > 0)
+        if (position.CurrentStopLoss > 0 && IsNearPrice(exitPrice, position.CurrentStopLoss))
         {
-            var slDistance = Math.Abs(exitPrice - position.CurrentStopLoss) / position.CurrentStopLoss;
-            if (slDistance < 0.005m) // within 0.5%
-            {
-                return PositionCloseReason.StopLossHit;
-            }
+            return PositionCloseReason.StopLossHit;
         }
 
         // Check if exit price is near any target
         foreach (var target in position.Targets.Where(t => !t.IsHit))
         {
-            var tpDistance = Math.Abs(exitPrice - target.Price) / target.Price;
-            if (tpDistance < 0.005m) // within 0.5%
+            if (IsNearPrice(exitPrice, target.Price))
             {
                 return PositionCloseReason.AllTargetsHit;
             }
